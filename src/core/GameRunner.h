@@ -61,7 +61,9 @@ public:
     QString loaderVersionsLoader() const { return m_loaderVersionsLoader; }
 
     // `game` is a library entry; `settings` comes from AppModel::launchSettings().
-    Q_INVOKABLE bool launch(const QVariantMap &game, const QString &playerName, const QVariantMap &settings);
+    // `account` (Microsoft): uuid, accessToken, xuid, clientId. Empty means offline.
+    Q_INVOKABLE bool launch(const QVariantMap &game, const QString &playerName, const QVariantMap &settings,
+                            const QVariantMap &account = {});
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void dismiss();
     Q_INVOKABLE void stopGame();
@@ -154,6 +156,7 @@ private:
     QPointer<QProcess> m_processor;
     QString m_playerName;
     QVariantMap m_settings;
+    QVariantMap m_account;
     QJsonObject m_version;
     QString m_javaComponent;
     QList<Library> m_libraries;

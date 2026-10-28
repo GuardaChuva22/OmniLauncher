@@ -42,6 +42,8 @@ public:
     Q_INVOKABLE bool removeGame(const QString &id);
     Q_INVOKABLE QString importCover(const QUrl &source);
     Q_INVOKABLE bool addOfflineProfile(const QString &username);
+    // Adds (or renames) the profile of a signed-in Microsoft account and selects it.
+    Q_INVOKABLE bool addMicrosoftProfile(const QString &uuid, const QString &name);
     Q_INVOKABLE bool selectProfile(const QString &id);
     Q_INVOKABLE bool removeProfile(const QString &id);
     Q_INVOKABLE void setReducedMotion(bool enabled);

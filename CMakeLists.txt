@@ -21,8 +21,22 @@ qt_add_executable(OmniLauncher WIN32
     src/core/GameRunner.cpp
     src/core/ModManager.h
     src/core/ModManager.cpp
+    src/core/AuthManager.h
+    src/core/AuthManager.cpp
 )
 target_include_directories(OmniLauncher PRIVATE src/app src/core)
+
+# Azure app (client) ID for Microsoft sign-in. Public by design; the OMNI_MSA_CLIENT_ID
+# environment variable overrides it at runtime.
+set(OMNI_MSA_CLIENT_ID "" CACHE STRING "Microsoft (Azure) application client ID for sign-in (empty: OmniLauncher's own)")
+set(omni_msa_client_id "${OMNI_MSA_CLIENT_ID}")
+if(omni_msa_client_id STREQUAL "")
+    set(omni_msa_client_id "ea4003d9-afca-4cd3-9940-4c8ed78b4eb8")
+endif()
+target_compile_definitions(OmniLauncher PRIVATE OMNI_MSA_CLIENT_ID="${omni_msa_client_id}")
+if(WIN32)
+    target_link_libraries(OmniLauncher PRIVATE advapi32)
+endif()
 
 # The prototype's QML/assets are authored alongside the native shell. CONFIGURE_DEPENDS
 # keeps newly added components visible while the first Home composition is evolving.

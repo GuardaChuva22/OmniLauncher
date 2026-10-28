@@ -3,15 +3,24 @@ import QtQuick
 Rectangle {
     id: root
     property bool empty: false
+    // Skin texture (file URL); the face and hat layers are cut from it, pixels kept sharp.
+    property string skin: ""
     width: 36; height: 36
     radius: width / 2
     color: empty ? "#1AFFFFFF" : "#3D443D"
     UiIcon { anchors.centerIn: parent; visible: root.empty; name: "user"; color: Theme.muted; width: Math.round(root.width * 0.46); height: width }
     // Pixel-built local Steve placeholder; no network or personal data needed.
     Item {
+        visible: !root.empty && root.skin !== ""
+        width: Math.round(root.width * 0.62); height: width
+        anchors.centerIn: parent
+        Image { anchors.fill: parent; source: root.skin; sourceClipRect: Qt.rect(8, 8, 8, 8); smooth: false }
+        Image { anchors.fill: parent; source: root.skin; sourceClipRect: Qt.rect(40, 8, 8, 8); smooth: false }
+    }
+    Item {
         id: face
         readonly property real cell: Math.round(root.width * 0.62) / 8
-        visible: !root.empty
+        visible: !root.empty && root.skin === ""
         width: cell * 8; height: width
         anchors.centerIn: parent
         Repeater {

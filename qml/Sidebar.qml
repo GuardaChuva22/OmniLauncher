@@ -83,7 +83,7 @@ Item {
             leftPadding: root.compact ? 0 : 8; rightPadding: root.compact ? 0 : 10
             Accessible.name: root.hasProfile ? "Perfis, " + launcher.activeProfile.name : "Perfis, escolher Perfil"
             ToolTip.visible: root.compact && hovered
-            ToolTip.text: root.hasProfile ? launcher.activeProfile.name + " · Offline" : "Escolher Perfil"
+            ToolTip.text: root.hasProfile ? launcher.activeProfile.name + (launcher.activeProfile.type === "microsoft" ? " · Microsoft" : " · Offline") : "Escolher Perfil"
             ToolTip.delay: 300
             onClicked: root.profileClicked()
             background: Rectangle {
@@ -104,6 +104,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 34; height: 34
                     empty: !root.hasProfile
+                    skin: launcher.activeProfile.type === "microsoft" ? (auth.skinRevision, auth.skinSource(launcher.activeProfile.uuid)) : ""
                     Rectangle {
                         visible: root.hasProfile
                         width: 10; height: 10; radius: 5
@@ -128,7 +129,8 @@ Item {
                     }
                     Text {
                         width: parent.width
-                        text: root.hasProfile ? "Perfil offline" : "Nenhum perfil ativo"
+                        text: !root.hasProfile ? "Nenhum perfil ativo"
+                            : launcher.activeProfile.type === "microsoft" ? "Conta Microsoft" : "Perfil offline"
                         color: Theme.muted
                         font.family: Theme.font; font.pixelSize: 11
                         elide: Text.ElideRight

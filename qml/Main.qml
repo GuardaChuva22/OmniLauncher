@@ -23,6 +23,8 @@ ApplicationWindow {
     property string drawerGameId: ""
     property bool drawerOpen: false
     property string launchedTitle: ""
+    // A Microsoft profile needs a fresh session first; the game waits here meanwhile.
+    property string pendingLaunchGameId: ""
     property string launchedCover: "meadow"
     // The launch screen covers the app while files are prepared, and stays on a
     // failure until it is dismissed. A running game does not block the launcher.
@@ -99,12 +101,46 @@ ApplicationWindow {
         launchedCover = game.coverId
         previewGameId = ""
         drawerOpen = false
+        if (launcher.activeProfile.type === "microsoft") {
+            pendingLaunchGameId = game.id
+            auth.requestSession(launcher.activeProfile.uuid)
+            return
+        }
         runner.launch(game, launcher.activeProfile.name, launcher.launchSettings(game.id))
+    }
+    Connections {
+        target: auth
+        function onSignedIn(profile) {
+            window.bringToFront()
+            if (launcher.addMicrosoftProfile(profile.uuid, profile.name)) window.notify("Conta conectada: " + profile.name)
+            else window.notify(launcher.lastError)
+            profileMenu.open()
+        }
+        function onSignInFailed(message) {
+            window.bringToFront()
+            profileMenu.open()
+        }
+        function onSessionReady(uuid, account) {
+            const game = window.gameById(window.pendingLaunchGameId)
+            window.pendingLaunchGameId = ""
+            if (game && launcher.activeProfile.uuid === uuid)
+                runner.launch(game, account.name, launcher.launchSettings(game.id), account)
+        }
+        function onSessionFailed(uuid, message) {
+            window.pendingLaunchGameId = ""
+            window.notify(message)
+            profileMenu.open()
+        }
     }
     function leaveLaunch() {
         if (runner.busy) runner.cancel()
         else runner.dismiss()
         home.forceActiveFocus()
+    }
+    function bringToFront() {
+        if (window.visibility === Window.Minimized) window.showNormal()
+        window.raise()
+        window.requestActivate()
     }
     function versionsFor(version) {
         const list = runner.versions.length ? runner.versions.slice() : Theme.versions.slice()
@@ -600,11 +636,17 @@ ApplicationWindow {
                         }
                         contentItem: RowLayout {
                             spacing: 12
-                            ProfileAvatar { Layout.preferredWidth: 34; Layout.preferredHeight: 34 }
+                            ProfileAvatar {
+                                Layout.preferredWidth: 34; Layout.preferredHeight: 34
+                                skin: profileRow.modelData.type === "microsoft" ? (auth.skinRevision, auth.skinSource(profileRow.modelData.uuid)) : ""
+                            }
                             ColumnLayout {
                                 spacing: 1; Layout.fillWidth: true
                                 Text { text: profileRow.modelData.name; color: Theme.text; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideRight; Layout.fillWidth: true }
-                                Text { text: profileRow.active ? "Offline · ativo" : "Offline"; color: Theme.muted; font.family: Theme.font; font.pixelSize: 11 }
+                                Text {
+                                    text: (profileRow.modelData.type === "microsoft" ? "Microsoft" : "Offline") + (profileRow.active ? " · ativo" : "")
+                                    color: Theme.muted; font.family: Theme.font; font.pixelSize: 11
+                                }
                             }
                             UiIcon { visible: profileRow.active && !removeProfile.visible; name: "check"; color: Theme.accent; Layout.preferredWidth: 16; Layout.preferredHeight: 16 }
                         }
@@ -623,11 +665,21 @@ ApplicationWindow {
                 }
             }
             Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; Layout.topMargin: 6; Layout.bottomMargin: 6; color: Theme.line }
+            Text {
+                visible: auth.lastError !== "" && !auth.busy
+                Layout.fillWidth: true
+                Layout.leftMargin: 8; Layout.rightMargin: 8; Layout.bottomMargin: 6
+                text: auth.lastError
+                color: Theme.danger
+                font.family: Theme.font; font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
             ActionButton {
                 Layout.fillWidth: true; centered: false; quiet: true
-                text: "Conectar Microsoft"; iconName: "external"
+                text: auth.busy ? auth.stage + "…" : "Conectar Microsoft"; iconName: "external"
+                enabled: !auth.busy
                 font.weight: Font.Medium
-                onClicked: { profileMenu.close(); window.notify("A conexão Microsoft chega na etapa de autenticação.") }
+                onClicked: { profileMenu.close(); auth.signIn() }
             }
             ActionButton {
                 Layout.fillWidth: true; centered: false; quiet: true
@@ -980,7 +1032,9 @@ ApplicationWindow {
                     text: "Remover"; danger: true; iconName: "trash"
                     reduced: window.reduced
                     onClicked: {
+                        const profile = removal.isProfile ? launcher.profiles.find(function(p) { return p.id === removal.targetId }) : null
                         const ok = removal.isProfile ? launcher.removeProfile(removal.targetId) : launcher.removeGame(removal.targetId)
+                        if (ok && profile && profile.type === "microsoft") auth.forget(profile.uuid)
                         if (ok) {
                             if (!removal.isProfile) { gameEditor.close(); window.drawerOpen = false }
                             removal.close()

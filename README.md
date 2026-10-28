@@ -1,5 +1,17 @@
 # OmniLauncher
 
+**OmniLauncher** is a desktop launcher for **Minecraft: Java Edition** on Windows (C++20, Qt 6 Quick). It keeps a personal library of game installations (Vanilla, Fabric, Forge, NeoForge), installs mods and modpacks from Modrinth, and starts the game with a Microsoft account or a local offline profile. Personal project, shared with friends.
+
+### Microsoft sign-in and privacy
+
+- Sign-in happens in the system browser (OAuth 2.0 authorization code with PKCE, loopback redirect). The launcher never sees or stores the Microsoft password.
+- The chain is Microsoft → Xbox Live → XSTS → Minecraft services, used only to confirm game ownership, read the player profile/skin and start the game.
+- Only the Microsoft refresh token is stored, locally, in the Windows Credential Manager. Minecraft access tokens stay in memory. Nothing is sent to any server other than Microsoft, Xbox Live, Mojang/Minecraft services and the public mod catalogs (Modrinth).
+- No analytics, accounts or backend of our own.
+
+---
+
+
 Launcher de Minecraft orientado pela experiência: uma biblioteca pessoal com presença de console, acabamento cuidadoso e resposta de aplicativo desktop.
 
 **Etapa atual:** interface da Home com a identidade **01 Modular** aplicada. Jogos **Vanilla** instalam e iniciam de verdade com Perfil offline. Fabric/Forge/NeoForge, catálogos e login Microsoft são as próximas etapas funcionais.

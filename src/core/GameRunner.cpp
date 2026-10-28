@@ -495,7 +495,8 @@ void GameRunner::onBatchProgress()
     emit progressChanged();
 }
 
-bool GameRunner::launch(const QVariantMap &game, const QString &playerName, const QVariantMap &settings)
+bool GameRunner::launch(const QVariantMap &game, const QString &playerName, const QVariantMap &settings,
+                        const QVariantMap &account)
 {
     if (busy() || running())
         return false;
@@ -503,6 +504,7 @@ bool GameRunner::launch(const QVariantMap &game, const QString &playerName, cons
     m_versionId = game.value("version").toString();
     m_playerName = playerName;
     m_settings = settings;
+    m_account = account;
     m_error.clear();
     m_libraries.clear();
     m_version = {};
@@ -1011,7 +1013,8 @@ void GameRunner::stepPrepareAndStart()
     const auto resolution = m_settings.value("resolution").toString().split('x');
     const bool customResolution = resolution.size() == 2;
     const QVariantMap features{{"has_custom_resolution", customResolution}};
-    const auto uuid = offlineUuid(m_playerName);
+    const bool online = !m_account.value("accessToken").toString().isEmpty();
+    const auto uuid = online ? m_account.value("uuid").toString() : offlineUuid(m_playerName);
     const QHash<QString, QString> values{
         {"auth_player_name", m_playerName},
         {"version_name", m_versionId},
@@ -1021,11 +1024,11 @@ void GameRunner::stepPrepareAndStart()
         {"game_assets", QDir::toNativeSeparators(gameAssets)},
         {"assets_index_name", indexId},
         {"auth_uuid", uuid},
-        {"auth_access_token", QStringLiteral("0")},
+        {"auth_access_token", online ? m_account.value("accessToken").toString() : QStringLiteral("0")},
         {"auth_session", QStringLiteral("0")},
-        {"clientid", QString()},
-        {"auth_xuid", QString()},
-        {"user_type", QStringLiteral("legacy")},
+        {"clientid", online ? m_account.value("clientId").toString() : QString()},
+        {"auth_xuid", online ? m_account.value("xuid").toString() : QString()},
+        {"user_type", online ? QStringLiteral("msa") : QStringLiteral("legacy")},
         {"user_properties", QStringLiteral("{}")},
         {"version_type", m_version.value("type").toString(QStringLiteral("release"))},
         {"natives_directory", QDir::toNativeSeparators(nativesDir)},

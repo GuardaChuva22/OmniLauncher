@@ -163,11 +163,18 @@ bool readItems(const QJsonArray &array, bool isGame, const QString &coversDirect
                 return false;
         } else {
             const auto name = item.value("name").toString();
-            if (item.value("type").toString() != "offline"
-                || item.value("avatar").toString() != "steve"
-                || !validOfflineName(name) || offlineNames.contains(name.toCaseFolded()))
+            const auto type = item.value("type").toString();
+            static const QRegularExpression uuidPattern(QStringLiteral("^[0-9a-f]{32}$"));
+            const bool offline = type == "offline" && item.value("avatar").toString() == "steve";
+            const bool microsoft = type == "microsoft" && item.value("avatar").toString() == "skin"
+                && uuidPattern.match(item.value("uuid").toString()).hasMatch();
+            if ((!offline && !microsoft) || !validOfflineName(name))
                 return false;
-            offlineNames.insert(name.toCaseFolded());
+            if (offline) {
+                if (offlineNames.contains(name.toCaseFolded()))
+                    return false;
+                offlineNames.insert(name.toCaseFolded());
+            }
         }
         result.append(item);
     }
@@ -580,4 +587,35 @@ void AppModel::recordSession(const QString &id, qint64 seconds)
         return;
     }
     emit gameSettingsChanged();
+}
+
+bool AppModel::addMicrosoftProfile(const QString &uuid, const QString &name)
+{
+    clearError();
+    static const QRegularExpression uuidPattern(QStringLiteral("^[0-9a-f]{32}$"));
+    if (!uuidPattern.match(uuid).hasMatch() || !validOfflineName(name)) {
+        setError(QStringLiteral("A Microsoft retornou um perfil inválido."));
+        return false;
+    }
+    auto profiles = m_profiles;
+    QString id;
+    for (qsizetype i = 0; i < profiles.size(); ++i) {
+        auto profile = profiles.at(i).toMap();
+        if (profile.value("type") == "microsoft" && profile.value("uuid") == uuid) {
+            id = profile.value("id").toString();
+            profile.insert("name", name); // The player may have renamed it.
+            profiles[i] = profile;
+        }
+    }
+    if (id.isEmpty()) {
+        id = newId();
+        profiles.append(QVariantMap{{"id", id}, {"name", name}, {"type", "microsoft"}, {"avatar", "skin"}, {"uuid", uuid}});
+    }
+    if (!persist(m_games, profiles, id, m_reducedMotion))
+        return false;
+    m_profiles = profiles;
+    m_activeProfileId = id;
+    emit profilesChanged();
+    emit activeProfileChanged();
+    return true;
 }
