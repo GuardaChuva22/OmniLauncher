@@ -163,9 +163,11 @@ FocusScope {
         }
         Text {
             width: parent.width
-            text: root.game.version + "  ·  " + root.game.loader
+            readonly property bool playing: runner.running && runner.gameId === root.game.id
+            text: playing ? "Em execução" : root.game.version + "  ·  " + root.game.loader
             font.family: Theme.font; font.pixelSize: 12
-            color: Theme.muted
+            font.weight: playing ? Font.DemiBold : Font.Normal
+            color: playing ? Theme.accentText : Theme.muted
             elide: Text.ElideRight
         }
     }

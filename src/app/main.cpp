@@ -1,4 +1,6 @@
 #include "AppModel.h"
+#include "GameRunner.h"
+#include "ModManager.h"
 
 #include <QCommandLineParser>
 #include <QDir>
@@ -48,8 +50,12 @@ int main(int argc, char *argv[])
     }
 
     AppModel model(parser.value(QStringLiteral("data-dir")));
+    GameRunner runner(model.dataDirectory());
+    ModManager mods(model.dataDirectory());
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("launcher"), &model);
+    engine.rootContext()->setContextProperty(QStringLiteral("runner"), &runner);
+    engine.rootContext()->setContextProperty(QStringLiteral("mods"), &mods);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule(QStringLiteral("OmniLauncher"), QStringLiteral("Main"));

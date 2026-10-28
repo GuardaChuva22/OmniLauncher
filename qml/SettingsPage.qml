@@ -8,6 +8,11 @@ Item {
     signal manageProfiles()
     signal notify(string message)
     readonly property real gutter: width < 900 ? 32 : 48
+    readonly property var afterLaunchOptions: [{ label: "Minimizar", value: "minimize" }, { label: "Fechar", value: "close" },
+                                               { label: "Manter aberto", value: "keep" }]
+    function setPreference(key, value) {
+        if (!launcher.setPreference(key, value)) root.notify(launcher.lastError)
+    }
 
     component SectionTitle: Text {
         color: Theme.muted
@@ -40,7 +45,7 @@ Item {
     Flickable {
         id: flick
         x: root.gutter; y: title.y + title.height + 10
-        width: Math.min(760, root.width - root.gutter * 2)
+        width: root.width - root.gutter * 2
         height: root.height - y
         contentHeight: content.implicitHeight + 48
         boundsBehavior: Flickable.StopAtBounds
@@ -89,15 +94,24 @@ Item {
                     description: "Cada jogo pode substituir este valor."
                     RowLayout {
                         spacing: 14
-                        ValueSlider { id: memory; Layout.preferredWidth: 180; from: 1; to: 16; stepSize: 1; value: 4; snapMode: Slider.SnapAlways; reduced: root.reduced }
+                        ValueSlider {
+                            id: memory
+                            Layout.preferredWidth: 180
+                            from: 1; to: 16; stepSize: 1
+                            snapMode: Slider.SnapAlways
+                            reduced: root.reduced
+                            Binding on value { when: !memory.pressed; value: Math.round(launcher.preferences.defaultMemoryMb / 1024) }
+                            onPressedChanged: if (!pressed) root.setPreference("defaultMemoryMb", value * 1024)
+                            Keys.onReleased: root.setPreference("defaultMemoryMb", value * 1024)
+                        }
                         Text { text: memory.value + " GB"; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
                     }
                 }
                 SettingRow {
                     title: "Java"
-                    description: "Escolhido automaticamente pela versão do jogo."
+                    description: "Baixado automaticamente na versão que cada jogo pede."
                     divider: false
-                    ChoiceField { width: 200; model: ["Automático", "Java 21", "Java 17", "Java 8"] }
+                    Text { text: "Automático"; color: Theme.text; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium }
                 }
             }
 
@@ -105,8 +119,18 @@ Item {
             Group {
                 SettingRow {
                     title: "Comportamento do launcher"
+                    description: "Ao fechar o jogo, o launcher volta para a frente."
                     divider: false
-                    ChoiceField { width: 200; model: ["Minimizar", "Fechar", "Manter aberto"] }
+                    ChoiceField {
+                        id: afterLaunch
+                        width: 200
+                        model: root.afterLaunchOptions.map(function(option) { return option.label })
+                        Binding on currentIndex {
+                            when: !afterLaunch.popup.visible
+                            value: Math.max(0, root.afterLaunchOptions.findIndex(function(option) { return option.value === launcher.preferences.afterLaunch }))
+                        }
+                        onActivated: function(index) { root.setPreference("afterLaunch", root.afterLaunchOptions[index].value) }
+                    }
                 }
             }
 
@@ -114,9 +138,9 @@ Item {
             Group {
                 SettingRow {
                     title: "Pasta de dados"
-                    description: "Jogos, capas importadas e cache."
+                    description: "Jogos, versões baixadas, Java, capas importadas e cache."
                     divider: false
-                    ActionButton { text: "Abrir"; iconName: "folder"; reduced: root.reduced; onClicked: root.notify("Abrir a pasta de dados chega com a etapa de instalação.") }
+                    ActionButton { text: "Abrir"; iconName: "folder"; reduced: root.reduced; onClicked: runner.openDataFolder() }
                 }
             }
 

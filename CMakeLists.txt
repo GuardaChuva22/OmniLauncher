@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Network Qml Quick QuickControls2)
 qt_standard_project_setup(REQUIRES 6.5)
 if(Qt6_VERSION VERSION_GREATER_EQUAL 6.8)
     qt_policy(SET QTP0004 NEW)
@@ -15,7 +15,14 @@ qt_add_executable(OmniLauncher WIN32
     src/app/main.cpp
     src/app/AppModel.h
     src/app/AppModel.cpp
+    src/core/Downloader.h
+    src/core/Downloader.cpp
+    src/core/GameRunner.h
+    src/core/GameRunner.cpp
+    src/core/ModManager.h
+    src/core/ModManager.cpp
 )
+target_include_directories(OmniLauncher PRIVATE src/app src/core)
 
 # The prototype's QML/assets are authored alongside the native shell. CONFIGURE_DEPENDS
 # keeps newly added components visible while the first Home composition is evolving.
@@ -41,7 +48,7 @@ qt_add_qml_module(OmniLauncher
 )
 
 target_link_libraries(OmniLauncher PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2
+    Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Quick Qt6::QuickControls2
 )
 if(MSVC)
     target_compile_options(OmniLauncher PRIVATE /W4 /utf-8 /permissive-)

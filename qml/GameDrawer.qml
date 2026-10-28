@@ -16,6 +16,7 @@ FocusScope {
     signal removeRequested()
     signal duplicateRequested()
     signal profileRequested()
+    signal modsRequested()
     signal notify(string message)
 
     readonly property string gameId: game ? game.id : ""
@@ -24,15 +25,39 @@ FocusScope {
     readonly property real panelWidth: Math.max(380, Math.min(460, width * 0.4))
     readonly property int heroHeight: 220
     readonly property color tint: Theme.coverTint(game ? game.coverId : "")
+    // Saved values for this game (stats included) and the effective launch settings.
+    readonly property var saved: game ? (launcher.gameSettings[game.id] || ({})) : ({})
+    readonly property var effective: (launcher.gameSettings, launcher.preferences, game ? launcher.launchSettings(game.id) : ({}))
+    readonly property bool thisRunning: runner.running && runner.gameId === gameId
+    readonly property bool otherRunning: runner.running && runner.gameId !== gameId
+    readonly property var resolutions: [{ label: "Padrão do jogo", value: "" }, { label: "1280 × 720", value: "1280x720" },
+                                        { label: "1600 × 900", value: "1600x900" }, { label: "1920 × 1080", value: "1920x1080" },
+                                        { label: "2560 × 1440", value: "2560x1440" }]
+
+    function lastPlayedText() {
+        if (!saved.lastPlayed) return "Nunca jogado"
+        const date = new Date(saved.lastPlayed)
+        const days = Math.floor((Date.now() - date.getTime()) / 86400000)
+        if (days < 1) return "Hoje, " + date.toLocaleTimeString(Qt.locale(), "HH:mm")
+        if (days < 2) return "Ontem"
+        if (days < 7) return days + " dias atrás"
+        return date.toLocaleDateString(Qt.locale(), "d 'de' MMM yyyy")
+    }
+    function playTimeText() {
+        const seconds = saved.playSeconds || 0
+        if (seconds < 60) return seconds > 0 ? "Menos de 1 min" : "—"
+        const hours = Math.floor(seconds / 3600)
+        const minutes = Math.floor((seconds % 3600) / 60)
+        return hours > 0 ? hours + " h " + minutes + " min" : minutes + " min"
+    }
+    function save(key, value) {
+        if (game && !launcher.setGameSetting(game.id, key, value)) notify(launcher.lastError)
+    }
 
     visible: scrim.opacity > 0.001 || panel.x < width
-    onGameIdChanged: { tabs.currentIndex = 0; flick.contentY = 0 }
+    onGameIdChanged: { tabs.currentIndex = 0; flick.contentY = 0; if (gameId) mods.loadInstalled(gameId) }
     onOpenChanged: if (open) playButton.forceActiveFocus()
 
-    function slug(text) {
-        return (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
-            .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "jogo"
-    }
 
     Rectangle {
         id: scrim
@@ -187,18 +212,21 @@ FocusScope {
                     Layout.fillWidth: true
                     Layout.topMargin: 24
                     Layout.preferredHeight: 54
-                    text: "Jogar"
-                    iconName: "play"
-                    primary: true
+                    text: root.thisRunning ? "Fechar o jogo" : "Jogar"
+                    iconName: root.thisRunning ? "close" : "play"
+                    primary: !root.thisRunning
+                    enabled: !root.otherRunning && !runner.busy
                     reduced: root.reduced
                     font.pixelSize: 16
-                    onClicked: root.playRequested()
+                    onClicked: root.thisRunning ? runner.stopGame() : root.playRequested()
                 }
                 Text {
                     Layout.fillWidth: true
                     Layout.topMargin: 10
                     horizontalAlignment: Text.AlignHCenter
-                    text: root.hasProfile ? "Como " + launcher.activeProfile.name : "Escolha um Perfil para jogar"
+                    text: root.thisRunning ? "Em execução como " + launcher.activeProfile.name
+                        : root.otherRunning ? "Outro jogo está em execução"
+                        : root.hasProfile ? "Como " + launcher.activeProfile.name : "Escolha um Perfil para jogar"
                     color: Theme.muted
                     font.family: Theme.font; font.pixelSize: 12
                     elide: Text.ElideRight
@@ -215,7 +243,7 @@ FocusScope {
                         iconName: "folder"; reduced: root.reduced
                         Accessible.name: "Abrir pasta"
                         ToolTip.visible: hovered; ToolTip.text: "Abrir pasta"; ToolTip.delay: 500
-                        onClicked: root.notify("A pasta do jogo será criada quando a instalação for real.")
+                        onClicked: runner.openGameFolder(root.gameId)
                     }
                 }
 
@@ -248,11 +276,23 @@ FocusScope {
                             }
                         }
                         InfoRow { label: "Versão do Minecraft"; iconName: "cube"; value: root.game ? root.game.version : "" }
-                        InfoRow { label: "Tipo de instalação"; iconName: "box"; value: root.game ? root.game.loader : "" }
-                        InfoRow { label: "Mods"; iconName: "puzzle"; value: root.vanilla ? "Não se aplica" : "Nenhum" }
-                        InfoRow { label: "Última sessão"; iconName: "calendar"; value: "Nunca jogado" }
-                        InfoRow { label: "Tempo de jogo"; iconName: "clock"; value: "—" }
-                        InfoRow { label: "Pasta"; iconName: "folder"; value: "instances/" + root.slug(root.game ? root.game.title : ""); divider: false }
+                        InfoRow { label: "Tipo de instalação"; iconName: "box"; value: root.game ? root.game.loader + (root.game.loaderVersion ? " " + root.game.loaderVersion : "") : "" }
+                        InfoRow {
+                            label: "Mods"; iconName: "puzzle"
+                            value: root.vanilla ? "Não se aplica"
+                                : mods.gameId !== root.gameId || mods.installed.length === 0 ? "Nenhum"
+                                : mods.installed.length === 1 ? "1 mod" : mods.installed.length + " mods"
+                        }
+                        InfoRow { label: "Última sessão"; iconName: "calendar"; value: root.lastPlayedText() }
+                        InfoRow { label: "Tempo de jogo"; iconName: "clock"; value: root.playTimeText() }
+                        InfoRow {
+                            label: "Pasta"; iconName: "folder"; divider: false
+                            ActionButton {
+                                text: "Abrir"; quiet: true; height: 30; reduced: root.reduced
+                                font.pixelSize: 12
+                                onClicked: runner.openGameFolder(root.gameId)
+                            }
+                        }
                         ActionButton {
                             Layout.topMargin: 18
                             text: "Remover jogo"; iconName: "trash"
@@ -264,19 +304,95 @@ FocusScope {
 
                     // Mods
                     ColumnLayout {
-                        spacing: 14
+                        spacing: 0
+                        readonly property bool fabric: root.game ? root.game.loader === "Fabric" : false
+                        readonly property var list: root.gameId !== "" && mods.gameId === root.gameId ? mods.installed : []
                         RowLayout {
                             visible: !root.vanilla
                             Layout.fillWidth: true
                             Layout.topMargin: 14
+                            Layout.bottomMargin: 8
                             spacing: 8
-                            InputField { Layout.fillWidth: true; iconName: "search"; placeholderText: "Buscar nos mods instalados"; clearable: true }
                             ActionButton {
-                                text: "Adicionar"; iconName: "plus"; reduced: root.reduced
-                                onClicked: root.notify("O catálogo de mods será conectado na próxima etapa.")
+                                Layout.fillWidth: true
+                                text: "Adicionar mods"; iconName: "plus"; reduced: root.reduced
+                                onClicked: root.modsRequested()
+                            }
+                            ActionButton {
+                                Layout.preferredWidth: 40
+                                iconName: "folder"; reduced: root.reduced
+                                Accessible.name: "Pasta de mods"
+                                ToolTip.visible: hovered; ToolTip.text: "Pasta de mods"; ToolTip.delay: 500
+                                onClicked: runner.openModsFolder(root.gameId)
+                            }
+                        }
+                        Repeater {
+                            model: parent.list
+                            delegate: Item {
+                                id: modRow
+                                required property var modelData
+                                Layout.fillWidth: true
+                                implicitHeight: 54
+                                RowLayout {
+                                    anchors.fill: parent
+                                    spacing: 12
+                                    opacity: modRow.modelData.enabled ? 1 : 0.5
+                                    Rectangle {
+                                        Layout.preferredWidth: 32; Layout.preferredHeight: 32
+                                        radius: 8; color: Theme.fill; clip: true
+                                        UiIcon { anchors.centerIn: parent; visible: modIcon.status !== Image.Ready; width: 15; height: 15; name: "puzzle"; color: Theme.faint }
+                                        Image {
+                                            id: modIcon
+                                            anchors.fill: parent
+                                            source: modRow.modelData.iconUrl
+                                            sourceSize: Qt.size(64, 64)
+                                            fillMode: Image.PreserveAspectCrop
+                                            asynchronous: true
+                                        }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: modRow.modelData.title
+                                            color: Theme.text
+                                            font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: modRow.modelData.versionNumber || modRow.modelData.file
+                                            color: Theme.faint
+                                            font.family: Theme.font; font.pixelSize: 11
+                                            elide: Text.ElideMiddle
+                                        }
+                                    }
+                                }
+                                RowLayout {
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
+                                    ToggleSwitch {
+                                        checked: modRow.modelData.enabled
+                                        reduced: root.reduced
+                                        Accessible.name: "Ativar " + modRow.modelData.title
+                                        onToggled: mods.setEnabled(root.gameId, modRow.modelData.file, checked)
+                                    }
+                                    ActionButton {
+                                        width: 30; height: 30; round: true
+                                        quiet: true; iconName: "trash"; iconSize: 14
+                                        reduced: root.reduced
+                                        Accessible.name: "Remover " + modRow.modelData.title
+                                        ToolTip.visible: hovered; ToolTip.text: "Remover"; ToolTip.delay: 500
+                                        onClicked: mods.remove(root.gameId, modRow.modelData.file)
+                                    }
+                                }
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
                             }
                         }
                         ColumnLayout {
+                            visible: root.vanilla || parent.list.length === 0
                             Layout.fillWidth: true
                             Layout.topMargin: 28
                             spacing: 8
@@ -298,8 +414,8 @@ FocusScope {
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
-                                text: root.vanilla ? "Mude o tipo de instalação para Fabric, Forge ou NeoForge."
-                                                   : "Mods do Modrinth e CurseForge aparecem aqui."
+                                text: root.vanilla ? "Mude o tipo de instalação para Fabric, Forge ou NeoForge para adicionar mods."
+                                    : "Busque no Modrinth ou coloque arquivos .jar na pasta de mods."
                                 color: Theme.muted
                                 font.family: Theme.font; font.pixelSize: 13
                             }
@@ -313,7 +429,7 @@ FocusScope {
                         }
                     }
 
-                    // Ajustes (local to this session until per-game settings are persisted)
+                    // Ajustes, saved per game. Unset values follow the global defaults.
                     ColumnLayout {
                         spacing: 8
                         RowLayout {
@@ -322,22 +438,52 @@ FocusScope {
                             Text { text: "Memória"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
                             Text { text: memory.value + " GB"; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold }
                         }
-                        ValueSlider { id: memory; Layout.fillWidth: true; from: 1; to: 16; stepSize: 1; value: 4; snapMode: Slider.SnapAlways; reduced: root.reduced }
-
-                        Text { text: "Java"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
-                        ChoiceField { Layout.fillWidth: true; model: ["Automático", "Java 21", "Java 17", "Java 8"] }
-
-                        Text { text: "Resolução da janela"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
-                        ChoiceField { Layout.fillWidth: true; model: ["Padrão do jogo", "1280 × 720", "1600 × 900", "1920 × 1080"] }
-
-                        Text { text: "Argumentos da JVM"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
-                        InputField { Layout.fillWidth: true; placeholderText: "-XX:+UseG1GC"; font.family: "Cascadia Mono" }
+                        ValueSlider {
+                            id: memory
+                            Layout.fillWidth: true
+                            from: 1; to: 16; stepSize: 1
+                            snapMode: Slider.SnapAlways
+                            reduced: root.reduced
+                            // Follows the saved value whenever it is not being dragged.
+                            Binding on value { when: !memory.pressed; value: Math.round((root.effective.memoryMb || 4096) / 1024) }
+                            onPressedChanged: if (!pressed) root.save("memoryMb", value * 1024)
+                            Keys.onReleased: root.save("memoryMb", value * 1024)
+                        }
 
                         RowLayout {
                             Layout.fillWidth: true
-                            Layout.topMargin: 16
-                            Text { text: "Fechar o launcher ao iniciar"; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
-                            ToggleSwitch { reduced: root.reduced }
+                            Layout.topMargin: 12
+                            Text { text: "Java"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
+                            Text { text: "Automático"; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium }
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: "O OmniLauncher baixa a versão do Java que esta versão do Minecraft pede."
+                            color: Theme.faint
+                            font.family: Theme.font; font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                        }
+
+                        Text { text: "Resolução da janela"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
+                        ChoiceField {
+                            id: resolutionChoice
+                            Layout.fillWidth: true
+                            model: root.resolutions.map(function(option) { return option.label })
+                            Binding on currentIndex {
+                                when: !resolutionChoice.popup.visible
+                                value: Math.max(0, root.resolutions.findIndex(function(option) { return option.value === (root.effective.resolution || "") }))
+                            }
+                            onActivated: function(index) { root.save("resolution", root.resolutions[index].value) }
+                        }
+
+                        Text { text: "Argumentos da JVM"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
+                        InputField {
+                            id: jvmArgs
+                            Layout.fillWidth: true
+                            placeholderText: "-XX:+UseG1GC"
+                            font.family: "Cascadia Mono"
+                            Binding on text { when: !jvmArgs.activeFocus; value: root.effective.jvmArgs || "" }
+                            onEditingFinished: if (text.trim() !== (root.effective.jvmArgs || "")) root.save("jvmArgs", text)
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 #include "AppModel.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -61,11 +62,53 @@ QString validateGame(const QVariantMap &game, const QString &coversDirectory)
     if (!loaders.contains(game.value("loader").toString()))
         return QStringLiteral("Escolha Vanilla, Fabric, Forge ou NeoForge.");
 
+    static const QRegularExpression loaderVersionPattern(QStringLiteral("^[A-Za-z0-9._+\\-]{0,48}$"));
+    if (!loaderVersionPattern.match(game.value("loaderVersion").toString()).hasMatch())
+        return QStringLiteral("Versão do loader inválida.");
+
     static const QSet<QString> covers = {"meadow", "copper", "dusk", "frost"};
     const auto coverId = game.value("coverId").toString();
     if (!covers.contains(coverId) && !validImportedCover(coverId, coversDirectory))
         return QStringLiteral("Escolha uma capa disponível ou importe uma imagem do computador.");
 
+    return {};
+}
+
+// Validated setting value, or an invalid QVariant when the key/value is not accepted.
+QVariant cleanGameSetting(const QString &key, const QVariant &value)
+{
+    if (key == "memoryMb") {
+        bool ok = false;
+        const int mb = value.toInt(&ok);
+        return ok && mb >= 512 && mb <= 65536 ? QVariant(mb) : QVariant();
+    }
+    if (key == "resolution") {
+        static const QRegularExpression pattern(QStringLiteral("^(|\\d{3,5}x\\d{3,5})$"));
+        const auto text = value.toString();
+        return pattern.match(text).hasMatch() ? QVariant(text) : QVariant();
+    }
+    if (key == "jvmArgs") {
+        const auto text = value.toString().trimmed();
+        return text.size() <= 2000 ? QVariant(text) : QVariant();
+    }
+    if (key == "lastPlayed")
+        return QDateTime::fromString(value.toString(), Qt::ISODate).isValid() ? QVariant(value.toString()) : QVariant();
+    if (key == "playSeconds") {
+        bool ok = false;
+        const auto seconds = value.toLongLong(&ok);
+        return ok && seconds >= 0 ? QVariant(seconds) : QVariant();
+    }
+    return {};
+}
+
+QVariant cleanPreference(const QString &key, const QVariant &value)
+{
+    if (key == "defaultMemoryMb")
+        return cleanGameSetting("memoryMb", value);
+    if (key == "afterLaunch") {
+        const auto text = value.toString();
+        return text == "minimize" || text == "close" || text == "keep" ? QVariant(text) : QVariant();
+    }
     return {};
 }
 
@@ -76,10 +119,13 @@ bool validOfflineName(const QString &name)
 }
 
 QVariantMap makeGame(const QString &title, const QString &version,
-                     const QString &loader, const QString &coverId)
+                     const QString &loader, const QString &coverId, const QString &loaderVersion = {})
 {
-    return {{"id", newId()}, {"title", title.trimmed()}, {"version", version.trimmed()},
-            {"loader", loader}, {"coverId", coverId}};
+    QVariantMap game{{"id", newId()}, {"title", title.trimmed()}, {"version", version.trimmed()},
+                     {"loader", loader}, {"coverId", coverId}};
+    if (loader != "Vanilla" && !loaderVersion.trimmed().isEmpty())
+        game.insert("loaderVersion", loaderVersion.trimmed());
+    return game;
 }
 
 int indexOfId(const QVariantList &items, const QString &id)
@@ -137,6 +183,7 @@ AppModel::AppModel(const QString &dataDirectory, QObject *parent)
         : dataDirectory;
     m_filePath = QDir(directory).filePath(QStringLiteral("library.json"));
     m_coversDirectory = QDir(directory).absoluteFilePath(QStringLiteral("covers"));
+    m_dataDirectory = QDir(directory).absolutePath();
     load();
 }
 
@@ -207,6 +254,29 @@ void AppModel::load()
     m_profiles = profiles;
     m_activeProfileId = activeId;
     m_reducedMotion = root.value("reducedMotion").toBool();
+
+    // Settings are optional and read leniently: an unknown or invalid value is
+    // dropped instead of blocking the whole library.
+    const auto storedSettings = root.value("gameSettings").toObject();
+    for (auto it = storedSettings.begin(); it != storedSettings.end(); ++it) {
+        if (indexOfId(m_games, it.key()) < 0 || !it.value().isObject())
+            continue;
+        QVariantMap clean;
+        const auto values = it.value().toObject().toVariantMap();
+        for (auto value = values.begin(); value != values.end(); ++value) {
+            const auto cleaned = cleanGameSetting(value.key(), value.value());
+            if (cleaned.isValid())
+                clean.insert(value.key(), cleaned);
+        }
+        if (!clean.isEmpty())
+            m_gameSettings.insert(it.key(), clean);
+    }
+    const auto storedPreferences = root.value("preferences").toObject().toVariantMap();
+    for (auto it = storedPreferences.begin(); it != storedPreferences.end(); ++it) {
+        const auto cleaned = cleanPreference(it.key(), it.value());
+        if (cleaned.isValid())
+            m_preferences.insert(it.key(), cleaned);
+    }
 }
 
 bool AppModel::persist(const QVariantList &games, const QVariantList &profiles,
@@ -225,7 +295,9 @@ bool AppModel::persist(const QVariantList &games, const QVariantList &profiles,
     const QJsonObject root{
         {"schemaVersion", 1}, {"games", QJsonArray::fromVariantList(games)},
         {"profiles", QJsonArray::fromVariantList(profiles)},
-        {"activeProfileId", activeId}, {"reducedMotion", reducedMotion}
+        {"activeProfileId", activeId}, {"reducedMotion", reducedMotion},
+        {"gameSettings", QJsonObject::fromVariantMap(m_gameSettings)},
+        {"preferences", QJsonObject::fromVariantMap(m_preferences)}
     };
     const auto data = QJsonDocument(root).toJson(QJsonDocument::Indented);
     QSaveFile file(m_filePath);
@@ -238,10 +310,10 @@ bool AppModel::persist(const QVariantList &games, const QVariantList &profiles,
 }
 
 QString AppModel::addGame(const QString &title, const QString &version,
-                          const QString &loader, const QString &coverId)
+                          const QString &loader, const QString &coverId, const QString &loaderVersion)
 {
     clearError();
-    const auto game = makeGame(title, version, loader, coverId);
+    const auto game = makeGame(title, version, loader, coverId, loaderVersion);
     const auto error = validateGame(game, m_coversDirectory);
     if (!error.isEmpty()) {
         setError(error);
@@ -257,7 +329,7 @@ QString AppModel::addGame(const QString &title, const QString &version,
 }
 
 bool AppModel::updateGame(const QString &id, const QString &title, const QString &version,
-                          const QString &loader, const QString &coverId)
+                          const QString &loader, const QString &coverId, const QString &loaderVersion)
 {
     clearError();
     const auto index = indexOfId(m_games, id);
@@ -265,7 +337,7 @@ bool AppModel::updateGame(const QString &id, const QString &title, const QString
         setError(QStringLiteral("Esse jogo não está mais na biblioteca."));
         return false;
     }
-    auto game = makeGame(title, version, loader, coverId);
+    auto game = makeGame(title, version, loader, coverId, loaderVersion);
     game.insert("id", id);
     const auto error = validateGame(game, m_coversDirectory);
     if (!error.isEmpty()) {
@@ -291,10 +363,16 @@ bool AppModel::removeGame(const QString &id)
     }
     auto games = m_games;
     games.removeAt(index);
-    if (!persist(games, m_profiles, m_activeProfileId, m_reducedMotion))
+    const auto previousSettings = m_gameSettings;
+    m_gameSettings.remove(id);
+    if (!persist(games, m_profiles, m_activeProfileId, m_reducedMotion)) {
+        m_gameSettings = previousSettings;
         return false;
+    }
     m_games = games;
     emit gamesChanged();
+    if (previousSettings.contains(id))
+        emit gameSettingsChanged();
     return true;
 }
 
@@ -417,4 +495,89 @@ void AppModel::setReducedMotion(bool enabled)
         return;
     m_reducedMotion = enabled;
     emit reducedMotionChanged();
+}
+
+QVariantMap AppModel::preferences() const
+{
+    QVariantMap result{{"defaultMemoryMb", 4096}, {"afterLaunch", QStringLiteral("minimize")}};
+    for (auto it = m_preferences.begin(); it != m_preferences.end(); ++it)
+        result.insert(it.key(), it.value());
+    return result;
+}
+
+QVariantMap AppModel::launchSettings(const QString &id) const
+{
+    const auto defaults = preferences();
+    QVariantMap result{{"memoryMb", defaults.value("defaultMemoryMb")}, {"resolution", QString()},
+                       {"jvmArgs", QString()}, {"afterLaunch", defaults.value("afterLaunch")}};
+    const auto own = m_gameSettings.value(id).toMap();
+    for (auto it = own.begin(); it != own.end(); ++it)
+        result.insert(it.key(), it.value());
+    return result;
+}
+
+bool AppModel::setGameSetting(const QString &id, const QString &key, const QVariant &value)
+{
+    clearError();
+    if (indexOfId(m_games, id) < 0) {
+        setError(QStringLiteral("Esse jogo não está mais na biblioteca."));
+        return false;
+    }
+    if (key != "memoryMb" && key != "resolution" && key != "jvmArgs") {
+        setError(QStringLiteral("Ajuste desconhecido."));
+        return false;
+    }
+    const auto cleaned = cleanGameSetting(key, value);
+    if (!cleaned.isValid()) {
+        setError(QStringLiteral("Valor inválido para esse ajuste."));
+        return false;
+    }
+    auto settings = m_gameSettings.value(id).toMap();
+    if (settings.value(key) == cleaned)
+        return true;
+    const auto previous = m_gameSettings;
+    settings.insert(key, cleaned);
+    m_gameSettings.insert(id, settings);
+    if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
+        m_gameSettings = previous;
+        return false;
+    }
+    emit gameSettingsChanged();
+    return true;
+}
+
+bool AppModel::setPreference(const QString &key, const QVariant &value)
+{
+    clearError();
+    const auto cleaned = cleanPreference(key, value);
+    if (!cleaned.isValid()) {
+        setError(QStringLiteral("Valor inválido para essa preferência."));
+        return false;
+    }
+    if (preferences().value(key) == cleaned)
+        return true;
+    const auto previous = m_preferences;
+    m_preferences.insert(key, cleaned);
+    if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
+        m_preferences = previous;
+        return false;
+    }
+    emit preferencesChanged();
+    return true;
+}
+
+void AppModel::recordSession(const QString &id, qint64 seconds)
+{
+    if (indexOfId(m_games, id) < 0)
+        return;
+    const auto previous = m_gameSettings;
+    auto settings = m_gameSettings.value(id).toMap();
+    settings.insert("lastPlayed", QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+    settings.insert("playSeconds", settings.value("playSeconds").toLongLong() + qMax<qint64>(0, seconds));
+    m_gameSettings.insert(id, settings);
+    if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
+        m_gameSettings = previous;
+        return;
+    }
+    emit gameSettingsChanged();
 }

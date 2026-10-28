@@ -78,6 +78,27 @@ int main(int argc, char **argv)
     fake.close();
     check(reloaded.importCover(QUrl::fromLocalFile(fake.fileName())).isEmpty(), "malformed image refused");
 
+    // Launch settings: per-game values over global defaults, validated and persisted.
+    const auto settingsGame = reloaded.games().first().toMap().value("id").toString();
+    check(reloaded.launchSettings(settingsGame).value("memoryMb") == 4096, "default memory");
+    check(reloaded.setPreference("defaultMemoryMb", 6144), "set default memory");
+    check(reloaded.launchSettings(settingsGame).value("memoryMb") == 6144, "game follows global default");
+    check(reloaded.setGameSetting(settingsGame, "memoryMb", 3072), "set game memory");
+    check(reloaded.setGameSetting(settingsGame, "resolution", "1920x1080"), "set resolution");
+    check(!reloaded.setGameSetting(settingsGame, "resolution", "big"), "invalid resolution refused");
+    check(!reloaded.setGameSetting(settingsGame, "memoryMb", 64), "tiny memory refused");
+    check(!reloaded.setGameSetting(settingsGame, "javaPath", "C:/x"), "unknown setting refused");
+    check(!reloaded.setPreference("afterLaunch", "explode"), "invalid preference refused");
+    check(reloaded.setPreference("afterLaunch", "keep"), "set after-launch preference");
+    reloaded.recordSession(settingsGame, 125);
+    reloaded.recordSession(settingsGame, 5);
+    AppModel settingsReloaded(directory.path());
+    const auto saved = settingsReloaded.launchSettings(settingsGame);
+    check(saved.value("memoryMb") == 3072 && saved.value("resolution") == "1920x1080", "game settings persisted");
+    check(saved.value("afterLaunch") == "keep", "preference persisted");
+    check(settingsReloaded.gameSettings().value(settingsGame).toMap().value("playSeconds").toLongLong() == 130, "play time accumulates");
+    check(!settingsReloaded.gameSettings().value(settingsGame).toMap().value("lastPlayed").toString().isEmpty(), "last session recorded");
+
     check(reloaded.removeProfile(firstProfile) && reloaded.activeProfileId() == secondProfile, "active profile removal selects remaining");
     check(reloaded.removeProfile(secondProfile) && reloaded.activeProfile().isEmpty(), "last profile removal");
     for (const auto &game : reloaded.games())

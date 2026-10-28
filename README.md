@@ -2,7 +2,7 @@
 
 Launcher de Minecraft orientado pela experiência: uma biblioteca pessoal com presença de console, acabamento cuidadoso e resposta de aplicativo desktop.
 
-**Etapa atual:** primeiro protótipo nativo da Home criado; identidade visual em desenvolvimento antes de retomar a interface. A direção de logo **01 Modular** foi escolhida. Login Microsoft, catálogos e execução real do Minecraft pertencem às etapas funcionais seguintes.
+**Etapa atual:** interface da Home com a identidade **01 Modular** aplicada. Jogos **Vanilla** instalam e iniciam de verdade com Perfil offline. Fabric/Forge/NeoForge, catálogos e login Microsoft são as próximas etapas funcionais.
 
 Atualizado em 28 de outubro de 2026.
 
@@ -36,7 +36,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1
 ```
 
-Dados de Jogos e Perfis são locais, fora da pasta de fonte. Para testes separados, `scripts/run.ps1` aceita `-DataDir caminho`. O primeiro acesso cria quatro Jogos de exemplo e nenhum Perfil; esses Jogos representam a biblioteca do protótipo, sem jogo instalado. Perfis offline podem ser criados, selecionados e removidos. “Jogar” demonstra a transição de início e identifica a prévia na tela; não executa Minecraft.
+Dados de Jogos e Perfis são locais, fora da pasta de fonte. Para testes separados, `scripts/run.ps1` aceita `-DataDir caminho`. O primeiro acesso cria quatro Jogos de exemplo e nenhum Perfil; esses Jogos representam a biblioteca do protótipo, sem jogo instalado. Perfis offline podem ser criados, selecionados e removidos. “Jogar” em um jogo Vanilla baixa versão, bibliotecas, assets e o Java indicado pela Mojang (com verificação SHA-1), e inicia o Minecraft com o Perfil offline ativo. Arquivos compartilhados ficam uma vez na pasta de dados (`versions/`, `libraries/`, `assets/`, `runtimes/`); cada jogo tem sua pasta em `instances/<id>`. Memória, resolução e argumentos da JVM são salvos por jogo; memória padrão e o comportamento do launcher ao iniciar ficam em Configurações.
 
 As quatro capas são artes originais geradas com ImageGen built-in. Arquivos, prompts e proveniência em `assets/ARTWORK.md`. Imagens próprias podem ser importadas no editor de jogo e copiadas para a pasta de dados, preservando o original.
 

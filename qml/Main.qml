@@ -22,10 +22,11 @@ ApplicationWindow {
     property string previewGameId: ""
     property string drawerGameId: ""
     property bool drawerOpen: false
-    property bool launching: false
-    property bool launchSettled: false
     property string launchedTitle: ""
     property string launchedCover: "meadow"
+    // The launch screen covers the app while files are prepared, and stays on a
+    // failure until it is dismissed. A running game does not block the launcher.
+    readonly property bool launching: runner.busy || runner.state === "failed"
     readonly property bool reduced: launcher.reducedMotion
     readonly property bool compactSidebar: width < 1180
     readonly property real sidebarWidth: compactSidebar ? 76 : 248
@@ -40,7 +41,7 @@ ApplicationWindow {
         return (home.loaderFilter === "Todos" || game.loader === home.loaderFilter)
             && game.title.toLocaleLowerCase().indexOf(query) !== -1
     })
-    readonly property bool modalOpen: gameEditor.shown || profileEditor.shown || removal.shown
+    readonly property bool modalOpen: gameEditor.shown || profileEditor.shown || removal.shown || modCatalog.shown
     readonly property var atmosphericSources: {
         const ids = Theme.covers.slice()
         for (let game of launcher.games) if (ids.indexOf(game.coverId) === -1) ids.push(game.coverId)
@@ -78,13 +79,17 @@ ApplicationWindow {
     }
     function duplicateGame(game) {
         if (!game) return
-        const id = launcher.addGame(game.title.slice(0, 64) + " (cópia)", game.version, game.loader, game.coverId)
+        const id = launcher.addGame(game.title.slice(0, 64) + " (cópia)", game.version, game.loader, game.coverId, game.loaderVersion || "")
         if (id) { selectedGameId = id; notify("Jogo duplicado.") }
         else notify(launcher.lastError)
     }
     function beginLaunch(game) {
         if (!game) return
         selectedGameId = game.id
+        if (runner.running) {
+            notify(runner.gameId === game.id ? "Esse jogo já está aberto." : "Feche o jogo em execução antes de iniciar outro.")
+            return
+        }
         if (!launcher.activeProfileId) {
             profileMenu.open()
             notify("Escolha um Perfil para iniciar.")
@@ -94,15 +99,31 @@ ApplicationWindow {
         launchedCover = game.coverId
         previewGameId = ""
         drawerOpen = false
-        launchSettled = false
-        launching = true
-        launchTimer.restart()
+        runner.launch(game, launcher.activeProfile.name, launcher.launchSettings(game.id))
     }
     function leaveLaunch() {
-        launchTimer.stop()
-        launching = false
-        launchSettled = false
+        if (runner.busy) runner.cancel()
+        else runner.dismiss()
         home.forceActiveFocus()
+    }
+    function versionsFor(version) {
+        const list = runner.versions.length ? runner.versions.slice() : Theme.versions.slice()
+        if (version && list.indexOf(version) === -1) list.unshift(version)
+        return list
+    }
+    Connections {
+        target: runner
+        function onGameStarted(detached) {
+            const after = launcher.preferences.afterLaunch
+            if (detached && after === "close") Qt.quit()
+            else if (after === "minimize") window.showMinimized()
+        }
+        function onGameExited(gameId, seconds, exitCode) {
+            launcher.recordSession(gameId, seconds)
+            if (window.visibility === Window.Minimized) window.showNormal()
+            window.raise()
+            window.requestActivate()
+        }
     }
     Connections {
         target: launcher
@@ -143,36 +164,50 @@ ApplicationWindow {
             // Opaque base: blur captures of the scene must not be see-through.
             Rectangle { anchors.fill: parent; color: Theme.base }
 
-            // Each atmosphere is blurred once at a small resolution, then scaled.
-            // No timer or continuous animation runs once a crossfade ends.
-            Repeater {
-                model: window.atmosphericSources
-                delegate: Item {
-                    id: atmosphere
-                    required property string modelData
-                    width: 640
-                    height: Math.ceil(640 * scene.height / scene.width)
-                    scale: scene.width / 640 * (window.launching ? 1.1 : 1.04)
-                    transformOrigin: Item.TopLeft
-                    opacity: window.atmosphericCover === modelData ? 1 : 0
-                    visible: opacity > 0
-                    Behavior on opacity { NumberAnimation { duration: window.reduced ? 0 : 520; easing.type: Easing.OutCubic } }
-                    Behavior on scale { NumberAnimation { duration: window.reduced ? 0 : 900; easing.type: Easing.OutCubic } }
-                    Image {
-                        id: backgroundArt
-                        anchors.fill: parent
-                        source: Theme.coverSource(atmosphere.modelData)
-                        sourceSize: Qt.size(640, 960)
-                        fillMode: Image.PreserveAspectCrop
-                        visible: false
-                    }
-                    MultiEffect {
-                        anchors.fill: parent; anchors.margins: -40
-                        source: backgroundArt
-                        blurEnabled: true; blur: 1; blurMax: 56
-                        saturation: -0.05
-                        brightness: -0.2
-                        opacity: 0.7
+            // Each atmosphere is blurred once at a small resolution, then scaled up.
+            // Magnifying that small blur shows a faint block grid, so the whole layer
+            // gets a second, light blur at window resolution. Nothing animates at rest.
+            Item {
+                id: atmosphereLayer
+                anchors.fill: parent
+                // Applied as the layer's own effect: hiding the layer and blurring it from
+                // outside froze the crossfades inside it.
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    autoPaddingEnabled: false
+                    blurEnabled: true
+                    blur: 1
+                    blurMax: 24
+                }
+                Repeater {
+                    model: window.atmosphericSources
+                    delegate: Item {
+                        id: atmosphere
+                        required property string modelData
+                        width: 640
+                        height: Math.ceil(640 * scene.height / scene.width)
+                        scale: scene.width / 640 * (window.launching ? 1.1 : 1.04)
+                        transformOrigin: Item.TopLeft
+                        opacity: window.atmosphericCover === modelData ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: window.reduced ? 0 : 520; easing.type: Easing.OutCubic } }
+                        Behavior on scale { NumberAnimation { duration: window.reduced ? 0 : 900; easing.type: Easing.OutCubic } }
+                        Image {
+                            id: backgroundArt
+                            anchors.fill: parent
+                            source: Theme.coverSource(atmosphere.modelData)
+                            sourceSize: Qt.size(640, 960)
+                            fillMode: Image.PreserveAspectCrop
+                            visible: false
+                        }
+                        MultiEffect {
+                            anchors.fill: parent; anchors.margins: -40
+                            source: backgroundArt
+                            blurEnabled: true; blur: 1; blurMax: 56
+                            saturation: -0.05
+                            brightness: -0.2
+                            opacity: 0.7
+                        }
                     }
                 }
             }
@@ -194,6 +229,15 @@ ApplicationWindow {
                     GradientStop { position: 0.7; color: "#33151216" }
                     GradientStop { position: 1; color: "#99151216" }
                 }
+            }
+
+            // Fine grain over the dark gradients prevents visible banding.
+            Image {
+                anchors.fill: parent
+                source: Theme.brandSource("noise")
+                fillMode: Image.Tile
+                smooth: false
+                opacity: 0.035
             }
 
             // Window drag strip, below all interactive content.
@@ -251,6 +295,7 @@ ApplicationWindow {
                     visible: window.page === 1
                     reduced: window.reduced
                     onNotify: function(message) { window.notify(message) }
+                    onInstallRequested: function(pack) { mods.preparePack(pack.id, pack.imageUrl) }
                 }
                 SettingsPage {
                     anchors.fill: parent
@@ -275,6 +320,7 @@ ApplicationWindow {
             onDuplicateRequested: window.duplicateGame(window.drawerGame)
             onRemoveRequested: window.confirmRemoval(window.drawerGameId, window.drawerGame ? window.drawerGame.title : "", false)
             onProfileRequested: profileMenu.open()
+            onModsRequested: modCatalog.openFor(window.drawerGame)
             onNotify: function(message) { window.notify(message) }
         }
 
@@ -319,30 +365,84 @@ ApplicationWindow {
                     font.family: Theme.fontDisplay; font.pixelSize: 34; font.weight: Font.DemiBold
                     font.letterSpacing: -0.6
                 }
-                Item { width: 1; height: 22 }
+                readonly property bool failed: runner.state === "failed"
+                Text {
+                    width: parent.width
+                    topPadding: 10
+                    horizontalAlignment: Text.AlignHCenter
+                    text: parent.failed ? "Não foi possível iniciar" : runner.stage
+                    color: parent.failed ? Theme.danger : Theme.secondary
+                    font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium
+                }
+                Item { width: 1; height: 18; visible: !parent.failed }
                 Rectangle {
+                    id: launchTrack
+                    visible: !parent.failed
                     anchors.horizontalCenter: parent.horizontalCenter
-                    width: 220; height: 3; radius: 1.5; color: "#24FFFFFF"
+                    width: 300; height: 4; radius: 2
+                    color: "#24FFFFFF"
+                    clip: true
                     Rectangle {
-                        width: window.launchSettled ? parent.width : 0
-                        height: parent.height; radius: 1.5; color: Theme.accent
-                        Behavior on width { NumberAnimation { duration: window.reduced ? 0 : 1400; easing.type: Easing.InOutCubic } }
+                        visible: runner.progress >= 0
+                        width: launchTrack.width * Math.max(0, runner.progress)
+                        height: parent.height; radius: 2; color: Theme.accent
+                        Behavior on width { NumberAnimation { duration: window.reduced ? 0 : 200 } }
+                    }
+                    // Unknown duration: a short segment sweeps across the track.
+                    Rectangle {
+                        id: launchSweep
+                        visible: runner.progress < 0
+                        width: launchTrack.width * 0.3
+                        height: parent.height; radius: 2; color: Theme.accent
+                        x: window.reduced ? (launchTrack.width - width) / 2 : 0
+                        NumberAnimation on x {
+                            running: launchSweep.visible && window.launching && !window.reduced
+                            from: -launchSweep.width; to: launchTrack.width
+                            duration: 1100; loops: Animation.Infinite; easing.type: Easing.InOutCubic
+                        }
                     }
                 }
                 Text {
                     width: parent.width
-                    topPadding: 18
+                    topPadding: 12
                     horizontalAlignment: Text.AlignHCenter
-                    text: "Prévia da transição de início — o Minecraft ainda não é executado."
+                    visible: text !== ""
+                    text: parent.failed ? runner.error : runner.detail
                     wrapMode: Text.WordWrap
+                    maximumLineCount: 10
+                    elide: Text.ElideRight
                     color: Theme.muted
-                    font.family: Theme.font; font.pixelSize: 13
+                    font.family: Theme.font; font.pixelSize: parent.failed ? 13 : 12
+                    lineHeight: 1.1
                 }
-                Item { width: 1; height: 22 }
-                ActionButton {
+                Item { width: 1; height: 26 }
+                Row {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Voltar à biblioteca"; iconName: "back"; reduced: window.reduced
-                    onClicked: window.leaveLaunch()
+                    spacing: 8
+                    ActionButton {
+                        visible: runner.busy
+                        text: "Cancelar"; quiet: true; reduced: window.reduced
+                        onClicked: window.leaveLaunch()
+                    }
+                    ActionButton {
+                        visible: runner.state === "failed"
+                        text: "Ver log"; iconName: "terminal"; quiet: true; reduced: window.reduced
+                        onClicked: if (!runner.openLog()) window.notify("Nenhum log disponível para esta tentativa.")
+                    }
+                    ActionButton {
+                        visible: runner.state === "failed"
+                        text: "Voltar"; quiet: true; reduced: window.reduced
+                        onClicked: window.leaveLaunch()
+                    }
+                    ActionButton {
+                        visible: runner.state === "failed"
+                        text: "Tentar de novo"; iconName: "play"; primary: true; reduced: window.reduced
+                        onClicked: {
+                            const game = window.gameById(runner.gameId)
+                            runner.dismiss()
+                            window.beginLaunch(game)
+                        }
+                    }
                 }
             }
         }
@@ -538,6 +638,32 @@ ApplicationWindow {
         }
     }
 
+    ModCatalog {
+        id: modCatalog
+        blurSource: appRoot
+        reduced: window.reduced
+    }
+    Connections {
+        target: mods
+        function onInstallFinished(projectId, ok, message) { window.notify(message) }
+        // A prepared pack becomes a game (its cover imported when possible), then its files install.
+        function onPackPrepared(info) {
+            let cover = info.coverPath ? launcher.importCover(info.coverPath) : ""
+            if (!cover) cover = "dusk"
+            const id = launcher.addGame(info.title.slice(0, 72) || "Modpack", info.version, info.loader, cover, info.loaderVersion)
+            if (id) mods.installPackFiles(id)
+            else { mods.cancelPack(); window.notify(launcher.lastError) }
+        }
+        function onPackFinished(gameId, ok, message) {
+            if (!ok && gameId) launcher.removeGame(gameId)
+            window.notify(ok ? "Modpack instalado. Ele já está em Jogos." : message)
+            if (ok) {
+                window.selectedGameId = gameId
+                window.page = 0
+            }
+        }
+    }
+
     GlassDialog {
         id: profileEditor
         objectName: "profileEditor"
@@ -578,6 +704,13 @@ ApplicationWindow {
         property string editingId: ""
         property string chosenCover: "meadow"
         property string chosenLoader: "Vanilla"
+        property string chosenLoaderVersion: ""
+        // The loader build list follows the chosen Minecraft version.
+        readonly property bool loaderListReady: runner.loaderVersionsFor === versionChoice.currentText
+            && runner.loaderVersionsLoader === chosenLoader && runner.loaderVersions.length > 0
+        readonly property string loaderVersionToSave: chosenLoader !== "Vanilla"
+            ? (chosenLoaderVersion !== "" && (!loaderListReady || runner.loaderVersions.indexOf(chosenLoaderVersion) !== -1)
+               ? chosenLoaderVersion : runner.recommendedLoader) : ""
         readonly property color tint: Theme.coverTint(chosenCover)
         title: editingId ? "Editar jogo" : "Criar jogo"
         width: Math.min(760, window.width - 80)
@@ -588,8 +721,12 @@ ApplicationWindow {
             editingId = game ? game.id : ""
             chosenCover = game ? game.coverId : "meadow"
             chosenLoader = game ? game.loader : "Vanilla"
+            chosenLoaderVersion = game && game.loaderVersion ? game.loaderVersion : ""
             gameName.text = game ? game.title : ""
-            versionChoice.currentIndex = Math.max(0, Theme.versions.indexOf(game ? game.version : "1.21.1"))
+            const version = game ? game.version : (runner.latestRelease || window.versionsFor("")[0])
+            versionChoice.model = window.versionsFor(version)
+            versionChoice.currentIndex = Math.max(0, versionChoice.model.indexOf(version))
+            runner.fetchLoaderVersions(version, chosenLoader)
             open()
             gameName.forceActiveFocus()
         }
@@ -675,7 +812,12 @@ ApplicationWindow {
                     Text { text: "Nome"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.bottomMargin: 8 }
                     InputField { id: gameName; objectName: "gameName"; Layout.fillWidth: true; placeholderText: "Como vai chamar seu jogo?"; maximumLength: 72 }
                     Text { text: "Versão do Minecraft"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 20; Layout.bottomMargin: 8 }
-                    ChoiceField { id: versionChoice; Layout.fillWidth: true; model: Theme.versions }
+                    ChoiceField {
+                        id: versionChoice
+                        Layout.fillWidth: true
+                        model: Theme.versions
+                        onActivated: { gameEditor.chosenLoaderVersion = ""; runner.fetchLoaderVersions(currentText, gameEditor.chosenLoader) }
+                    }
                     Text { text: "Tipo de instalação"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 20; Layout.bottomMargin: 8 }
                     GridLayout {
                         Layout.fillWidth: true
@@ -698,7 +840,11 @@ ApplicationWindow {
                                 Accessible.name: modelData.name
                                 Accessible.role: Accessible.RadioButton
                                 Accessible.checked: chosen
-                                onClicked: gameEditor.chosenLoader = modelData.name
+                                onClicked: {
+                                    gameEditor.chosenLoader = modelData.name
+                                    gameEditor.chosenLoaderVersion = ""
+                                    runner.fetchLoaderVersions(versionChoice.currentText, modelData.name)
+                                }
                                 background: Rectangle {
                                     radius: 12
                                     color: loaderOption.chosen ? Theme.accentSoft : loaderOption.hovered ? "#0FFFFFFF" : Theme.fill
@@ -726,6 +872,25 @@ ApplicationWindow {
                                 }
                             }
                         }
+                    }
+                    Text {
+                        visible: gameEditor.chosenLoader !== "Vanilla" && gameEditor.loaderListReady
+                        text: "Versão do " + gameEditor.chosenLoader
+                        color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13
+                        Layout.topMargin: 20; Layout.bottomMargin: 8
+                    }
+                    ChoiceField {
+                        id: loaderVersionChoice
+                        visible: gameEditor.chosenLoader !== "Vanilla" && gameEditor.loaderListReady
+                        Layout.fillWidth: true
+                        model: runner.loaderVersions.map(function(version) {
+                            return version === runner.recommendedLoader ? version + "  ·  recomendada" : version
+                        })
+                        Binding on currentIndex {
+                            when: !loaderVersionChoice.popup.visible
+                            value: Math.max(0, runner.loaderVersions.indexOf(gameEditor.loaderVersionToSave))
+                        }
+                        onActivated: function(index) { gameEditor.chosenLoaderVersion = runner.loaderVersions[index] }
                     }
                 }
             }
@@ -757,10 +922,10 @@ ApplicationWindow {
                     reduced: window.reduced
                     onClicked: {
                         if (gameEditor.editingId) {
-                            if (launcher.updateGame(gameEditor.editingId, gameName.text, versionChoice.currentText, gameEditor.chosenLoader, gameEditor.chosenCover))
+                            if (launcher.updateGame(gameEditor.editingId, gameName.text, versionChoice.currentText, gameEditor.chosenLoader, gameEditor.chosenCover, gameEditor.loaderVersionToSave))
                                 gameEditor.close()
                         } else {
-                            const id = launcher.addGame(gameName.text, versionChoice.currentText, gameEditor.chosenLoader, gameEditor.chosenCover)
+                            const id = launcher.addGame(gameName.text, versionChoice.currentText, gameEditor.chosenLoader, gameEditor.chosenCover, gameEditor.loaderVersionToSave)
                             if (id) {
                                 window.page = 0
                                 home.clearFilters()
@@ -859,5 +1024,4 @@ ApplicationWindow {
         exit: Transition { NumberAnimation { property: "opacity"; to: 0; duration: window.reduced ? 0 : 160 } }
     }
     Timer { id: toastTimer; interval: 3600; onTriggered: toast.close() }
-    Timer { id: launchTimer; interval: 260; onTriggered: window.launchSettled = true }
 }
