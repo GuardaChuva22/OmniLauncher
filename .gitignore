@@ -1,0 +1,30 @@
+# Local toolchain and build artifacts
+.tools/
+build/
+build-*/
+dist/
+work/
+aqtinstall.log
+CMakeUserPresets.json
+.vs/
+.idea/
+*.user
+*.log
+*.pdb
+*.ilk
+
+# Credentials and user data never belong in source control
+.env
+.env.*
+!.env.example
+credentials.json
+accounts.json
+state.json
+instances/
+worlds/
+cache/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store

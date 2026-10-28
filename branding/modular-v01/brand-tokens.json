@@ -1,0 +1,32 @@
+{
+  "version": "modular-v01",
+  "selected_direction": "01 Modular",
+  "selected_by_user": true,
+  "palette_status": "proposal",
+  "palette": {
+    "rose": "#E68AA6",
+    "roseHover": "#F3B7CB",
+    "background": "#151216",
+    "surface": "#211D23",
+    "text": "#F5F1ED",
+    "secondary": "#B0A7AF"
+  },
+  "font": "Manrope",
+  "weights": [
+    400,
+    500,
+    600,
+    700
+  ],
+  "wordmark": "Graphic artwork, not typeset Manrope",
+  "min_symbol_px": 24,
+  "icon_16px": "Optical review required",
+  "contrast_solid_colors": {
+    "graphite_on_rose": 7.566965886012444,
+    "porcelain_on_graphite": 16.537699423500342,
+    "secondary_on_surface": 7.110510178095414,
+    "porcelain_on_rose": 2.1855126179530324
+  },
+  "source_assets": "Raster PNG generated via built-in image_gen",
+  "ui_applied": false
+}
