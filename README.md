@@ -48,6 +48,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1
 ```
 
+Para distribuir: `scripts/package.ps1` gera `dist/OmniLauncher-<versão>-win64.zip`, com Qt e o runtime do Visual C++ ao lado do exe. Basta extrair e abrir `OmniLauncher.exe`; nada precisa ser instalado. Os dados ficam em `%APPDATA%\OmniLauncher` (versões anteriores usavam `%APPDATA%\OmniLauncher\OmniLauncher`, migrada automaticamente).
+
 Dados de Jogos e Perfis são locais, fora da pasta de fonte. Para testes separados, `scripts/run.ps1` aceita `-DataDir caminho`. O primeiro acesso cria quatro Jogos de exemplo e nenhum Perfil; esses Jogos representam a biblioteca do protótipo, sem jogo instalado. Perfis offline podem ser criados, selecionados e removidos. “Jogar” em um jogo Vanilla baixa versão, bibliotecas, assets e o Java indicado pela Mojang (com verificação SHA-1), e inicia o Minecraft com o Perfil offline ativo. Arquivos compartilhados ficam uma vez na pasta de dados (`versions/`, `libraries/`, `assets/`, `runtimes/`); cada jogo tem sua pasta em `instances/<id>`. Memória, resolução e argumentos da JVM são salvos por jogo; memória padrão e o comportamento do launcher ao iniciar ficam em Configurações.
 
 As quatro capas são artes originais geradas com ImageGen built-in. Arquivos, prompts e proveniência em `assets/ARTWORK.md`. Imagens próprias podem ser importadas no editor de jogo e copiadas para a pasta de dados, preservando o original.

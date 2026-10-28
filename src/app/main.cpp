@@ -5,6 +5,7 @@
 
 #include <QCommandLineParser>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QGuiApplication>
@@ -15,8 +16,36 @@
 #include <QQuickWindow>
 #include <QQuickStyle>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QRegularExpression>
+#include <QUrl>
 #include <QTimer>
+
+// %APPDATA%\OmniLauncher. Earlier builds used %APPDATA%\OmniLauncher\OmniLauncher
+// (organization + application name); that folder is moved up once, keeping downloads.
+static QString defaultDataDirectory()
+{
+    const auto legacy = QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)).absolutePath();
+    const auto target = QFileInfo(legacy).absolutePath();
+    if (!QDir(legacy).exists() || QFile::exists(QDir(target).filePath(QStringLiteral("library.json"))))
+        return target;
+    const QDir from(legacy);
+    for (const auto &entry : from.entryList(QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot)) {
+        if (!QFileInfo::exists(QDir(target).filePath(entry)))
+            QDir().rename(from.filePath(entry), QDir(target).filePath(entry));
+    }
+    // Imported covers are stored as absolute file URLs: point them at the new folder.
+    QFile library(QDir(target).filePath(QStringLiteral("library.json")));
+    if (library.open(QIODevice::ReadWrite)) {
+        auto text = QString::fromUtf8(library.readAll());
+        text.replace(QUrl::fromLocalFile(from.filePath(QStringLiteral("covers"))).toString(),
+                     QUrl::fromLocalFile(QDir(target).filePath(QStringLiteral("covers"))).toString());
+        library.resize(0);
+        library.write(text.toUtf8());
+    }
+    QDir().rmdir(legacy); // Only succeeds when everything moved.
+    return target;
+}
 
 int main(int argc, char *argv[])
 {
@@ -50,7 +79,8 @@ int main(int argc, char *argv[])
                            QDir(parser.value(QStringLiteral("data-dir"))).absolutePath());
     }
 
-    AppModel model(parser.value(QStringLiteral("data-dir")));
+    AppModel model(parser.isSet(QStringLiteral("data-dir")) ? parser.value(QStringLiteral("data-dir"))
+                                                            : defaultDataDirectory());
     GameRunner runner(model.dataDirectory());
     ModManager mods(model.dataDirectory());
     AuthManager auth(model.dataDirectory());
