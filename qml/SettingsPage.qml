@@ -11,6 +11,7 @@ Item {
     signal notify(string message)
     // Turning on offline profiles without a Microsoft account asks first (Main shows the warning).
     signal debugOfflineRequested()
+    readonly property bool debugVisible: !updates.enabled || launcher.preferences.developerMode === true
     readonly property real gutter: width < 900 ? 32 : 48
     // options.txt helpers: the stored value, or the game's own default when unset.
     function option(key, fallback) {
@@ -426,16 +427,17 @@ Item {
                 }
             }
 
-            // Development builds only: released builds update themselves and never show this.
-            SectionTitle { visible: !updates.enabled; text: qsTr("Depuração") }
+            // Always there in development builds; in released ones only in developer mode
+            // (seven clicks on the version at the bottom).
+            SectionTitle { visible: root.debugVisible; text: qsTr("Depuração") }
             Group {
-                visible: !updates.enabled
+                visible: root.debugVisible
                 SettingRow {
                     title: qsTr("Perfis offline sem conta Microsoft")
                     description: launcher.preferences.debugOffline === true
                         ? qsTr("Ligado: dá para criar perfis offline sem conta conectada. Só para testes e depuração.")
                         : qsTr("Permite criar perfis offline sem uma conta Microsoft com o Minecraft. Só para testes e depuração.")
-                    divider: false
+                    divider: updates.enabled
                     ToggleSwitch {
                         id: debugOffline
                         reduced: root.reduced
@@ -447,6 +449,20 @@ Item {
                             checked = Qt.binding(function() { return launcher.preferences.debugOffline === true })
                             if (wanted) root.debugOfflineRequested()
                             else root.setPreference("debugOffline", false)
+                        }
+                    }
+                }
+                SettingRow {
+                    visible: updates.enabled
+                    title: qsTr("Modo desenvolvedor")
+                    description: qsTr("Esconde esta seção e desliga as opções de depuração.")
+                    divider: false
+                    ActionButton {
+                        text: qsTr("Desligar"); quiet: true; reduced: root.reduced
+                        onClicked: {
+                            root.setPreference("debugOffline", false)
+                            root.setPreference("developerMode", false)
+                            root.notify(qsTr("Modo desenvolvedor desligado."))
                         }
                     }
                 }
@@ -468,6 +484,22 @@ Item {
                 text: "OmniLauncher " + Qt.application.version + qsTr(" · protótipo")
                 color: Theme.faint
                 font.family: Theme.font; font.pixelSize: 12
+                // Seven quick clicks turn on developer mode (the Debug section in released builds).
+                MouseArea {
+                    property int clicks: 0
+                    anchors.fill: parent
+                    onClicked: {
+                        if (root.debugVisible) return
+                        clicks = resetClicks.running ? clicks + 1 : 1
+                        resetClicks.restart()
+                        if (clicks >= 7) {
+                            clicks = 0
+                            root.setPreference("developerMode", true)
+                            root.notify(qsTr("Modo desenvolvedor ligado: a seção Depuração apareceu."))
+                        } else if (clicks >= 4) root.notify(qsTr("Faltam %1 cliques para o modo desenvolvedor.").arg(7 - clicks))
+                    }
+                    Timer { id: resetClicks; interval: 2000 }
+                }
             }
         }
     }

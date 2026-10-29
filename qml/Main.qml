@@ -1477,7 +1477,7 @@ ApplicationWindow {
             spacing: 0
             Text {
                 Layout.fillWidth: true
-                text: qsTr("Isto libera perfis offline sem uma conta Microsoft conectada, para testar o launcher enquanto o login não está disponível. Não é um jeito de jogar sem ter o Minecraft: use só com o jogo comprado, e desligue quando terminar os testes. Versões lançadas não têm esta opção.")
+                text: qsTr("Isto libera perfis offline sem uma conta Microsoft conectada, para testar o launcher enquanto o login não está disponível. Não é um jeito de jogar sem ter o Minecraft: use só com o jogo comprado, e desligue quando terminar os testes. Desligue em Configurações, Depuração.")
                 color: Theme.secondary
                 font.family: Theme.font; font.pixelSize: 14
                 wrapMode: Text.WordWrap

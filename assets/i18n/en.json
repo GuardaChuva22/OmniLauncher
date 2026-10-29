@@ -834,7 +834,13 @@
  "Ligado: dá para criar perfis offline sem conta conectada. Só para testes e depuração.": "On: offline profiles can be created without a connected account. For testing and debugging only.",
  "Permite criar perfis offline sem uma conta Microsoft com o Minecraft. Só para testes e depuração.": "Lets you create offline profiles without a Microsoft account that owns Minecraft. For testing and debugging only.",
  "Só para testes e depuração": "For testing and debugging only",
- "Isto libera perfis offline sem uma conta Microsoft conectada, para testar o launcher enquanto o login não está disponível. Não é um jeito de jogar sem ter o Minecraft: use só com o jogo comprado, e desligue quando terminar os testes. Versões lançadas não têm esta opção.": "This allows offline profiles without a connected Microsoft account, to test the launcher while sign-in isn't available. It isn't a way to play without owning Minecraft: use it only with a purchased copy, and turn it off when you're done testing. Released builds don't have this option.",
  "Ligar para testes": "Turn on for testing",
- "Perfis offline liberados para testes.": "Offline profiles allowed for testing."
+ "Perfis offline liberados para testes.": "Offline profiles allowed for testing.",
+ "Isto libera perfis offline sem uma conta Microsoft conectada, para testar o launcher enquanto o login não está disponível. Não é um jeito de jogar sem ter o Minecraft: use só com o jogo comprado, e desligue quando terminar os testes. Desligue em Configurações, Depuração.": "This allows offline profiles without a connected Microsoft account, to test the launcher while sign-in isn't available. It isn't a way to play without owning Minecraft: use it only with a purchased copy, and turn it off when you're done testing. Turn it off in Settings, Debug.",
+ "Modo desenvolvedor": "Developer mode",
+ "Esconde esta seção e desliga as opções de depuração.": "Hides this section and turns the debug options off.",
+ "Desligar": "Turn off",
+ "Modo desenvolvedor desligado.": "Developer mode off.",
+ "Modo desenvolvedor ligado: a seção Depuração apareceu.": "Developer mode on: the Debug section is now showing.",
+ "Faltam %1 cliques para o modo desenvolvedor.": "%1 more clicks to developer mode."
 }

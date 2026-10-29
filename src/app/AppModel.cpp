@@ -144,7 +144,7 @@ QVariant cleanPreference(const QString &key, const QVariant &value)
         const auto text = value.toString();
         return text == "minimize" || text == "close" || text == "keep" ? QVariant(text) : QVariant();
     }
-    if (key == "debugOffline")
+    if (key == "debugOffline" || key == "developerMode")
         return value.typeId() == QMetaType::Bool ? value : QVariant();
     return {};
 }
@@ -508,12 +508,10 @@ QString AppModel::importCover(const QUrl &source)
 
 bool AppModel::offlineAllowed() const
 {
-    // OMNI_ALLOW_OFFLINE=1, or Settings > Debug, is for development builds tested without a
-    // Microsoft account. Released builds (auto-update on) ignore both.
-#if !OMNI_AUTO_UPDATE
+    // OMNI_ALLOW_OFFLINE=1, or Settings > Debug, is for testing without a Microsoft account. In
+    // released builds the Debug section stays hidden until developer mode is turned on.
     if (qEnvironmentVariable("OMNI_ALLOW_OFFLINE") == QLatin1String("1") || m_preferences.value("debugOffline").toBool())
         return true;
-#endif
     for (const auto &value : m_profiles)
         if (value.toMap().value("type").toString() == "microsoft")
             return true;
