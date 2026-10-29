@@ -16,7 +16,7 @@ Item {
         return value === undefined ? fallback : value
     }
     function setOption(key, value) { runner.setGameDefault(key, String(value)) }
-    readonly property var afterLaunchOptions: [{ label: "Minimizar", value: "minimize" }, { label: "Fechar", value: "close" },
+    readonly property var afterLaunchOptions: [{ label: "Ir para a bandeja", value: "minimize" }, { label: "Fechar", value: "close" },
                                                { label: "Manter aberto", value: "keep" }]
     function setPreference(key, value) {
         if (!launcher.setPreference(key, value)) root.notify(launcher.lastError)

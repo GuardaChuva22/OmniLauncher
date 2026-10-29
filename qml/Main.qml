@@ -23,6 +23,8 @@ ApplicationWindow {
     property string drawerGameId: ""
     property bool drawerOpen: false
     property string launchedTitle: ""
+    // The game is open and the launcher is leaving for (or waiting in) the tray.
+    property bool handoff: false
     // A Microsoft profile needs a fresh session first; the game waits here meanwhile.
     property string pendingLaunchGameId: ""
     // What the version picker is choosing for: a pack (new install or version change) or a mod.
@@ -123,7 +125,7 @@ ApplicationWindow {
     property string launchedCover: "meadow"
     // The launch screen covers the app while files are prepared, and stays on a
     // failure until it is dismissed. A running game does not block the launcher.
-    readonly property bool launching: runner.busy || runner.state === "failed"
+    readonly property bool launching: runner.busy || runner.state === "failed" || handoff
     readonly property bool reduced: launcher.reducedMotion
     readonly property bool compactSidebar: width < 1180
     readonly property real sidebarWidth: compactSidebar ? 76 : 248
@@ -277,7 +279,7 @@ ApplicationWindow {
                                     Math.floor(Date.now() / 1000))
             const after = launcher.preferences.afterLaunch
             if (detached && after === "close") Qt.quit()
-            else if (after === "minimize") window.showMinimized()
+            else if (after === "minimize") window.sendToTray()
         }
         function onGameExited(gameId, seconds, exitCode) {
             discord.clearActivity()
@@ -285,9 +287,8 @@ ApplicationWindow {
             // A clean exit can still hide trouble (e.g. data that blocks world creation).
             if (exitCode === 0 && runner.diagnosis.gameId === gameId)
                 window.notify(runner.diagnosis.title + ". Veja os detalhes no jogo.")
-            if (window.visibility === Window.Minimized) window.showNormal()
-            window.raise()
-            window.requestActivate()
+            if (window.handoff || !window.visible || window.visibility === Window.Minimized) window.returnToLauncher()
+            else { window.raise(); window.requestActivate() }
         }
     }
     Connections {
@@ -350,6 +351,59 @@ ApplicationWindow {
     Component.onCompleted: {
         try { downloads = JSON.parse(downloadPrefs.history) } catch (error) { downloads = [] }
         if (!gameById(selectedGameId) && launcher.games.length) selectedGameId = launcher.games[0].id
+        if (!reduced) { window.opacity = 0; windowFade.start(); appScale.xScale = 1.04 }
+        intro.play()
+    }
+    NumberAnimation { id: windowFade; target: window; property: "opacity"; to: 1; duration: 260; easing.type: Easing.OutCubic }
+    NumberAnimation { id: appSettle; target: appScale; property: "xScale"; to: 1; duration: 1100; easing.type: Easing.OutQuint }
+
+    // ── Launcher ⇄ game ──────────────────────────────────────────────────
+    // Play: the launch card grows as the scene fades to black, then the window
+    // dissolves into the tray. Game closed (or tray clicked): the window fades
+    // back in and the launcher settles under a lifting curtain.
+    function sendToTray() {
+        handoff = true
+        if (reduced) { window.hide(); tray.show(); return }
+        toTray.start()
+    }
+    function returnToLauncher() {
+        toTray.stop()
+        tray.hide()
+        if (!window.visible || window.visibility === Window.Minimized) {
+            curtain.opacity = 1
+            if (!reduced) window.opacity = 0
+            window.showNormal()
+        }
+        handoff = false
+        launchCover.scale = 1
+        window.raise()
+        window.requestActivate()
+        if (reduced) { curtain.opacity = 0; window.opacity = 1; return }
+        appScale.xScale = 1.04
+        fromTray.start()
+    }
+    SequentialAnimation {
+        id: toTray
+        PauseAnimation { duration: 700 }
+        ParallelAnimation {
+            NumberAnimation { target: curtain; property: "opacity"; from: 0; to: 1; duration: 900; easing.type: Easing.InOutCubic }
+            NumberAnimation { target: launchCover; property: "scale"; to: 1.12; duration: 1100; easing.type: Easing.InCubic }
+        }
+        NumberAnimation { target: window; property: "opacity"; to: 0; duration: 380; easing.type: Easing.InCubic }
+        ScriptAction { script: { window.hide(); window.opacity = 1; tray.show() } }
+    }
+    SequentialAnimation {
+        id: fromTray
+        ScriptAction { script: sfx.play("open") }
+        ParallelAnimation {
+            NumberAnimation { target: window; property: "opacity"; to: 1; duration: 320; easing.type: Easing.OutCubic }
+            NumberAnimation { target: curtain; property: "opacity"; to: 0; duration: 1000; easing.type: Easing.InOutCubic }
+            NumberAnimation { target: appScale; property: "xScale"; to: 1; duration: 1300; easing.type: Easing.OutQuint }
+        }
+    }
+    Connections {
+        target: tray
+        function onActivated(reason) { window.returnToLauncher() }
     }
 
     Shortcut { sequence: "Ctrl+N"; enabled: !window.modalOpen && !window.launching; onActivated: gameEditor.prepare(null) }
@@ -359,7 +413,7 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Escape"
-        enabled: window.launching || (window.drawerOpen && !window.modalOpen && !profileMenu.visible)
+        enabled: (window.launching && !window.handoff) || (window.drawerOpen && !window.modalOpen && !profileMenu.visible)
         onActivated: window.launching ? window.leaveLaunch() : window.closeDrawer()
     }
     Shortcut { sequence: "F11"; onActivated: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized() }
@@ -368,6 +422,7 @@ ApplicationWindow {
     Item {
         id: appRoot
         anchors.fill: parent
+        transform: Scale { id: appScale; origin.x: appRoot.width / 2; origin.y: appRoot.height / 2; yScale: xScale }
 
         // Drawer glass samples this scene: background, navigation and pages.
         Item {
@@ -628,7 +683,7 @@ ApplicationWindow {
                     width: parent.width
                     topPadding: 10
                     horizontalAlignment: Text.AlignHCenter
-                    text: parent.failed ? "Não foi possível iniciar" : runner.stage
+                    text: parent.failed ? "Não foi possível iniciar" : window.handoff ? "Bom jogo" : runner.stage
                     color: parent.failed ? Theme.danger : Theme.secondary
                     font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium
                 }
@@ -636,6 +691,8 @@ ApplicationWindow {
                 Rectangle {
                     id: launchTrack
                     visible: !parent.failed
+                    opacity: window.handoff ? 0 : 1
+                    Behavior on opacity { NumberAnimation { duration: 300 } }
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: 300; height: 4; radius: 2
                     color: "#24FFFFFF"
@@ -1392,4 +1449,30 @@ ApplicationWindow {
         exit: Transition { NumberAnimation { property: "opacity"; to: 0; duration: window.reduced ? 0 : 160 } }
     }
     Timer { id: toastTimer; interval: 3600; onTriggered: toast.close() }
+
+    // Black curtain for the trip to and from the tray, with the mark resting on it.
+    Rectangle {
+        id: curtain
+        anchors.fill: parent
+        color: "#0B090C"
+        opacity: 0
+        visible: opacity > 0
+        Image {
+            anchors.centerIn: parent
+            height: 30; width: Math.round(height * 155 / 120)
+            source: Theme.brandSource("symbol-rose")
+            sourceSize.height: 120
+            fillMode: Image.PreserveAspectFit
+            smooth: true; mipmap: true
+            opacity: 0.5
+        }
+        MouseArea { anchors.fill: parent }
+    }
+
+    Intro {
+        id: intro
+        reduced: window.reduced
+        onReveal: { appSettle.start(); if (!window.reduced) pageIntro.restart() }
+        onFinished: home.forceActiveFocus()
+    }
 }

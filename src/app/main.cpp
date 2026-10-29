@@ -12,7 +12,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
-#include <QGuiApplication>
+#include <QAction>
+#include <QApplication>
+#include <QMenu>
+#include <QSystemTrayIcon>
 #include <QIcon>
 #include <QImage>
 #include <QQmlApplicationEngine>
@@ -53,7 +56,8 @@ static QString defaultDataDirectory()
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    // QApplication (not QGuiApplication) for the Windows tray icon, which is a widget.
+    QApplication app(argc, argv);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
     QCoreApplication::setOrganizationName(QStringLiteral("OmniLauncher"));
     QCoreApplication::setApplicationName(QStringLiteral("OmniLauncher"));
@@ -65,7 +69,7 @@ int main(int argc, char *argv[])
         if (QFontDatabase::addApplicationFont(path) < 0)
             qWarning("Não foi possível carregar a fonte %s.", qPrintable(path));
     }
-    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/OmniLauncher/assets/brand/app-icon.png")));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/OmniLauncher/assets/brand/app-icon.png")));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("OmniLauncher — protótipo da experiência desktop"));
@@ -102,6 +106,18 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("discord"), &discord);
     engine.rootContext()->setContextProperty(QStringLiteral("servers"), &servers);
     engine.rootContext()->setContextProperty(QStringLiteral("sfx"), &sfx);
+
+    // While a game runs the launcher can wait in the tray; QML shows/hides the icon
+    // and handles `activated` (the menu's "Abrir" reuses that signal).
+    QSystemTrayIcon tray(QApplication::windowIcon());
+    tray.setToolTip(QStringLiteral("OmniLauncher"));
+    QMenu trayMenu;
+    QObject::connect(trayMenu.addAction(QStringLiteral("Abrir o OmniLauncher")), &QAction::triggered, &tray,
+                     [&tray] { emit tray.activated(QSystemTrayIcon::Trigger); });
+    trayMenu.addSeparator();
+    QObject::connect(trayMenu.addAction(QStringLiteral("Sair")), &QAction::triggered, &app, &QCoreApplication::quit);
+    tray.setContextMenu(&trayMenu);
+    engine.rootContext()->setContextProperty(QStringLiteral("tray"), &tray);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule(QStringLiteral("OmniLauncher"), QStringLiteral("Main"));
