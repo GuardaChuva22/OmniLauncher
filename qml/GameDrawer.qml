@@ -19,6 +19,7 @@ FocusScope {
     signal modsRequested()
     signal modVersionRequested(var mod)
     signal packVersionsRequested()
+    signal wrappedRequested()
     // Content shown in the Conteúdo tab and the Modrinth loaders it is filtered by.
     property string contentKind: "mod"
     readonly property string contentLoader: contentKind === "shader" ? "iris,optifine"
@@ -286,6 +287,13 @@ FocusScope {
                         Accessible.name: "Abrir pasta"
                         ToolTip.visible: hovered; ToolTip.text: "Abrir pasta"; ToolTip.delay: 500
                         onClicked: runner.openGameFolder(root.gameId)
+                    }
+                    ActionButton {
+                        Layout.preferredWidth: 40
+                        iconName: "spark"; reduced: root.reduced
+                        Accessible.name: "Retrospectiva deste jogo"
+                        ToolTip.visible: hovered; ToolTip.text: "Retrospectiva deste jogo"; ToolTip.delay: 500
+                        onClicked: root.wrappedRequested()
                     }
                 }
 

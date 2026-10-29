@@ -46,6 +46,7 @@ Item {
         "logout": "M10 4H5V20H10 M15 8L19 12L15 16 M19 12H9",
         "server": "M4 4H20V10H4Z M4 14H20V20H4Z M8 7H8.01 M8 17H8.01 M12 7H16 M12 17H16",
         "stop": "M7 7H17V17H7Z",
+        "spark": "M12 3L13.8 10.2L21 12L13.8 13.8L12 21L10.2 13.8L3 12L10.2 10.2Z",
         "restart": "M19.5 12A7.5 7.5 0 1 1 17 6.4 M19 3.5V8H14.5"
     })
     readonly property bool dotted: name === "dots"

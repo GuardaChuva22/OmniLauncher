@@ -14,6 +14,7 @@ FocusScope {
     signal playRequested(var game)
     signal editRequested(var game)
     signal createRequested()
+    signal wrappedRequested()
     signal previewChanged(string id, bool active)
 
     readonly property real gutter: width < 900 ? 32 : 48
@@ -76,6 +77,13 @@ FocusScope {
             placeholderText: "Buscar jogo"
             Keys.onEscapePressed: { text = ""; root.forceActiveFocus() }
             Keys.onDownPressed: root.moveSelection(0)
+        }
+        ActionButton {
+            text: "Retrospectiva"
+            iconName: "spark"
+            quiet: true
+            reduced: root.reduced
+            onClicked: root.wrappedRequested()
         }
         ActionButton {
             text: "Criar jogo"

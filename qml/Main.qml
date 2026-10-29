@@ -361,6 +361,10 @@ ApplicationWindow {
     // Play: the launch card grows as the scene fades to black, then the window
     // dissolves into the tray. Game closed (or tray clicked): the window fades
     // back in and the launcher settles under a lifting curtain.
+    function openWrapped(gameId) {
+        closeDrawer()
+        wrappedView.open(gameId)
+    }
     function sendToTray() {
         handoff = true
         if (reduced) { window.hide(); tray.show(); return }
@@ -566,6 +570,7 @@ ApplicationWindow {
                         onPlayRequested: function(game) { window.beginLaunch(game) }
                         onEditRequested: function(game) { window.editGame(game) }
                         onCreateRequested: gameEditor.prepare(null)
+                    onWrappedRequested: window.openWrapped("")
                         onPreviewChanged: function(id, active) {
                             if (active) window.previewGameId = id
                             else if (window.previewGameId === id) window.previewGameId = ""
@@ -630,6 +635,7 @@ ApplicationWindow {
             onProfileRequested: profileMenu.open()
             onModsRequested: modCatalog.openFor(window.drawerGame, drawer.contentKind, drawer.contentLoader)
             onModVersionRequested: function(mod) { window.pickModVersion(window.drawerGame, mod) }
+            onWrappedRequested: window.openWrapped(window.drawerGameId)
             onPackVersionsRequested: {
                 const saved = launcher.gameSettings[window.drawerGameId] || {}
                 window.pickPackVersion({ id: saved.packProjectId, title: window.drawerGame.title }, window.drawerGameId)
@@ -1449,6 +1455,12 @@ ApplicationWindow {
         exit: Transition { NumberAnimation { property: "opacity"; to: 0; duration: window.reduced ? 0 : 160 } }
     }
     Timer { id: toastTimer; interval: 3600; onTriggered: toast.close() }
+
+    WrappedView {
+        id: wrappedView
+        reduced: window.reduced
+        onNotify: function(message) { window.notify(message) }
+    }
 
     // Black curtain for the trip to and from the tray, with the mark resting on it.
     Rectangle {
