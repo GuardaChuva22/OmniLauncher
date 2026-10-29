@@ -37,6 +37,8 @@ qt_add_executable(OmniLauncher WIN32
     src/core/Wrapped.cpp
     src/core/PackCloud.h
     src/core/PackCloud.cpp
+    src/core/SteamTunnel.h
+    src/core/SteamTunnel.cpp
     src/app/app.rc
 )
 
@@ -76,6 +78,29 @@ endif()
 target_compile_definitions(OmniLauncher PRIVATE OMNI_MSA_CLIENT_ID="${omni_msa_client_id}")
 if(WIN32)
     target_link_libraries(OmniLauncher PRIVATE advapi32 winmm dwmapi)
+endif()
+
+# Steam friends: invites and a tunnel over Valve's relay network to the servers hosted in
+# the launcher. Needs the Steamworks SDK, which stays out of the repository: point
+# STEAMWORKS_SDK_ROOT at it (or put it in .tools/steamworks). Without it the launcher
+# builds without the feature. steam_api64.dll is delay-loaded, so a missing DLL only
+# turns the feature off. App ID 480 (Valve's Spacewar test app) is for testing only.
+set(STEAMWORKS_SDK_ROOT "$ENV{STEAMWORKS_SDK_ROOT}" CACHE PATH "Steamworks SDK folder (with public/ and redistributable_bin/)")
+if(NOT STEAMWORKS_SDK_ROOT AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.tools/steamworks/public/steam/steam_api.h")
+    set(STEAMWORKS_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.tools/steamworks" CACHE PATH "" FORCE)
+endif()
+set(OMNI_STEAM_APP_ID "480" CACHE STRING "Steam App ID for friends and the relay tunnel (480: Spacewar, testing only)")
+if(WIN32 AND STEAMWORKS_SDK_ROOT AND EXISTS "${STEAMWORKS_SDK_ROOT}/public/steam/steam_api.h")
+    message(STATUS "Steam tunnel: Steamworks SDK at ${STEAMWORKS_SDK_ROOT}, App ID ${OMNI_STEAM_APP_ID}")
+    target_include_directories(OmniLauncher SYSTEM PRIVATE "${STEAMWORKS_SDK_ROOT}/public")
+    target_link_libraries(OmniLauncher PRIVATE "${STEAMWORKS_SDK_ROOT}/redistributable_bin/win64/steam_api64.lib" delayimp)
+    target_link_options(OmniLauncher PRIVATE "/DELAYLOAD:steam_api64.dll")
+    target_compile_definitions(OmniLauncher PRIVATE OMNI_STEAM=1 OMNI_STEAM_APP_ID=${OMNI_STEAM_APP_ID})
+    add_custom_command(TARGET OmniLauncher POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${STEAMWORKS_SDK_ROOT}/redistributable_bin/win64/steam_api64.dll"
+                "$<TARGET_FILE_DIR:OmniLauncher>")
+else()
+    message(STATUS "Steam tunnel: off (no Steamworks SDK)")
 endif()
 
 # The prototype's QML/assets are authored alongside the native shell. CONFIGURE_DEPENDS

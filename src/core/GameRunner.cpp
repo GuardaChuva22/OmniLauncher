@@ -1108,7 +1108,12 @@ void GameRunner::stepPrepareAndStart()
 
     const auto resolution = m_settings.value("resolution").toString().split('x');
     const bool customResolution = resolution.size() == 2;
-    const QVariantMap features{{"has_custom_resolution", customResolution}};
+    // settings.joinServer ("host:port"): straight into that server, e.g. a friend's through the Steam tunnel.
+    const auto joinServer = m_settings.value("joinServer").toString();
+    const auto modern = m_version.value("arguments").toObject();
+    const bool quickPlay = !joinServer.isEmpty()
+        && QJsonDocument(modern.value("game").toArray()).toJson().contains("is_quick_play_multiplayer");
+    const QVariantMap features{{"has_custom_resolution", customResolution}, {"is_quick_play_multiplayer", quickPlay}};
     const bool online = !m_account.value("accessToken").toString().isEmpty();
     const auto uuid = online ? m_account.value("uuid").toString() : offlineUuid(m_playerName);
     const QHash<QString, QString> values{
@@ -1135,13 +1140,13 @@ void GameRunner::stepPrepareAndStart()
         {"library_directory", QDir::toNativeSeparators(path("libraries"))},
         {"resolution_width", customResolution ? resolution[0] : QString()},
         {"resolution_height", customResolution ? resolution[1] : QString()},
+        {"quickPlayMultiplayer", joinServer},
     };
 
     const int memory = qMax(512, m_settings.value("memoryMb").toInt());
     QStringList arguments{QStringLiteral("-Xmx%1M").arg(memory), QStringLiteral("-Xms%1M").arg(qMin(memory, 1024))};
     arguments << QProcess::splitCommand(m_settings.value("jvmArgs").toString());
 
-    const auto modern = m_version.value("arguments").toObject();
     if (modern.contains("jvm")) {
         arguments << expandArguments(modern.value("jvm").toArray(), features, values);
     } else {
@@ -1163,6 +1168,9 @@ void GameRunner::stepPrepareAndStart()
         if (customResolution)
             arguments << "--width" << resolution[0] << "--height" << resolution[1];
     }
+    // Before Quick Play (1.20): the older --server/--port pair.
+    if (!joinServer.isEmpty() && !quickPlay)
+        arguments << "--server" << joinServer.section(':', 0, -2) << "--port" << joinServer.section(':', -1);
 
     if (!startProcess(java, arguments))
         return;

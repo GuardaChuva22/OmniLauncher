@@ -21,6 +21,9 @@ $stage = Join-Path $dist 'OmniLauncher'
 if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 Copy-Item -LiteralPath $executable -Destination $stage
+# Steamworks runtime, when the build has the Steam tunnel (build.ps1 copies it beside the exe).
+$steamApi = Join-Path (Split-Path $executable) 'steam_api64.dll'
+if (Test-Path -LiteralPath $steamApi) { Copy-Item -LiteralPath $steamApi -Destination $stage }
 
 Write-Host 'Collecting Qt libraries, plugins and QML modules...'
 $previous = $ErrorActionPreference

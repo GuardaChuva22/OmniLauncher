@@ -10,6 +10,8 @@ Item {
     property Item blurSource: null
     readonly property bool dialogOpen: creator.shown || deletion.shown
     signal notify(string message)
+    // Join a Steam friend's shared server (Main connects through the tunnel and starts the game).
+    signal joinRequested(string hostId)
     readonly property real gutter: width < 900 ? 32 : 48
 
     property string selectedId: ""
@@ -83,6 +85,30 @@ Item {
         backupList = server ? servers.backups(server.id) : []
     }
     property var backupList: []
+
+    // Steam friends (SteamTunnel): who is sharing a server, and this server's sharing.
+    readonly property var hostingFriends: steam.ready ? steam.friends.filter(function(f) { return f.hosting && f.hosting.server }) : []
+    readonly property var joined: steam.joined
+    property int shareRevision: 0
+    readonly property bool steamSharing: { shareRevision; return server !== null && steam.sharing(server.id) }
+    readonly property bool steamShared: server !== null && steam.hosting.serverId === server.id
+    property var invited: ({})
+    Connections { target: steam; function onSharingChanged() { root.shareRevision++ } }
+    function routeLabel(route) {
+        return ({ relay: qsTr("relay da Steam"), direct: qsTr("conexão direta"), local: qsTr("neste PC") })[route] || ""
+    }
+    component SteamAvatar: Rectangle {
+        property string source: ""
+        property string name: ""
+        width: 36; height: 36; radius: 8
+        color: "#14FFFFFF"
+        Image { anchors.fill: parent; visible: parent.source !== ""; source: parent.source; smooth: true; fillMode: Image.PreserveAspectCrop }
+        Text {
+            anchors.centerIn: parent; visible: parent.source === ""
+            text: parent.name.charAt(0).toUpperCase(); color: Theme.secondary
+            font.family: Theme.fontDisplay; font.pixelSize: 15; font.weight: Font.Bold
+        }
+    }
     property bool connector: false
     readonly property string tunnel: status.tunnel || ""
     readonly property bool connectorSupported: server !== null && server.loader !== "Vanilla"
@@ -260,6 +286,84 @@ Item {
         }
     }
 
+    // ── Steam friends sharing a server ────────────────────────────────────
+    Flickable {
+        id: friendsBar
+        readonly property bool shown: root.hostingFriends.length > 0 || (root.joined.hostId || "") !== ""
+        visible: shown
+        x: root.gutter; y: header.y + header.height + 20
+        width: root.width - root.gutter * 2
+        height: shown ? 72 : 0
+        contentWidth: friendsRow.implicitWidth
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.HorizontalFlick
+        clip: true
+        Row {
+            id: friendsRow
+            spacing: 10
+            Repeater {
+                // The joined host stays listed even if its presence lags behind.
+                model: {
+                    const list = root.hostingFriends.slice()
+                    const id = root.joined.hostId || ""
+                    if (id !== "" && !list.some(function(f) { return f.id === id }))
+                        list.unshift({ id: id, name: root.joined.hostName || "Steam", avatar: "",
+                                       hosting: { server: root.joined.server || "", version: root.joined.version || "", loader: root.joined.loader || "" } })
+                    return list
+                }
+                delegate: Rectangle {
+                    id: friendCard
+                    required property var modelData
+                    readonly property bool mine: (root.joined.hostId || "") === modelData.id
+                    readonly property string joinState: mine ? (root.joined.state || "") : ""
+                    width: 400; height: 72
+                    radius: Theme.radiusLg
+                    color: mine ? Theme.accentSoft : Theme.fill
+                    border.width: 1; border.color: mine ? Theme.accentLine : Theme.line
+                    RowLayout {
+                        anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 12
+                        spacing: 12
+                        SteamAvatar { source: friendCard.modelData.avatar || ""; name: friendCard.modelData.name }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: friendCard.modelData.name + qsTr(" está hospedando")
+                                color: Theme.muted; font.family: Theme.font; font.pixelSize: 12
+                                Layout.fillWidth: true; elide: Text.ElideRight
+                            }
+                            Text {
+                                text: friendCard.modelData.hosting.server || "—"
+                                color: Theme.text; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.DemiBold
+                                Layout.fillWidth: true; elide: Text.ElideRight
+                            }
+                            Text {
+                                text: friendCard.joinState === "ready"
+                                    ? qsTr("Conectado · %1 ms · %2").arg(root.joined.ping || 0).arg(root.routeLabel(root.joined.route))
+                                    : friendCard.joinState === "connecting" ? qsTr("Conectando pela Steam…")
+                                    : (friendCard.modelData.hosting.version || "") + (friendCard.modelData.hosting.loader && friendCard.modelData.hosting.loader !== "Vanilla" ? " · " + friendCard.modelData.hosting.loader : "")
+                                color: friendCard.joinState === "ready" ? Theme.accentText : Theme.faint
+                                font.family: Theme.font; font.pixelSize: 11
+                                Layout.fillWidth: true; elide: Text.ElideRight
+                            }
+                        }
+                        ActionButton {
+                            visible: !friendCard.mine || friendCard.joinState === "failed"
+                            text: qsTr("Entrar"); iconName: "play"; primary: true; reduced: root.reduced
+                            enabled: steam.ready && (root.joined.state || "") !== "connecting"
+                            onClicked: root.joinRequested(friendCard.modelData.id)
+                        }
+                        ActionButton {
+                            visible: friendCard.mine && friendCard.joinState !== "failed"
+                            text: qsTr("Sair"); iconName: "logout"; quiet: true; reduced: root.reduced
+                            onClicked: steam.leave()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ── Empty state ───────────────────────────────────────────────────────
     Column {
         visible: servers.servers.length === 0
@@ -298,7 +402,7 @@ Item {
     ListView {
         id: list
         visible: servers.servers.length > 0
-        x: root.gutter; y: header.y + header.height + 24
+        x: root.gutter; y: friendsBar.shown ? friendsBar.y + friendsBar.height + 20 : header.y + header.height + 24
         width: root.width < 1100 ? 220 : 264
         height: root.height - y - 24
         spacing: 6
@@ -824,7 +928,76 @@ Item {
                     id: connectionColumn
                     width: connectionFlick.width - 14
                     spacing: 0
-                    SectionTitle { text: qsTr("Conector"); Layout.topMargin: 0 }
+                    // Builds without Steamworks (the released one, for now) leave the section out.
+                    SectionTitle { visible: steam.available; text: qsTr("Amigos da Steam"); Layout.topMargin: 0 }
+                    Group {
+                        visible: steam.available
+                        SettingRow {
+                            title: qsTr("Compartilhar com amigos da Steam")
+                            description: {
+                                if (!steam.ready) return qsTr("Abra a Steam e entre na sua conta para usar.")
+                                if (root.steamShared) {
+                                    const players = steam.hosting.players || []
+                                    return players.length > 0 ? qsTr("Conectados pela Steam agora: ") + players.join(", ")
+                                        : qsTr("Seus amigos veem este servidor no OmniLauncher e entram com um clique, pelo relay da Valve: sem IP, porta ou mod.")
+                                }
+                                if (!root.steamSharing) return qsTr("Desligado: seus amigos não veem este servidor.")
+                                return root.online ? qsTr("Outro servidor seu já está compartilhado.") : qsTr("Aparece para seus amigos enquanto o servidor estiver online.")
+                            }
+                            divider: root.steamShared
+                            ToggleSwitch {
+                                reduced: root.reduced
+                                enabled: steam.ready && root.server !== null
+                                checked: root.steamSharing
+                                Accessible.name: qsTr("Compartilhar com amigos da Steam")
+                                onToggled: steam.setSharing(root.server.id, checked)
+                            }
+                        }
+                        Repeater {
+                            model: root.steamShared ? steam.friends.filter(function(f) { return f.id !== "loopback" }).slice(0, 40) : []
+                            delegate: RowLayout {
+                                id: friendRow
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.leftMargin: 20; Layout.rightMargin: 14
+                                Layout.topMargin: 8; Layout.bottomMargin: 8
+                                spacing: 12
+                                SteamAvatar { source: friendRow.modelData.avatar || ""; name: friendRow.modelData.name; width: 30; height: 30 }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+                                    Text { text: friendRow.modelData.name; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium; Layout.fillWidth: true; elide: Text.ElideRight }
+                                    Text {
+                                        text: friendRow.modelData.inLauncher ? qsTr("Com o OmniLauncher aberto") : qsTr("Online na Steam")
+                                        color: friendRow.modelData.inLauncher ? Theme.success : Theme.faint
+                                        font.family: Theme.font; font.pixelSize: 11
+                                    }
+                                }
+                                ActionButton {
+                                    readonly property bool sent: root.invited[friendRow.modelData.id] === true
+                                    text: sent ? qsTr("Convidado") : qsTr("Convidar"); iconName: sent ? "check" : "plus"; quiet: true; reduced: root.reduced
+                                    enabled: !sent
+                                    onClicked: {
+                                        if (steam.invite(friendRow.modelData.id)) {
+                                            const next = Object.assign({}, root.invited); next[friendRow.modelData.id] = true; root.invited = next
+                                            root.notify(qsTr("Convite enviado para %1.").arg(friendRow.modelData.name))
+                                        } else root.notify(qsTr("Não foi possível enviar o convite."))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: steam.available
+                        Layout.fillWidth: true
+                        Layout.topMargin: 10
+                        Layout.leftMargin: 4
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Quem entra precisa da Steam e do OmniLauncher abertos, com um jogo da mesma versão e dos mesmos mods. Versão de teste: aparece na Steam como Spacewar.")
+                        color: Theme.faint; font.family: Theme.font; font.pixelSize: 12
+                    }
+
+                    SectionTitle { text: qsTr("Conector"); Layout.topMargin: steam.available ? 24 : 0 }
                     Group {
                         SettingRow {
                             title: qsTr("Endereço público sem configurar o roteador")

@@ -190,7 +190,7 @@ ApplicationWindow {
         if (id) { selectedGameId = id; notify(qsTr("Jogo duplicado.")) }
         else notify(launcher.lastError)
     }
-    function beginLaunch(game) {
+    function beginLaunch(game, joinAddress) {
         if (!game) return
         selectedGameId = game.id
         if (runner.running) {
@@ -207,12 +207,83 @@ ApplicationWindow {
         launchedCover = game.coverId
         previewGameId = ""
         drawerOpen = false
+        pendingJoinAddress = joinAddress || ""
         if (launcher.activeProfile.type === "microsoft") {
             pendingLaunchGameId = game.id
             auth.requestSession(launcher.activeProfile.uuid)
             return
         }
-        runner.launch(game, launcher.activeProfile.name, launcher.launchSettings(game.id))
+        runner.launch(game, launcher.activeProfile.name, launchSettingsFor(game))
+    }
+    // A join goes straight into the server, and the launcher stays open: it carries the tunnel.
+    property string pendingJoinAddress: ""
+    function launchSettingsFor(game) {
+        const settings = launcher.launchSettings(game.id)
+        if (pendingJoinAddress !== "") {
+            settings.joinServer = pendingJoinAddress
+            if (settings.afterLaunch === "close") settings.afterLaunch = "minimize"
+        }
+        return settings
+    }
+
+    // ── Steam friends ──────────────────────────────────────────────────────
+    // Sharing: the first running server with sharing on goes to Steam friends.
+    function syncSteamShare() {
+        if (!steam.ready) return
+        let target = null
+        for (const server of servers.servers) {
+            if ((servers.status[server.id] || {}).state !== "running" || !steam.sharing(server.id)) continue
+            if (!target || server.id === steam.hosting.serverId) target = server
+        }
+        if (!target) { if (steam.hosting.serverId) steam.stopHosting(); return }
+        if (steam.hosting.serverId === target.id) return
+        const game = gameById(target.gameId)
+        steam.host(target, { title: game ? game.title : "", pack: game ? ((launcher.gameSettings[game.id] || {}).packProjectId || "") : "" })
+    }
+    // Joining: connect through Steam, then start the library game that matches the friend's
+    // (same modpack first, then same title, then same version and loader) aimed at the tunnel.
+    property bool joinLaunchPending: false
+    function joinFriend(hostId) {
+        if (!steam.ready) return
+        joinLaunchPending = true
+        steam.join(hostId)
+        notify(qsTr("Conectando ao servidor do amigo pela Steam…"))
+    }
+    function joinGameFor(joined) {
+        const matches = launcher.games.filter(function(g) { return g.version === joined.version && g.loader === joined.loader })
+        const pack = joined.pack || ""
+        return matches.find(function(g) { return pack !== "" && (launcher.gameSettings[g.id] || {}).packProjectId === pack })
+            || matches.find(function(g) { return g.title === joined.game }) || matches[0] || null
+    }
+    Connections {
+        target: steam
+        function onReadyChanged() { window.syncSteamShare() }
+        function onSharingChanged() { window.syncSteamShare() }
+        function onMessage(text) { window.notify(text) }
+        function onJoinRequested(hostId, hostName) {
+            if (window.handoff || !window.visible) window.returnToLauncher()
+            window.page = 5
+            window.joinFriend(hostId)
+        }
+        function onJoinedChanged() {
+            const joined = steam.joined
+            if (!window.joinLaunchPending || !joined.state) return
+            if (joined.state === "failed") { window.joinLaunchPending = false; return }
+            if (joined.state !== "ready" || !joined.version) return
+            window.joinLaunchPending = false
+            const game = window.joinGameFor(joined)
+            if (!game) {
+                window.notify(qsTr("Para entrar, crie um jogo com Minecraft %1%2 e os mesmos mods de %3.")
+                              .arg(joined.version).arg(joined.loader !== "Vanilla" ? " " + joined.loader : "").arg(joined.hostName))
+                return
+            }
+            window.beginLaunch(game, joined.address)
+        }
+    }
+    Connections {
+        target: servers
+        function onStatusChanged() { window.syncSteamShare() }
+        function onServersChanged() { window.syncSteamShare() }
     }
     Connections {
         target: auth
@@ -230,7 +301,7 @@ ApplicationWindow {
             const game = window.gameById(window.pendingLaunchGameId)
             window.pendingLaunchGameId = ""
             if (game && launcher.activeProfile.uuid === uuid)
-                runner.launch(game, account.name, launcher.launchSettings(game.id), account)
+                runner.launch(game, account.name, window.launchSettingsFor(game), account)
         }
         function onSessionFailed(uuid, message) {
             window.pendingLaunchGameId = ""
@@ -278,11 +349,14 @@ ApplicationWindow {
                 discord.setActivity(started.title, "Minecraft " + started.version + (started.loader !== "Vanilla" ? " · " + started.loader : ""),
                                     Math.floor(Date.now() / 1000))
             const after = launcher.preferences.afterLaunch
-            if (detached && after === "close") Qt.quit()
+            if (detached && after === "close" && !steam.busy()) Qt.quit()
             else if (after === "minimize") window.sendToTray()
         }
         function onGameExited(gameId, seconds, exitCode) {
             discord.clearActivity()
+            // The friend's world closed with the game: so does the tunnel.
+            if (window.pendingJoinAddress !== "" && steam.joined.address === window.pendingJoinAddress) steam.leave()
+            window.pendingJoinAddress = ""
             launcher.recordSession(gameId, seconds)
             // A clean exit can still hide trouble (e.g. data that blocks world creation).
             if (exitCode === 0 && runner.diagnosis.gameId === gameId)
@@ -596,6 +670,7 @@ ApplicationWindow {
                         onDiscordToggled: function(enabled) { presencePrefs.enabled = enabled; if (!enabled) discord.clearActivity() }
                         onManageProfiles: profileMenu.open()
                         onNotify: function(message) { window.notify(message) }
+                        onDebugOfflineRequested: debugOfflineWarning.open()
                     }
                     ScreenshotsPage {
                         anchors.fill: parent
@@ -610,6 +685,7 @@ ApplicationWindow {
                         reduced: window.reduced
                         blurSource: appRoot
                         onNotify: function(message) { window.notify(message) }
+                        onJoinRequested: function(hostId) { window.joinFriend(hostId) }
                     }
                     DownloadsPage {
                         anchors.fill: parent
@@ -1387,6 +1463,42 @@ ApplicationWindow {
         onAccepted: {
             const imported = launcher.importCover(selectedFile)
             if (imported) gameEditor.chosenCover = imported
+        }
+    }
+
+    GlassDialog {
+        id: debugOfflineWarning
+        title: qsTr("Só para testes e depuração")
+        width: 440
+        showClose: false
+        blurSource: appRoot
+        reduced: window.reduced
+        contentItem: ColumnLayout {
+            spacing: 0
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Isto libera perfis offline sem uma conta Microsoft conectada, para testar o launcher enquanto o login não está disponível. Não é um jeito de jogar sem ter o Minecraft: use só com o jogo comprado, e desligue quando terminar os testes. Versões lançadas não têm esta opção.")
+                color: Theme.secondary
+                font.family: Theme.font; font.pixelSize: 14
+                wrapMode: Text.WordWrap
+                lineHeight: 1.15
+            }
+            RowLayout {
+                Layout.fillWidth: true; Layout.topMargin: 28
+                spacing: 8
+                Item { Layout.fillWidth: true }
+                ActionButton { text: qsTr("Cancelar"); quiet: true; reduced: window.reduced; onClicked: debugOfflineWarning.close() }
+                ActionButton {
+                    text: qsTr("Ligar para testes"); primary: true
+                    reduced: window.reduced
+                    onClicked: {
+                        if (launcher.setPreference("debugOffline", true)) {
+                            debugOfflineWarning.close()
+                            window.notify(qsTr("Perfis offline liberados para testes."))
+                        } else window.notify(launcher.lastError)
+                    }
+                }
+            }
         }
     }
 

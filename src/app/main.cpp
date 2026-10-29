@@ -6,6 +6,7 @@
 #include "UiSound.h"
 #include "Wrapped.h"
 #include "PackCloud.h"
+#include "SteamTunnel.h"
 #include "GameRunner.h"
 #include "ModManager.h"
 #include "UpdateManager.h"
@@ -129,6 +130,7 @@ int main(int argc, char *argv[])
     UiSound sfx;
     Wrapped wrapped(model.dataDirectory());
     PackCloud cloud(model.dataDirectory());
+    SteamTunnel steam;
     QObject::connect(&updates, &UpdateManager::quitRequested, &app, &QCoreApplication::quit, Qt::QueuedConnection);
     QQmlApplicationEngine engine;
     language.setEngine(&engine);
@@ -143,6 +145,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("sfx"), &sfx);
     engine.rootContext()->setContextProperty(QStringLiteral("wrapped"), &wrapped);
     engine.rootContext()->setContextProperty(QStringLiteral("cloud"), &cloud);
+    engine.rootContext()->setContextProperty(QStringLiteral("steam"), &steam);
 
     // While a game runs the launcher can wait in the tray; QML shows/hides the icon
     // and handles `activated` (the menu's "Abrir" reuses that signal).

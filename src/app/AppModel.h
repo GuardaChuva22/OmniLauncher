@@ -13,7 +13,8 @@ class AppModel final : public QObject
     Q_PROPERTY(QString activeProfileId READ activeProfileId NOTIFY activeProfileChanged)
     Q_PROPERTY(QVariantMap activeProfile READ activeProfile NOTIFY activeProfileChanged)
     // New offline profiles need a Microsoft profile in the library first: those are only added
-    // for accounts that own Minecraft. Offline profiles created before keep working.
+    // for accounts that own Minecraft. Offline profiles created before keep working. Development
+    // builds can lift the rule (preference debugOffline, Settings > Debug) for testing.
     Q_PROPERTY(bool offlineAllowed READ offlineAllowed NOTIFY profilesChanged)
     Q_PROPERTY(bool reducedMotion READ reducedMotion WRITE setReducedMotion NOTIFY reducedMotionChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)

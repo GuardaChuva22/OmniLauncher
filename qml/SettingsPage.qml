@@ -9,6 +9,8 @@ Item {
     property bool discordEnabled: true
     signal discordToggled(bool enabled)
     signal notify(string message)
+    // Turning on offline profiles without a Microsoft account asks first (Main shows the warning).
+    signal debugOfflineRequested()
     readonly property real gutter: width < 900 ? 32 : 48
     // options.txt helpers: the stored value, or the game's own default when unset.
     function option(key, fallback) {
@@ -420,6 +422,32 @@ Item {
                         enabled: updates.state !== "checking" && updates.state !== "downloading" && updates.state !== "installing"
                         reduced: root.reduced
                         onClicked: updates.state === "available" || updates.state === "error" && updates.changes !== "" ? updates.install() : updates.check()
+                    }
+                }
+            }
+
+            // Development builds only: released builds update themselves and never show this.
+            SectionTitle { visible: !updates.enabled; text: qsTr("Depuração") }
+            Group {
+                visible: !updates.enabled
+                SettingRow {
+                    title: qsTr("Perfis offline sem conta Microsoft")
+                    description: launcher.preferences.debugOffline === true
+                        ? qsTr("Ligado: dá para criar perfis offline sem conta conectada. Só para testes e depuração.")
+                        : qsTr("Permite criar perfis offline sem uma conta Microsoft com o Minecraft. Só para testes e depuração.")
+                    divider: false
+                    ToggleSwitch {
+                        id: debugOffline
+                        reduced: root.reduced
+                        checked: launcher.preferences.debugOffline === true
+                        Accessible.name: qsTr("Perfis offline sem conta Microsoft")
+                        onToggled: {
+                            // The switch follows the preference: on only after the warning is accepted.
+                            const wanted = checked
+                            checked = Qt.binding(function() { return launcher.preferences.debugOffline === true })
+                            if (wanted) root.debugOfflineRequested()
+                            else root.setPreference("debugOffline", false)
+                        }
                     }
                 }
             }
