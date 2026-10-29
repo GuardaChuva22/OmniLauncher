@@ -29,6 +29,8 @@ qt_add_executable(OmniLauncher WIN32
     src/core/DiscordPresence.cpp
     src/core/ServerManager.h
     src/core/ServerManager.cpp
+    src/core/UiSound.h
+    src/core/UiSound.cpp
 )
 
 # Discord application (client) ID for Rich Presence. Public; OMNI_DISCORD_CLIENT_ID in the
@@ -57,7 +59,7 @@ if(omni_msa_client_id STREQUAL "")
 endif()
 target_compile_definitions(OmniLauncher PRIVATE OMNI_MSA_CLIENT_ID="${omni_msa_client_id}")
 if(WIN32)
-    target_link_libraries(OmniLauncher PRIVATE advapi32)
+    target_link_libraries(OmniLauncher PRIVATE advapi32 winmm)
 endif()
 
 # The prototype's QML/assets are authored alongside the native shell. CONFIGURE_DEPENDS
@@ -67,7 +69,7 @@ file(GLOB_RECURSE OMNI_QML_FILES CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOU
 )
 file(GLOB_RECURSE OMNI_ASSET_FILES CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     "assets/*.png" "assets/*.jpg" "assets/*.jpeg" "assets/*.webp"
-    "assets/*.svg" "assets/*.ttf" "assets/*.otf"
+    "assets/*.svg" "assets/*.ttf" "assets/*.otf" "assets/*.wav"
 )
 foreach(qml_file IN LISTS OMNI_QML_FILES)
     if(qml_file MATCHES "(^|/)Theme\\.qml$")

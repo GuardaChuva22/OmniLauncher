@@ -12,8 +12,8 @@ Dialog {
     // True from the start of the enter transition to the start of the exit one,
     // so the backdrop fades together with the dialog instead of after it.
     property bool shown: false
-    onAboutToShow: shown = true
-    onAboutToHide: shown = false
+    onAboutToShow: { shown = true; sfx.play("open") }
+    onAboutToHide: { shown = false; sfx.play("close") }
 
     anchors.centerIn: parent
     modal: true

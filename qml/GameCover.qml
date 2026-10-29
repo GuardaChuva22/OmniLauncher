@@ -37,6 +37,23 @@ FocusScope {
         y: root.highlighted && !root.reduced ? -5 : 0
         Behavior on scale { NumberAnimation { duration: root.reduced ? 0 : Theme.normal; easing.type: Easing.OutCubic } }
         Behavior on y { NumberAnimation { duration: root.reduced ? 0 : Theme.normal; easing.type: Easing.OutCubic } }
+        // A slight tilt toward the cursor, easing back flat when it leaves.
+        readonly property real tiltX: hit.containsMouse && !root.reduced ? (0.5 - hit.mouseY / Math.max(1, root.height)) * 5 : 0
+        readonly property real tiltY: hit.containsMouse && !root.reduced ? (hit.mouseX / Math.max(1, root.width) - 0.5) * 6 : 0
+        transform: [
+            Rotation {
+                origin.x: lifted.width / 2; origin.y: lifted.height / 2
+                axis { x: 1; y: 0; z: 0 }
+                angle: lifted.tiltX
+                Behavior on angle { SmoothedAnimation { velocity: 18 } }
+            },
+            Rotation {
+                origin.x: lifted.width / 2; origin.y: lifted.height / 2
+                axis { x: 0; y: 1; z: 0 }
+                angle: lifted.tiltY
+                Behavior on angle { SmoothedAnimation { velocity: 18 } }
+            }
+        ]
 
         // Drop shadow, beneath everything else.
         SoftGlow {
@@ -240,6 +257,7 @@ FocusScope {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onContainsMouseChanged: if (containsMouse) sfx.play("hover")
         onClicked: function(mouse) {
             root.forceActiveFocus(Qt.MouseFocusReason)
             if (mouse.button === Qt.RightButton) root.editRequested()

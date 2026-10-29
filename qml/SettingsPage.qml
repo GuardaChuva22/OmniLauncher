@@ -122,6 +122,54 @@ Item {
                 }
             }
 
+            SectionTitle { text: "Sons" }
+            Group {
+                SettingRow {
+                    title: "Sons da interface"
+                    description: "Cliques, switches, janelas e avisos, bem baixinho."
+                    ToggleSwitch {
+                        checked: sfx.enabled
+                        reduced: root.reduced
+                        onToggled: { sfx.enabled = checked; if (checked) sfx.play("toggle-on") }
+                        Accessible.name: "Sons da interface"
+                    }
+                }
+                SettingRow {
+                    title: "Volume"
+                    RowLayout {
+                        spacing: 12
+                        ValueSlider {
+                            id: soundVolume
+                            Layout.preferredWidth: 180
+                            from: 0; to: 100; stepSize: 5
+                            snapMode: Slider.SnapAlways
+                            enabled: sfx.enabled
+                            reduced: root.reduced
+                            Binding on value { when: !soundVolume.pressed; value: Math.round(sfx.volume * 100) }
+                            onPressedChanged: if (!pressed) { sfx.volume = value / 100; sfx.play("click") }
+                        }
+                        Text {
+                            Layout.preferredWidth: 48
+                            text: Math.round(soundVolume.value) + "%"
+                            color: Theme.secondary
+                            font.family: Theme.font; font.pixelSize: 13
+                        }
+                    }
+                }
+                SettingRow {
+                    title: "Som ao passar o mouse"
+                    description: "Um toque leve sobre capas, menus e listas."
+                    divider: false
+                    ToggleSwitch {
+                        checked: sfx.hoverEnabled
+                        enabled: sfx.enabled
+                        reduced: root.reduced
+                        onToggled: sfx.hoverEnabled = checked
+                        Accessible.name: "Som ao passar o mouse"
+                    }
+                }
+            }
+
             SectionTitle { text: "Perfis" }
             Group {
                 SettingRow {

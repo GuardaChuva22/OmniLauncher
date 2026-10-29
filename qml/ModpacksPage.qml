@@ -93,8 +93,9 @@ Item {
             readonly property string installedId: root.installedGame(modelData.id)
             width: list.width
             height: 96
+            transform: Translate { y: hover.hovered && !root.reduced ? -2 : 0; Behavior on y { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } } }
 
-            HoverHandler { id: hover }
+            HoverHandler { id: hover; onHoveredChanged: if (hovered) sfx.play("hover") }
             Rectangle {
                 anchors.fill: parent
                 radius: Theme.radiusLg

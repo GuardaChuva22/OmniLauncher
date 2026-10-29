@@ -16,11 +16,33 @@ Button {
     ToolTip.visible: compact && hovered
     ToolTip.text: text
     ToolTip.delay: 300
+    onHoveredChanged: if (hovered && !active) sfx.play("hover")
 
     background: Rectangle {
         radius: Theme.radiusMd
         color: control.active ? Theme.accentSoft : control.down ? Theme.fillHover : control.hovered ? "#0AFFFFFF" : "transparent"
         Behavior on color { ColorAnimation { duration: control.reduced ? 0 : Theme.fast } }
+        // Active marker: grows from the middle, with a faint glow.
+        Rectangle {
+            id: marker
+            visible: !control.compact
+            x: -1; width: 3; radius: 1.5
+            height: control.active ? 18 : 0
+            anchors.verticalCenter: parent.verticalCenter
+            color: Theme.accent
+            Behavior on height { enabled: !control.reduced; NumberAnimation { duration: Theme.slow; easing.type: Easing.OutBack; easing.overshoot: 1.6 } }
+        }
+        SoftGlow {
+            z: -1
+            anchors.fill: parent
+            visible: opacity > 0.01
+            opacity: control.active ? 0.16 : 0
+            color: Theme.accent
+            radius: parent.radius
+            blurMax: 20
+            spread: -4
+            Behavior on opacity { enabled: !control.reduced; NumberAnimation { duration: Theme.slow } }
+        }
         Rectangle {
             anchors.fill: parent; anchors.margins: -2
             radius: parent.radius + 2; color: "transparent"
@@ -37,6 +59,8 @@ Button {
             name: control.iconName
             color: control.active ? Theme.accent : control.hovered ? Theme.secondary : Theme.muted
             Behavior on color { ColorAnimation { duration: control.reduced ? 0 : Theme.fast } }
+            scale: control.down ? 0.9 : control.hovered && !control.active ? 1.1 : 1
+            Behavior on scale { enabled: !control.reduced; NumberAnimation { duration: Theme.normal; easing.type: Easing.OutBack } }
         }
         Rectangle {
             visible: control.badge !== ""
@@ -59,7 +83,8 @@ Button {
         }
         Text {
             visible: !control.compact
-            anchors.left: icon.right; anchors.leftMargin: 12
+            anchors.left: icon.right; anchors.leftMargin: control.hovered && !control.active ? 14 : 12
+            Behavior on anchors.leftMargin { enabled: !control.reduced; NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } }
             anchors.right: parent.right
             anchors.rightMargin: control.badge !== "" ? 44 : 0
             anchors.verticalCenter: parent.verticalCenter

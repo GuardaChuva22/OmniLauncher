@@ -52,6 +52,8 @@ ApplicationWindow {
     }
     function finishDownload(key, state, detail) {
         if (!downloadKeys[key]) return
+        if (state === "done") sfx.play("success")
+        else if (state === "failed") sfx.play("error")
         updateDownload(key, { state: state, finished: Date.now(), progress: state === "done" ? 1 : -1,
                               detail: detail !== undefined ? detail : "" })
         const keys = Object.assign({}, downloadKeys); delete keys[key]; downloadKeys = keys
@@ -146,7 +148,12 @@ ApplicationWindow {
 
     Settings { id: preferences; category: "Home"; property string selectedGameId: "" }
     onSelectedGameIdChanged: preferences.selectedGameId = selectedGameId
-    onPageChanged: { previewGameId = ""; closeDrawer() }
+    onPageChanged: {
+        previewGameId = ""
+        closeDrawer()
+        sfx.play("page")
+        if (!reduced) pageIntro.restart()
+    }
 
     function gameById(id) {
         if (!id) return null
@@ -159,10 +166,12 @@ ApplicationWindow {
         selectedGameId = game.id
         drawerGameId = game.id
         previewGameId = ""
+        if (!drawerOpen) sfx.play("open")
         drawerOpen = true
     }
     function closeDrawer() {
         if (!drawerOpen) return
+        sfx.play("close")
         drawerOpen = false
         if (page === 0) home.forceActiveFocus()
     }
@@ -191,6 +200,7 @@ ApplicationWindow {
             notify("Escolha um Perfil para iniciar.")
             return
         }
+        sfx.play("launch")
         launchedTitle = game.title
         launchedCover = game.coverId
         previewGameId = ""
@@ -477,63 +487,75 @@ ApplicationWindow {
                 enabled: !window.launching
                 Behavior on opacity { NumberAnimation { duration: window.reduced ? 0 : 250 } }
 
-                HomePage {
-                    id: home
+                // New pages rise in and fade up; the old one leaves at once.
+                Item {
+                    id: pageStage
                     anchors.fill: parent
-                    visible: window.page === 0
-                    focus: visible
-                    games: window.filteredGames
-                    allGames: launcher.games
-                    selectedId: window.drawerOpen ? window.drawerGameId : window.selectedGameId
-                    reduced: window.reduced
-                    onOpenRequested: function(game) { window.openDrawer(game) }
-                    onPlayRequested: function(game) { window.beginLaunch(game) }
-                    onEditRequested: function(game) { window.editGame(game) }
-                    onCreateRequested: gameEditor.prepare(null)
-                    onPreviewChanged: function(id, active) {
-                        if (active) window.previewGameId = id
-                        else if (window.previewGameId === id) window.previewGameId = ""
+                    transform: Translate { id: pageShift }
+                    ParallelAnimation {
+                        id: pageIntro
+                        NumberAnimation { target: pageStage; property: "opacity"; from: 0; to: 1; duration: 240; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: pageShift; property: "y"; from: 14; to: 0; duration: 380; easing.type: Easing.OutQuint }
                     }
-                    onSearchTextChanged: window.previewGameId = ""
-                }
-                ModpacksPage {
-                    anchors.fill: parent
-                    visible: window.page === 1
-                    reduced: window.reduced
-                    onNotify: function(message) { window.notify(message) }
-                    onInstallRequested: function(pack) { mods.preparePack(pack.id, pack.imageUrl) }
-                    onVersionsRequested: function(pack, gameId) { window.pickPackVersion(pack, gameId) }
-                    onOpenGameRequested: function(gameId) { window.page = 0; window.openDrawer(window.gameById(gameId)) }
-                }
-                SettingsPage {
-                    anchors.fill: parent
-                    visible: window.page === 2
-                    reduced: window.reduced
-                    discordEnabled: presencePrefs.enabled
-                    onDiscordToggled: function(enabled) { presencePrefs.enabled = enabled; if (!enabled) discord.clearActivity() }
-                    onManageProfiles: profileMenu.open()
-                    onNotify: function(message) { window.notify(message) }
-                }
-                ScreenshotsPage {
-                    anchors.fill: parent
-                    visible: window.page === 3
-                    reduced: window.reduced
-                    onNotify: function(message) { window.notify(message) }
-                }
-                ServersPage {
-                    id: serversPage
-                    anchors.fill: parent
-                    visible: window.page === 5
-                    reduced: window.reduced
-                    blurSource: appRoot
-                    onNotify: function(message) { window.notify(message) }
-                }
-                DownloadsPage {
-                    anchors.fill: parent
-                    visible: window.page === 4
-                    reduced: window.reduced
-                    downloads: window.downloads
-                    onClearHistory: window.clearDownloadHistory()
+
+                    HomePage {
+                        id: home
+                        anchors.fill: parent
+                        visible: window.page === 0
+                        focus: visible
+                        games: window.filteredGames
+                        allGames: launcher.games
+                        selectedId: window.drawerOpen ? window.drawerGameId : window.selectedGameId
+                        reduced: window.reduced
+                        onOpenRequested: function(game) { window.openDrawer(game) }
+                        onPlayRequested: function(game) { window.beginLaunch(game) }
+                        onEditRequested: function(game) { window.editGame(game) }
+                        onCreateRequested: gameEditor.prepare(null)
+                        onPreviewChanged: function(id, active) {
+                            if (active) window.previewGameId = id
+                            else if (window.previewGameId === id) window.previewGameId = ""
+                        }
+                        onSearchTextChanged: window.previewGameId = ""
+                    }
+                    ModpacksPage {
+                        anchors.fill: parent
+                        visible: window.page === 1
+                        reduced: window.reduced
+                        onNotify: function(message) { window.notify(message) }
+                        onInstallRequested: function(pack) { mods.preparePack(pack.id, pack.imageUrl) }
+                        onVersionsRequested: function(pack, gameId) { window.pickPackVersion(pack, gameId) }
+                        onOpenGameRequested: function(gameId) { window.page = 0; window.openDrawer(window.gameById(gameId)) }
+                    }
+                    SettingsPage {
+                        anchors.fill: parent
+                        visible: window.page === 2
+                        reduced: window.reduced
+                        discordEnabled: presencePrefs.enabled
+                        onDiscordToggled: function(enabled) { presencePrefs.enabled = enabled; if (!enabled) discord.clearActivity() }
+                        onManageProfiles: profileMenu.open()
+                        onNotify: function(message) { window.notify(message) }
+                    }
+                    ScreenshotsPage {
+                        anchors.fill: parent
+                        visible: window.page === 3
+                        reduced: window.reduced
+                        onNotify: function(message) { window.notify(message) }
+                    }
+                    ServersPage {
+                        id: serversPage
+                        anchors.fill: parent
+                        visible: window.page === 5
+                        reduced: window.reduced
+                        blurSource: appRoot
+                        onNotify: function(message) { window.notify(message) }
+                    }
+                    DownloadsPage {
+                        anchors.fill: parent
+                        visible: window.page === 4
+                        reduced: window.reduced
+                        downloads: window.downloads
+                        onClearHistory: window.clearDownloadHistory()
+                    }
                 }
             }
         }

@@ -144,8 +144,11 @@ Item {
         Layout.fillWidth: true
         implicitHeight: 84
         radius: Theme.radiusLg
-        color: "#0AFFFFFF"
-        border.width: 1; border.color: Theme.line
+        color: statHover.hovered ? "#12FFFFFF" : "#0AFFFFFF"
+        border.width: 1; border.color: statHover.hovered ? Theme.lineStrong : Theme.line
+        Behavior on color { ColorAnimation { duration: Theme.fast } }
+        HoverHandler { id: statHover }
+        transform: Translate { y: statHover.hovered && !root.reduced ? -2 : 0; Behavior on y { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } } }
         Column {
             x: 16; anchors.verticalCenter: parent.verticalCenter
             width: parent.width - 32
@@ -310,7 +313,9 @@ Item {
             readonly property bool active: root.selectedId === modelData.id
             width: list.width; height: 64
             hoverEnabled: true
-            onClicked: root.selectedId = modelData.id
+            onHoveredChanged: if (hovered && !active) sfx.play("hover")
+            onClicked: { if (!active) sfx.play("click"); root.selectedId = modelData.id }
+            transform: Translate { x: entry.hovered && !entry.active && !root.reduced ? 3 : 0; Behavior on x { NumberAnimation { duration: Theme.normal; easing.type: Easing.OutCubic } } }
             background: Rectangle {
                 radius: Theme.radiusLg
                 color: entry.active ? Theme.accentSoft : entry.hovered ? Theme.fillHover : Theme.fill

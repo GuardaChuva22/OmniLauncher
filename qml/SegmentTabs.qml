@@ -27,7 +27,7 @@ Item {
                 hoverEnabled: true
                 Accessible.name: modelData
                 Accessible.role: Accessible.PageTab
-                onClicked: root.currentIndex = index
+                onClicked: { if (root.currentIndex !== index) sfx.play("click"); root.currentIndex = index }
                 contentItem: Text {
                     id: label
                     text: tab.modelData
@@ -47,7 +47,17 @@ Item {
         }
     }
     Rectangle { width: parent.width; height: 1; anchors.bottom: parent.bottom; color: Theme.line }
+    SoftGlow {
+        anchors.bottom: parent.bottom
+        height: 2
+        x: indicator.x; width: indicator.width
+        color: Theme.accent
+        radius: 1
+        blurMax: 12
+        opacity: 0.7
+    }
     Rectangle {
+        id: indicator
         anchors.bottom: parent.bottom
         height: 2; radius: 1
         color: Theme.accent

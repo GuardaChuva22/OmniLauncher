@@ -2,6 +2,7 @@
 #include "AuthManager.h"
 #include "DiscordPresence.h"
 #include "ServerManager.h"
+#include "UiSound.h"
 #include "GameRunner.h"
 #include "ModManager.h"
 #include "UpdateManager.h"
@@ -90,6 +91,7 @@ int main(int argc, char *argv[])
     UpdateManager updates;
     DiscordPresence discord;
     ServerManager servers(model.dataDirectory());
+    UiSound sfx;
     QObject::connect(&updates, &UpdateManager::quitRequested, &app, &QCoreApplication::quit, Qt::QueuedConnection);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("launcher"), &model);
@@ -99,6 +101,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("updates"), &updates);
     engine.rootContext()->setContextProperty(QStringLiteral("discord"), &discord);
     engine.rootContext()->setContextProperty(QStringLiteral("servers"), &servers);
+    engine.rootContext()->setContextProperty(QStringLiteral("sfx"), &sfx);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule(QStringLiteral("OmniLauncher"), QStringLiteral("Main"));
