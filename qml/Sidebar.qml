@@ -45,7 +45,7 @@ Item {
         spacing: 4
         Repeater {
             model: [{ label: "Jogos", icon: "grid", page: 0 }, { label: "Modpacks", icon: "packs", page: 1 },
-                    { label: "Capturas", icon: "image", page: 3 }]
+                    { label: "Capturas", icon: "image", page: 3 }, { label: "Servidores", icon: "server", page: 5 }]
             delegate: NavItem {
                 required property var modelData
                 required property int index

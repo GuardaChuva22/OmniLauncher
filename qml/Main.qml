@@ -137,7 +137,7 @@ ApplicationWindow {
             && game.title.toLocaleLowerCase().indexOf(query) !== -1
     })
     readonly property bool modalOpen: gameEditor.shown || profileEditor.shown || removal.shown || modCatalog.shown
-        || versionPicker.shown
+        || versionPicker.shown || serversPage.dialogOpen
     readonly property var atmosphericSources: {
         const ids = Theme.covers.slice()
         for (let game of launcher.games) if (ids.indexOf(game.coverId) === -1) ids.push(game.coverId)
@@ -518,6 +518,14 @@ ApplicationWindow {
                     anchors.fill: parent
                     visible: window.page === 3
                     reduced: window.reduced
+                    onNotify: function(message) { window.notify(message) }
+                }
+                ServersPage {
+                    id: serversPage
+                    anchors.fill: parent
+                    visible: window.page === 5
+                    reduced: window.reduced
+                    blurSource: appRoot
                     onNotify: function(message) { window.notify(message) }
                 }
                 DownloadsPage {

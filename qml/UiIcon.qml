@@ -43,7 +43,10 @@ Item {
         "download": "M12 4V15 M7 10L12 15L17 10 M5 20H19",
         "calendar": "M4 6H20V20H4Z M4 10H20 M8 3V7 M16 3V7",
         "box": "M12 3L20 7.5V16.5L12 21L4 16.5V7.5Z M4 7.5L12 12L20 7.5 M12 12V21",
-        "logout": "M10 4H5V20H10 M15 8L19 12L15 16 M19 12H9"
+        "logout": "M10 4H5V20H10 M15 8L19 12L15 16 M19 12H9",
+        "server": "M4 4H20V10H4Z M4 14H20V20H4Z M8 7H8.01 M8 17H8.01 M12 7H16 M12 17H16",
+        "stop": "M7 7H17V17H7Z",
+        "restart": "M19.5 12A7.5 7.5 0 1 1 17 6.4 M19 3.5V8H14.5"
     })
     readonly property bool dotted: name === "dots"
     width: 20; height: 20
