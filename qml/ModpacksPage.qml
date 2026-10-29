@@ -8,6 +8,14 @@ Item {
     property int source: 0
     signal notify(string message)
     signal installRequested(var pack)
+    signal versionsRequested(var pack, string gameId)
+    // Game that came from this Modrinth pack, if any (one install per pack; duplicate the game for more).
+    function installedGame(projectId) {
+        const settings = launcher.gameSettings
+        for (const game of launcher.games)
+            if ((settings[game.id] || {}).packProjectId === projectId) return game.id
+        return ""
+    }
     readonly property real gutter: width < 900 ? 32 : 48
 
     function formatCount(value) {
@@ -71,6 +79,7 @@ Item {
             id: pack
             required property var modelData
             readonly property bool installing: mods.packProjectId === modelData.id && mods.packState !== ""
+            readonly property string installedId: root.installedGame(modelData.id)
             width: list.width
             height: 96
 
@@ -137,7 +146,24 @@ Item {
                     }
                 }
                 ActionButton {
+                    Layout.preferredWidth: 40
+                    iconName: "updown"
+                    enabled: mods.packState === ""
+                    reduced: root.reduced
+                    Accessible.name: "Versões"
+                    ToolTip.visible: hovered; ToolTip.text: pack.installedId ? "Mudar a versão instalada" : "Escolher versão"; ToolTip.delay: 400
+                    onClicked: root.versionsRequested(pack.modelData, pack.installedId)
+                }
+                ActionButton {
                     Layout.preferredWidth: 150
+                    visible: pack.installedId !== "" && !pack.installing
+                    text: "Instalado"; iconName: "check"
+                    quiet: true; enabled: false
+                    reduced: root.reduced
+                }
+                ActionButton {
+                    Layout.preferredWidth: 150
+                    visible: pack.installedId === "" || pack.installing
                     text: !pack.installing ? "Instalar"
                         : mods.packState === "downloading" && mods.packProgress >= 0 ? "Instalando " + Math.round(mods.packProgress * 100) + "%"
                         : "Preparando…"

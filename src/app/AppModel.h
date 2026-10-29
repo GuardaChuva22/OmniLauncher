@@ -53,6 +53,9 @@ public:
     Q_INVOKABLE QVariantMap launchSettings(const QString &id) const;
     Q_INVOKABLE bool setPreference(const QString &key, const QVariant &value);
     Q_INVOKABLE void recordSession(const QString &id, qint64 seconds);
+    // Marks a game as installed from a Modrinth modpack (project/version it came from).
+    Q_INVOKABLE void setPackSource(const QString &id, const QString &projectId, const QString &versionId,
+                                   const QString &versionNumber);
     Q_INVOKABLE void clearError();
 
 signals:

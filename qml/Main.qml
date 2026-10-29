@@ -25,6 +25,9 @@ ApplicationWindow {
     property string launchedTitle: ""
     // A Microsoft profile needs a fresh session first; the game waits here meanwhile.
     property string pendingLaunchGameId: ""
+    // What the version picker is choosing for: a pack (new install or version change) or a mod.
+    property var pickerTarget: ({})
+    property string packChangeGameId: ""
     property string launchedCover: "meadow"
     // The launch screen covers the app while files are prepared, and stays on a
     // failure until it is dismissed. A running game does not block the launcher.
@@ -44,6 +47,7 @@ ApplicationWindow {
             && game.title.toLocaleLowerCase().indexOf(query) !== -1
     })
     readonly property bool modalOpen: gameEditor.shown || profileEditor.shown || removal.shown || modCatalog.shown
+        || versionPicker.shown
     readonly property var atmosphericSources: {
         const ids = Theme.covers.slice()
         for (let game of launcher.games) if (ids.indexOf(game.coverId) === -1) ids.push(game.coverId)
@@ -136,6 +140,23 @@ ApplicationWindow {
         if (runner.busy) runner.cancel()
         else runner.dismiss()
         home.forceActiveFocus()
+    }
+    function pickPackVersion(pack, gameId) {
+        pickerTarget = { kind: "pack", projectId: pack.id, imageUrl: pack.imageUrl || "", gameId: gameId || "" }
+        const saved = gameId ? (launcher.gameSettings[gameId] || {}) : {}
+        versionPicker.title = "Versões de " + pack.title
+        versionPicker.currentId = saved.packVersionId || ""
+        versionPicker.actionText = gameId ? "Mudar para esta versão" : "Instalar esta versão"
+        mods.fetchProjectVersions(pack.id)
+        versionPicker.open()
+    }
+    function pickModVersion(game, mod) {
+        pickerTarget = { kind: "mod", projectId: mod.projectId, game: game }
+        versionPicker.title = "Versões de " + mod.title
+        versionPicker.currentId = mod.versionId || ""
+        versionPicker.actionText = "Usar esta versão"
+        mods.fetchProjectVersions(mod.projectId, game.version, game.loader)
+        versionPicker.open()
     }
     function bringToFront() {
         if (window.visibility === Window.Minimized) window.showNormal()
@@ -332,6 +353,7 @@ ApplicationWindow {
                     reduced: window.reduced
                     onNotify: function(message) { window.notify(message) }
                     onInstallRequested: function(pack) { mods.preparePack(pack.id, pack.imageUrl) }
+                    onVersionsRequested: function(pack, gameId) { window.pickPackVersion(pack, gameId) }
                 }
                 SettingsPage {
                     anchors.fill: parent
@@ -357,6 +379,11 @@ ApplicationWindow {
             onRemoveRequested: window.confirmRemoval(window.drawerGameId, window.drawerGame ? window.drawerGame.title : "", false)
             onProfileRequested: profileMenu.open()
             onModsRequested: modCatalog.openFor(window.drawerGame)
+            onModVersionRequested: function(mod) { window.pickModVersion(window.drawerGame, mod) }
+            onPackVersionsRequested: {
+                const saved = launcher.gameSettings[window.drawerGameId] || {}
+                window.pickPackVersion({ id: saved.packProjectId, title: window.drawerGame.title }, window.drawerGameId)
+            }
             onNotify: function(message) { window.notify(message) }
         }
 
@@ -690,6 +717,16 @@ ApplicationWindow {
         }
     }
 
+    VersionPicker {
+        id: versionPicker
+        blurSource: appRoot
+        reduced: window.reduced
+        onPicked: function(versionId) {
+            const target = window.pickerTarget
+            if (target.kind === "pack") mods.preparePack(target.projectId, target.imageUrl, versionId, target.gameId)
+            else if (target.kind === "mod") mods.installVersionOf(target.projectId, versionId, target.game.id, target.game.version, target.game.loader)
+        }
+    }
     ModCatalog {
         id: modCatalog
         blurSource: appRoot
@@ -700,19 +737,33 @@ ApplicationWindow {
         function onInstallFinished(projectId, ok, message) { window.notify(message) }
         // A prepared pack becomes a game (its cover imported when possible), then its files install.
         function onPackPrepared(info) {
+            if (info.gameId) {
+                // Version change of an installed pack: same game, new Minecraft/loader as the pack asks.
+                const game = window.gameById(info.gameId)
+                window.packChangeGameId = info.gameId
+                if (game && launcher.updateGame(game.id, game.title, info.version, info.loader, game.coverId, info.loaderVersion))
+                    mods.installPackFiles(game.id)
+                else { mods.cancelPack(); window.notify(launcher.lastError || "Esse jogo não está mais na biblioteca.") }
+                return
+            }
+            window.packChangeGameId = ""
             let cover = info.coverPath ? launcher.importCover(info.coverPath) : ""
             if (!cover) cover = "dusk"
             const id = launcher.addGame(info.title.slice(0, 72) || "Modpack", info.version, info.loader, cover, info.loaderVersion)
             if (id) mods.installPackFiles(id)
             else { mods.cancelPack(); window.notify(launcher.lastError) }
         }
-        function onPackFinished(gameId, ok, message) {
-            if (!ok && gameId) launcher.removeGame(gameId)
-            window.notify(ok ? "Modpack instalado. Ele já está em Jogos." : message)
-            if (ok) {
+        function onPackFinished(gameId, ok, message, pack) {
+            const changed = window.packChangeGameId !== "" && window.packChangeGameId === gameId
+            window.packChangeGameId = ""
+            if (ok && pack.projectId) launcher.setPackSource(gameId, pack.projectId, pack.versionId, pack.versionNumber)
+            if (!ok && gameId && !changed) launcher.removeGame(gameId)
+            window.notify(ok && !changed ? "Modpack instalado. Ele já está em Jogos." : message)
+            if (ok && !changed) {
                 window.selectedGameId = gameId
                 window.page = 0
             }
+            if (ok && changed && gameId === mods.gameId) mods.loadInstalled(gameId)
         }
     }
 

@@ -17,12 +17,20 @@ FocusScope {
     signal duplicateRequested()
     signal profileRequested()
     signal modsRequested()
+    signal modVersionRequested(var mod)
+    signal packVersionsRequested()
+    property string updatesCheckedFor: ""
+    function checkModUpdates(force) {
+        if (!game || vanilla || (!force && updatesCheckedFor === gameId)) return
+        updatesCheckedFor = gameId
+        mods.checkUpdates(gameId, game.version, game.loader)
+    }
     signal notify(string message)
 
     readonly property string gameId: game ? game.id : ""
     readonly property bool hasProfile: launcher.activeProfileId !== ""
     readonly property bool vanilla: game ? game.loader === "Vanilla" : true
-    readonly property real panelWidth: Math.max(380, Math.min(460, width * 0.4))
+    readonly property real panelWidth: Math.max(420, Math.min(540, width * 0.44))
     readonly property int heroHeight: 220
     readonly property color tint: Theme.coverTint(game ? game.coverId : "")
     // Saved values for this game (stats included) and the effective launch settings.
@@ -58,6 +66,29 @@ FocusScope {
     onGameIdChanged: { tabs.currentIndex = 0; flick.contentY = 0; if (gameId) mods.loadInstalled(gameId) }
     onOpenChanged: if (open) playButton.forceActiveFocus()
 
+
+    Item {
+        id: backdrop
+        anchors.fill: parent
+        opacity: root.open ? 1 : 0
+        visible: opacity > 0.001
+        Behavior on opacity { NumberAnimation { duration: root.reduced ? 0 : Theme.slow; easing.type: Easing.OutCubic } }
+        ShaderEffectSource {
+            id: backdropCapture
+            anchors.fill: parent
+            sourceItem: backdrop.visible ? root.blurSource : null
+            textureSize: Qt.size(Math.ceil(width / 2), Math.ceil(height / 2))
+            live: backdrop.visible
+            visible: false
+        }
+        MultiEffect {
+            anchors.fill: parent
+            source: backdropCapture
+            autoPaddingEnabled: false
+            blurEnabled: true; blur: 1; blurMax: 40
+            saturation: -0.1
+        }
+    }
 
     Rectangle {
         id: scrim
@@ -98,7 +129,7 @@ FocusScope {
             clip: true
             ScrollBar.vertical: ThinScrollBar {}
 
-            // Hero: the cover art, fading into the glass.
+            // Hero: the cover art, clipped to the panel's rounded top and fading into the glass.
             Item {
                 id: hero
                 width: panel.width; height: root.heroHeight
@@ -106,36 +137,38 @@ FocusScope {
                     id: heroArt
                     anchors.fill: parent
                     source: Theme.coverSource(root.game ? root.game.coverId : "")
-                    sourceSize: Qt.size(920, 1380)
+                    sourceSize: Qt.size(1080, 1620)
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     visible: false
                 }
-                Item {
+                // Rounded on top only: the mask runs past the bottom edge.
+                Rectangle {
                     id: heroMask
-                    anchors.fill: parent
+                    width: parent.width; height: parent.height + Theme.radiusXl
+                    radius: Theme.radiusXl
                     visible: false
                     layer.enabled: true
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: Theme.radiusXl
-                        gradient: Gradient {
-                            GradientStop { position: 0; color: "#FFFFFFFF" }
-                            GradientStop { position: 0.45; color: "#E6FFFFFF" }
-                            GradientStop { position: 1; color: "#00FFFFFF" }
-                        }
-                    }
                 }
                 MultiEffect {
                     anchors.fill: parent
                     source: heroArt
                     maskEnabled: true
                     maskSource: heroMask
-                    maskThresholdMin: 0
-                    maskSpreadAtMin: 1
                     brightness: -0.04
                     opacity: heroArt.status === Image.Ready ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: root.reduced ? 0 : Theme.normal } }
+                }
+                // Long fade into the panel's own tone, so no edge line shows.
+                Rectangle {
+                    anchors.left: parent.left; anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: parent.height * 0.75
+                    gradient: Gradient {
+                        GradientStop { position: 0; color: "#00171418" }
+                        GradientStop { position: 0.55; color: "#99171418" }
+                        GradientStop { position: 1; color: "#F2171418" }
+                    }
                 }
             }
 
@@ -253,6 +286,7 @@ FocusScope {
                     Layout.topMargin: 26
                     model: ["Visão geral", "Mods", "Ajustes"]
                     reduced: root.reduced
+                    onCurrentIndexChanged: if (currentIndex === 1) root.checkModUpdates(false)
                 }
 
                 StackLayout {
@@ -276,6 +310,17 @@ FocusScope {
                             }
                         }
                         InfoRow { label: "Versão do Minecraft"; iconName: "cube"; value: root.game ? root.game.version : "" }
+                        InfoRow {
+                            visible: !!root.saved.packProjectId
+                            label: "Modpack"; iconName: "packs"
+                            value: root.saved.packVersionNumber || ""
+                            ActionButton {
+                                text: "Versões"; quiet: true; height: 30; reduced: root.reduced
+                                font.pixelSize: 12
+                                enabled: mods.packState === ""
+                                onClicked: root.packVersionsRequested()
+                            }
+                        }
                         InfoRow { label: "Tipo de instalação"; iconName: "box"; value: root.game ? root.game.loader + (root.game.loaderVersion ? " " + root.game.loaderVersion : "") : "" }
                         InfoRow {
                             label: "Mods"; iconName: "puzzle"
@@ -302,20 +347,31 @@ FocusScope {
                         }
                     }
 
-                    // Mods
+                    // Mods: search, update check, per-mod update/version/enable/remove.
                     ColumnLayout {
+                        id: modsTab
                         spacing: 0
-                        readonly property bool fabric: root.game ? root.game.loader === "Fabric" : false
+                        property string filter: ""
                         readonly property var list: root.gameId !== "" && mods.gameId === root.gameId ? mods.installed : []
+                        readonly property var shown: list.filter(function(mod) {
+                            const query = filter.trim().toLowerCase()
+                            return query === "" || mod.title.toLowerCase().indexOf(query) !== -1 || mod.file.toLowerCase().indexOf(query) !== -1
+                        })
+                        readonly property int disabledCount: list.filter(function(mod) { return !mod.enabled }).length
+
                         RowLayout {
                             visible: !root.vanilla
                             Layout.fillWidth: true
                             Layout.topMargin: 14
-                            Layout.bottomMargin: 8
                             spacing: 8
-                            ActionButton {
+                            InputField {
                                 Layout.fillWidth: true
-                                text: "Adicionar mods"; iconName: "plus"; reduced: root.reduced
+                                iconName: "search"; clearable: true
+                                placeholderText: "Buscar nos mods"
+                                onTextChanged: modsTab.filter = text
+                            }
+                            ActionButton {
+                                text: "Adicionar"; iconName: "plus"; reduced: root.reduced
                                 onClicked: root.modsRequested()
                             }
                             ActionButton {
@@ -326,53 +382,137 @@ FocusScope {
                                 onClicked: runner.openModsFolder(root.gameId)
                             }
                         }
+
+                        RowLayout {
+                            visible: !root.vanilla && modsTab.list.length > 0
+                            Layout.fillWidth: true
+                            Layout.topMargin: 14
+                            Layout.bottomMargin: 6
+                            spacing: 8
+                            Text {
+                                Layout.fillWidth: true
+                                text: (modsTab.list.length === 1 ? "1 mod" : modsTab.list.length + " mods")
+                                    + (modsTab.disabledCount > 0 ? "  ·  " + modsTab.disabledCount + " desativado" + (modsTab.disabledCount > 1 ? "s" : "") : "")
+                                color: Theme.muted
+                                font.family: Theme.font; font.pixelSize: 12
+                            }
+                            Text {
+                                visible: mods.checkingUpdates
+                                text: "Verificando atualizações…"
+                                color: Theme.faint
+                                font.family: Theme.font; font.pixelSize: 12
+                            }
+                            ActionButton {
+                                visible: !mods.checkingUpdates && mods.updateCount > 0
+                                implicitHeight: 30
+                                text: "Atualizar " + (mods.updateCount === 1 ? "1 mod" : mods.updateCount + " mods")
+                                iconName: "download"; iconSize: 14
+                                primary: true; reduced: root.reduced
+                                font.pixelSize: 12
+                                onClicked: mods.updateAll(root.gameId, root.game.version, root.game.loader)
+                            }
+                            ActionButton {
+                                visible: !mods.checkingUpdates && mods.updateCount === 0
+                                implicitHeight: 30
+                                text: "Verificar atualizações"
+                                quiet: true; reduced: root.reduced
+                                font.pixelSize: 12
+                                onClicked: root.checkModUpdates(true)
+                            }
+                        }
+
                         Repeater {
-                            model: parent.list
+                            model: modsTab.shown
                             delegate: Item {
                                 id: modRow
                                 required property var modelData
+                                readonly property bool hasUpdate: (modelData.updateVersionId || "") !== ""
+                                readonly property bool busy: modelData.projectId !== "" && mods.installing.indexOf(modelData.projectId) !== -1
                                 Layout.fillWidth: true
-                                implicitHeight: 54
+                                implicitHeight: 60
+
+                                HoverHandler { id: rowHover }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: -8; anchors.rightMargin: -8
+                                    anchors.topMargin: 2; anchors.bottomMargin: 2
+                                    radius: 10
+                                    color: rowHover.hovered ? "#08FFFFFF" : "transparent"
+                                }
                                 RowLayout {
                                     anchors.fill: parent
                                     spacing: 12
-                                    opacity: modRow.modelData.enabled ? 1 : 0.5
                                     Rectangle {
-                                        Layout.preferredWidth: 32; Layout.preferredHeight: 32
-                                        radius: 8; color: Theme.fill; clip: true
-                                        UiIcon { anchors.centerIn: parent; visible: modIcon.status !== Image.Ready; width: 15; height: 15; name: "puzzle"; color: Theme.faint }
+                                        Layout.preferredWidth: 38; Layout.preferredHeight: 38
+                                        radius: 9; color: Theme.fill; clip: true
+                                        opacity: modRow.modelData.enabled ? 1 : 0.4
+                                        UiIcon { anchors.centerIn: parent; visible: modIcon.status !== Image.Ready; width: 16; height: 16; name: "puzzle"; color: Theme.faint }
                                         Image {
                                             id: modIcon
                                             anchors.fill: parent
                                             source: modRow.modelData.iconUrl
-                                            sourceSize: Qt.size(64, 64)
+                                            sourceSize: Qt.size(76, 76)
                                             fillMode: Image.PreserveAspectCrop
                                             asynchronous: true
                                         }
                                     }
                                     ColumnLayout {
                                         Layout.fillWidth: true
-                                        spacing: 1
+                                        spacing: 3
                                         Text {
                                             Layout.fillWidth: true
                                             text: modRow.modelData.title
-                                            color: Theme.text
-                                            font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
+                                            color: modRow.modelData.enabled ? Theme.text : Theme.muted
+                                            font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold
                                             elide: Text.ElideRight
                                         }
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: modRow.modelData.versionNumber || modRow.modelData.file
-                                            color: Theme.faint
-                                            font.family: Theme.font; font.pixelSize: 11
-                                            elide: Text.ElideMiddle
+                                        RowLayout {
+                                            spacing: 6
+                                            Text {
+                                                Layout.maximumWidth: 150
+                                                text: modRow.modelData.versionNumber || modRow.modelData.file
+                                                color: Theme.faint
+                                                font.family: Theme.font; font.pixelSize: 11
+                                                elide: Text.ElideMiddle
+                                            }
+                                            Rectangle {
+                                                visible: modRow.hasUpdate
+                                                Layout.preferredHeight: 18
+                                                Layout.preferredWidth: updateLabel.implicitWidth + 12
+                                                radius: 5
+                                                color: Theme.accentSoft
+                                                Text {
+                                                    id: updateLabel
+                                                    anchors.centerIn: parent
+                                                    text: "→ " + (modRow.modelData.updateVersionNumber || "")
+                                                    color: Theme.accentText
+                                                    font.family: Theme.font; font.pixelSize: 10; font.weight: Font.DemiBold
+                                                }
+                                            }
+                                            Text {
+                                                visible: !modRow.modelData.enabled
+                                                text: "desativado"
+                                                color: Theme.faint
+                                                font.family: Theme.font; font.pixelSize: 11
+                                            }
                                         }
                                     }
-                                }
-                                RowLayout {
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    spacing: 4
+                                    Text {
+                                        visible: modRow.busy
+                                        text: "Instalando…"
+                                        color: Theme.muted
+                                        font.family: Theme.font; font.pixelSize: 11
+                                    }
+                                    ActionButton {
+                                        visible: modRow.hasUpdate && !modRow.busy
+                                        width: 30; height: 30; round: true
+                                        iconName: "download"; iconSize: 14
+                                        primary: true; reduced: root.reduced
+                                        Accessible.name: "Atualizar " + modRow.modelData.title
+                                        ToolTip.visible: hovered; ToolTip.text: "Atualizar para " + modRow.modelData.updateVersionNumber; ToolTip.delay: 400
+                                        onClicked: mods.installVersionOf(modRow.modelData.projectId, modRow.modelData.updateVersionId,
+                                                                         root.gameId, root.game.version, root.game.loader)
+                                    }
                                     ToggleSwitch {
                                         checked: modRow.modelData.enabled
                                         reduced: root.reduced
@@ -381,18 +521,60 @@ FocusScope {
                                     }
                                     ActionButton {
                                         width: 30; height: 30; round: true
-                                        quiet: true; iconName: "trash"; iconSize: 14
+                                        quiet: true; iconName: "dots"; iconSize: 14
                                         reduced: root.reduced
-                                        Accessible.name: "Remover " + modRow.modelData.title
-                                        ToolTip.visible: hovered; ToolTip.text: "Remover"; ToolTip.delay: 500
-                                        onClicked: mods.remove(root.gameId, modRow.modelData.file)
+                                        Accessible.name: "Mais opções de " + modRow.modelData.title
+                                        onClicked: modMenu.popup()
+                                    }
+                                }
+                                Menu {
+                                    id: modMenu
+                                    topPadding: 6; bottomPadding: 6
+                                    background: Rectangle {
+                                        implicitWidth: 200
+                                        color: Theme.popup; radius: 12
+                                        border.width: 1; border.color: Theme.lineStrong
+                                    }
+                                    delegate: MenuItem {
+                                        id: menuItem
+                                        implicitHeight: 36
+                                        leftPadding: 14; rightPadding: 14
+                                        contentItem: Text {
+                                            text: menuItem.text
+                                            color: !menuItem.enabled ? Theme.faint : menuItem.text === "Remover" ? Theme.danger : Theme.text
+                                            font.family: Theme.font; font.pixelSize: 13
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle {
+                                            x: 6; width: parent.width - 12; height: parent.height
+                                            radius: 8
+                                            color: menuItem.highlighted ? Theme.fillActive : "transparent"
+                                        }
+                                    }
+                                    Action {
+                                        text: "Mudar versão…"
+                                        enabled: modRow.modelData.projectId !== ""
+                                        onTriggered: root.modVersionRequested(modRow.modelData)
+                                    }
+                                    Action {
+                                        text: "Remover"
+                                        onTriggered: mods.remove(root.gameId, modRow.modelData.file)
                                     }
                                 }
                                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
                             }
                         }
+
+                        Text {
+                            visible: modsTab.list.length > 0 && modsTab.shown.length === 0
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: 24
+                            text: "Nenhum mod corresponde à busca"
+                            color: Theme.muted
+                            font.family: Theme.font; font.pixelSize: 13
+                        }
                         ColumnLayout {
-                            visible: root.vanilla || parent.list.length === 0
+                            visible: root.vanilla || modsTab.list.length === 0
                             Layout.fillWidth: true
                             Layout.topMargin: 28
                             spacing: 8

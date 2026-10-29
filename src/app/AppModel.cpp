@@ -91,6 +91,15 @@ QVariant cleanGameSetting(const QString &key, const QVariant &value)
         const auto text = value.toString().trimmed();
         return text.size() <= 2000 ? QVariant(text) : QVariant();
     }
+    if (key == "packVersionNumber") {
+        const auto text = value.toString().trimmed();
+        return !text.isEmpty() && text.size() <= 64 ? QVariant(text) : QVariant();
+    }
+    if (key == "packProjectId" || key == "packVersionId") {
+        static const QRegularExpression pattern(QStringLiteral("^[A-Za-z0-9]{1,32}$"));
+        const auto text = value.toString();
+        return pattern.match(text).hasMatch() ? QVariant(text) : QVariant();
+    }
     if (key == "lastPlayed")
         return QDateTime::fromString(value.toString(), Qt::ISODate).isValid() ? QVariant(value.toString()) : QVariant();
     if (key == "playSeconds") {
@@ -618,4 +627,26 @@ bool AppModel::addMicrosoftProfile(const QString &uuid, const QString &name)
     emit profilesChanged();
     emit activeProfileChanged();
     return true;
+}
+
+void AppModel::setPackSource(const QString &id, const QString &projectId, const QString &versionId,
+                             const QString &versionNumber)
+{
+    if (indexOfId(m_games, id) < 0)
+        return;
+    const auto previous = m_gameSettings;
+    auto settings = m_gameSettings.value(id).toMap();
+    const QList<QPair<QString, QString>> values{{"packProjectId", projectId}, {"packVersionId", versionId},
+                                                 {"packVersionNumber", versionNumber}};
+    for (const auto &[key, value] : values) {
+        const auto cleaned = cleanGameSetting(key, value);
+        if (cleaned.isValid())
+            settings.insert(key, cleaned);
+    }
+    m_gameSettings.insert(id, settings);
+    if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
+        m_gameSettings = previous;
+        return;
+    }
+    emit gameSettingsChanged();
 }
