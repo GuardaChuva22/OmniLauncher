@@ -801,9 +801,6 @@
  "” sairá da sua biblioteca. Esta ação não pode ser desfeita.": "” will leave your library. This can't be undone.",
  "Conectando ao servidor do amigo pela Steam…": "Connecting to your friend's server through Steam…",
  "Para entrar, crie um jogo com Minecraft %1%2 e os mesmos mods de %3.": "To join, create a game with Minecraft %1%2 and the same mods as %3.",
- "relay da Steam": "Steam relay",
- "conexão direta": "direct connection",
- "neste PC": "this PC",
  " está hospedando": " is hosting",
  "Conectado · %1 ms · %2": "Connected · %1 ms · %2",
  "Conectando pela Steam…": "Connecting through Steam…",
@@ -843,5 +840,8 @@
  "Modo desenvolvedor desligado.": "Developer mode off.",
  "Modo desenvolvedor ligado: a seção Depuração apareceu.": "Developer mode on: the Debug section is now showing.",
  "Faltam %1 cliques para o modo desenvolvedor.": "%1 more clicks to developer mode.",
- "Ligado: perfis offline e a conexão pela Steam (aba Conexão dos servidores) ficam disponíveis. Desligar esconde esta seção.": "On: offline profiles and the Steam connection (servers' Connection tab) are available. Turning it off hides this section."
+ "Ligado: perfis offline e a conexão pela Steam (aba Conexão dos servidores) ficam disponíveis. Desligar esconde esta seção.": "On: offline profiles and the Steam connection (servers' Connection tab) are available. Turning it off hides this section.",
+ "Conectado. No Minecraft: Multijogador → Conexão direta → %1 (já copiado).": "Connected. In Minecraft: Multiplayer → Direct Connection → %1 (already copied).",
+ "Copiar endereço": "Copy address",
+ "Copiar endereço para o Minecraft": "Copy the address for Minecraft"
 }

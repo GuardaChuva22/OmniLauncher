@@ -548,6 +548,11 @@ void SteamTunnel::join(const QString &hostId)
 #ifdef OMNI_STEAM
     if (!d)
         return;
+    // Already connected to that host: keep the tunnel (and its address) as it is.
+    if (m_joined.value("hostId") == hostId && m_joined.value("state") != "failed") {
+        updateJoined({});
+        return;
+    }
     leave();
     d->loopback = hostId == "loopback";
     if (!d->loopback) {
@@ -556,7 +561,10 @@ void SteamTunnel::join(const QString &hostId)
         SteamFriends()->RequestFriendRichPresence(CSteamID(hostId.toULongLong()));
     }
     d->local = new QTcpServer(this);
-    if (!d->local->listen(QHostAddress::LocalHost, 0)) {
+    // The same local port for a host every time, so the address saved in Minecraft's server
+    // list keeps working; any free port if that one is taken.
+    const auto preferred = quint16(25600 + hostId.toULongLong() % 400);
+    if (!d->local->listen(QHostAddress::LocalHost, preferred) && !d->local->listen(QHostAddress::LocalHost, 0)) {
         emit message(tr("Não foi possível abrir a porta local do túnel."));
         delete d->local;
         d->local = nullptr;

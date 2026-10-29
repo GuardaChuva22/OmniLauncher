@@ -94,9 +94,6 @@ Item {
     readonly property bool steamShared: server !== null && steam.hosting.serverId === server.id
     property var invited: ({})
     Connections { target: steam; function onSharingChanged() { root.shareRevision++ } }
-    function routeLabel(route) {
-        return ({ relay: qsTr("relay da Steam"), direct: qsTr("conexão direta"), local: qsTr("neste PC") })[route] || ""
-    }
     component SteamAvatar: Rectangle {
         property string source: ""
         property string name: ""
@@ -316,7 +313,7 @@ Item {
                     required property var modelData
                     readonly property bool mine: (root.joined.hostId || "") === modelData.id
                     readonly property string joinState: mine ? (root.joined.state || "") : ""
-                    width: 400; height: 72
+                    width: 440; height: 72
                     radius: Theme.radiusLg
                     color: mine ? Theme.accentSoft : Theme.fill
                     border.width: 1; border.color: mine ? Theme.accentLine : Theme.line
@@ -339,7 +336,7 @@ Item {
                             }
                             Text {
                                 text: friendCard.joinState === "ready"
-                                    ? qsTr("Conectado · %1 ms · %2").arg(root.joined.ping || 0).arg(root.routeLabel(root.joined.route))
+                                    ? qsTr("Conectado · %1 ms · %2").arg(root.joined.ping || 0).arg(root.joined.address || "")
                                     : friendCard.joinState === "connecting" ? qsTr("Conectando pela Steam…")
                                     : (friendCard.modelData.hosting.version || "") + (friendCard.modelData.hosting.loader && friendCard.modelData.hosting.loader !== "Vanilla" ? " · " + friendCard.modelData.hosting.loader : "")
                                 color: friendCard.joinState === "ready" ? Theme.accentText : Theme.faint
@@ -352,6 +349,14 @@ Item {
                             text: qsTr("Entrar"); iconName: "play"; primary: true; reduced: root.reduced
                             enabled: steam.ready && (root.joined.state || "") !== "connecting"
                             onClicked: root.joinRequested(friendCard.modelData.id)
+                        }
+                        // The address for Minecraft's server list or Direct Connect, while connected.
+                        ActionButton {
+                            visible: friendCard.joinState === "ready"
+                            iconName: "copy"; quiet: true; round: true; width: 36; height: 36; reduced: root.reduced
+                            Accessible.name: qsTr("Copiar endereço")
+                            ToolTip.visible: hovered; ToolTip.text: qsTr("Copiar endereço para o Minecraft"); ToolTip.delay: 500
+                            onClicked: root.copy(root.joined.address, qsTr("Endereço"))
                         }
                         ActionButton {
                             visible: friendCard.mine && friendCard.joinState !== "failed"

@@ -273,6 +273,12 @@ ApplicationWindow {
             if (joined.state === "failed") { window.joinLaunchPending = false; return }
             if (joined.state !== "ready" || !joined.version) return
             window.joinLaunchPending = false
+            // Minecraft already open (from Home, or left the server): the tunnel is enough.
+            if (runner.running) {
+                servers.copyText(joined.address)
+                window.notify(qsTr("Conectado. No Minecraft: Multijogador → Conexão direta → %1 (já copiado).").arg(joined.address))
+                return
+            }
             const game = window.joinGameFor(joined)
             if (!game) {
                 window.notify(qsTr("Para entrar, crie um jogo com Minecraft %1%2 e os mesmos mods de %3.")
@@ -356,8 +362,8 @@ ApplicationWindow {
         }
         function onGameExited(gameId, seconds, exitCode) {
             discord.clearActivity()
-            // The friend's world closed with the game: so does the tunnel.
-            if (window.pendingJoinAddress !== "" && steam.joined.address === window.pendingJoinAddress) steam.leave()
+            // The tunnel stays up (until Leave), so the game can be opened again and join the
+            // same saved address.
             window.pendingJoinAddress = ""
             launcher.recordSession(gameId, seconds)
             // A clean exit can still hide trouble (e.g. data that blocks world creation).
