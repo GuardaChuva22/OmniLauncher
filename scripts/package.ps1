@@ -54,3 +54,21 @@ if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
 $size = [math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1)
 Write-Host "Package: $zip ($size MB)"
+
+# Installer (Inno Setup 6), when its compiler is on this PC: dist\OmniLauncher-Setup.exe.
+$iscc = @((Get-Command iscc.exe -ErrorAction SilentlyContinue).Source,
+          (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
+          (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe')) |
+    Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+if ($iscc) {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & $iscc /Q "/DAppVersion=$version" "/DSourceDir=$stage" "/DOutputDir=$dist" (Join-Path $projectRoot 'installer\OmniLauncher.iss') 2>&1 | Out-Host
+    $isccExit = $LASTEXITCODE
+    $ErrorActionPreference = $previous
+    if ($isccExit -ne 0) { throw "Inno Setup failed ($isccExit)." }
+    $setup = Join-Path $dist 'OmniLauncher-Setup.exe'
+    Write-Host "Installer: $setup ($([math]::Round((Get-Item -LiteralPath $setup).Length / 1MB, 1)) MB)"
+} else {
+    Write-Host 'Inno Setup 6 not found: skipping the installer.'
+}

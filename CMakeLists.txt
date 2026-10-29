@@ -35,6 +35,7 @@ qt_add_executable(OmniLauncher WIN32
     src/core/Wrapped.cpp
     src/core/PackCloud.h
     src/core/PackCloud.cpp
+    src/app/app.rc
 )
 
 # Discord application (client) ID for Rich Presence. Public; OMNI_DISCORD_CLIENT_ID in the
