@@ -28,7 +28,7 @@ A direção Modular foi escolhida pelo usuário. O [brandbook v01](branding/modu
 - Acabamento premium, composição limpa e facilidade de uso são critérios obrigatórios. Evitar aparência genérica de interface gerada por IA.
 - Referências: home do PS5 e acabamento Apple, com vidro, luz, profundidade e desfoque.
 - Jogos com capas verticais individuais. Hover animado na capa e fundo que recebe uma versão desfocada da imagem sob o cursor. Transição de iniciar contínua e suave.
-- Sidebar para navegação entre Home, Modpacks e Configurações. Catálogos Modrinth/CurseForge para instalar modpacks como jogos e adicionar mods aos jogos. Criação de jogo com escolha de loader, incluindo Fabric, Forge e NeoForge.
+- Sidebar para navegação entre Home, Modpacks e Configurações. Catálogo Modrinth para instalar modpacks como jogos e adicionar mods aos jogos. Criação de jogo com escolha de loader, incluindo Fabric, Forge e NeoForge.
 - Leveza importa, junto da qualidade visual.
 - Conectar conta oficial do Minecraft faz parte do objetivo.
 - Perfis offline locais para testes são essenciais desde o primeiro protótipo. Seletor de Perfis no canto inferior esquerdo, com avatar circular: rosto da skin para perfil Microsoft e Steve para perfil offline. Vários perfis salvos e troca rápida entre eles.
@@ -163,13 +163,11 @@ Na primeira prova de UI, versões e preparação podem ser dados simulados, iden
 
 **Instalar modpack:** abrir Modpacks, escolher fonte, buscar e filtrar, abrir detalhes, escolher uma versão do pack e instalar. A versão do pack determina Minecraft e loader; mostrar esse resumo, sem oferecer combinações arbitrárias que alterem o pack. A instalação cria um jogo com nome e capa editáveis, identidade da origem e progresso. Ao concluir, ele fica pronto para iniciar pela Home.
 
-**Adicionar mods:** no jogo, abrir Mods e usar “Adicionar mods”. O catálogo já conhece Minecraft e loader daquele jogo. Reutilizar a linguagem visual da página Modpacks, com alternância discreta Modrinth/CurseForge, origem visível e ação de adicionar. Usar listas claras para os mods instalados, com ativar/desativar, remover e atualização quando disponível. Não transformar cada linha de mod em um painel.
+**Adicionar mods:** no jogo, abrir Mods e usar “Adicionar mods”. O catálogo já conhece Minecraft e loader daquele jogo. Reutilizar a linguagem visual da página Modpacks, com origem visível e ação de adicionar. Usar listas claras para os mods instalados, com ativar/desativar, remover e atualização quando disponível. Não transformar cada linha de mod em um painel.
 
 Antes de instalar, filtrar a versão específica do arquivo por jogo, loader e ambiente de cliente, e resolver dependências obrigatórias declaradas. Metadados de compatibilidade não garantem ausência de conflitos entre todos os mods. Preservar identificadores de projeto, versão e arquivo junto da fonte; não tratar projetos homônimos nas duas plataformas como equivalentes automaticamente.
 
 Jogos vindos de modpack devem distinguir arquivos do pack e modificações locais. Antes de atualizar, mostrar o que muda e preservar mundos/dados; não sobrescrever silenciosamente mods adicionados pelo usuário. No protótipo, representar o caso de atualização e a distinção entre jogo criado manualmente e jogo vindo de modpack, mesmo que a implementação completa venha depois.
-
-Modrinth oferece busca e versões com metadados de loader/jogo. CurseForge exige acesso por chave de API e expõe permissões de distribuição; o download automático depende do acesso do aplicativo e da disponibilidade autorizada do arquivo. Quando exigir ação manual, apresentar link oficial e uma etapa curta para importar/continuar. Não prometer instalação automática universal. O design precisa acomodar falhas de rede, falta de versão compatível e arquivos indisponíveis sem esconder o motivo.
 
 ### Direção visual confirmada — detalhes em refinamento
 
@@ -196,12 +194,12 @@ Começar com cenário estático e transições. Vídeo, partículas, paralaxe e 
 ### Recursos definidos para o produto
 
 1. **Biblioteca e criação:** jogos isolados com capas, hover e fundo animados; nome, versão e escolha de Vanilla/Fabric/Forge/NeoForge.
-2. **Catálogos:** Modrinth e CurseForge para instalar modpacks como jogos e adicionar mods por jogo, respeitando acesso e disponibilidade das APIs.
+2. **Catálogos:** Modrinth para instalar modpacks como jogos e adicionar mods por jogo.
 3. **Perfis e execução:** seletor inferior com múltiplos perfis Microsoft/offline, avatar da skin ou Steve, Java compatível, preparação e início do jogo.
 4. **Gerenciamento:** mods instalados, dependências declaradas, ajustes por jogo e padrões globais.
 5. **Experiência completa:** estados vazios, progresso, cancelamento seguro, erros úteis, foco de teclado e redução de movimento.
 
-O primeiro protótipo visual deve cobrir a sidebar e os fluxos desses recursos usando dados locais/simulados. A implementação funcional pode começar com uma sequência Vanilla e Modrinth, seguida dos loaders e CurseForge conforme validação. Essa ordem reduz retrabalho; não remove Fabric, Forge, NeoForge ou CurseForge do escopo definido.
+O primeiro protótipo visual deve cobrir a sidebar e os fluxos desses recursos usando dados locais/simulados. A implementação funcional pode começar com uma sequência Vanilla e Modrinth, seguida dos loaders. Essa ordem reduz retrabalho; não remove Fabric, Forge ou NeoForge do escopo definido.
 
 ### Extensões posteriores
 
@@ -278,7 +276,7 @@ OmniLauncher/
     app/             # inicialização e integração com QML
     core/            # instalações, downloads e execução
     auth/            # contas Microsoft/offline, seleção e armazenamento de sessão
-    providers/       # adaptadores Modrinth/CurseForge e metadados de origem
+    providers/       # adaptador Modrinth e metadados de origem
     loaders/         # instalação de Fabric/Forge/NeoForge
     platform/        # detalhes do sistema operacional
   qml/
@@ -299,7 +297,7 @@ Dados do usuário ficam fora da pasta de código: configurações, instalações
 2. **Provar o feel:** uma janela Qt Quick com sidebar, seletor de Perfis e criação de perfil offline local, criação de jogos com escolha de loader, hover das capas, transição de fundo, teclado e início simulado. Representar estados Microsoft com dados simulados, sem fingir autenticação real. Prototipar também busca de modpacks, instalação como jogo e adição de mods contextual, usando dados simulados. Refinar curvas, interrupções e continuidade; medir custo dos efeitos.
 3. **Validar as bordas da experiência:** biblioteca vazia e grande, conta desconectada, preparação, cancelamento, erro, DPI e redimensionamento.
 4. **Primeira sequência real:** registro/acesso do app validado, conta oficial, instalação Vanilla e execução do jogo.
-5. **Completar o produto:** catálogos reais, dependências e instalação de modpacks, Fabric/Forge/NeoForge, integração CurseForge validada e recuperação de downloads. Preservar modificações locais ao evoluir o suporte a atualizações.
+5. **Completar o produto:** catálogos reais, dependências e instalação de modpacks, Fabric/Forge/NeoForge e recuperação de downloads. Preservar modificações locais ao evoluir o suporte a atualizações.
 
 Critério do primeiro protótipo: a pessoa entende em poucos segundos qual jogo e perfil estão selecionados, encontra Jogar e navega sem esperar por animação. A avaliação visual e as medições orientarão a decisão final de stack.
 
@@ -323,5 +321,4 @@ Fontes primárias consultadas em 28/10/2026. Elas sustentam a viabilidade técni
 - [Minecraft: suporte Java Edition](https://help.minecraft.net/hc/en-us/sections/44460521913485): lista processo de revisão/aplicação da Game Service API; requisitos específicos ainda precisam ser confirmados.
 - [Prism: configuração de APIs](https://prismlauncher.org/wiki/help-pages/apis/): configuração de client ID próprio.
 - [Modrinth: busca de projetos](https://docs.modrinth.com/api/operations/searchprojects/) e [versões](https://docs.modrinth.com/api/operations/getprojectversions/): filtros e metadados para os catálogos contextuais.
-- [CurseForge: API REST](https://docs.curseforge.com/rest-api/): autenticação por chave e campo de permissão de distribuição.
 - [Minecraft: conclusão da migração de contas Mojang](https://www.minecraft.net/en-us/article/account-migration-last-call): login oficial baseado em conta Microsoft.

@@ -61,7 +61,7 @@ Item {
         id: sources
         x: root.gutter; y: header.y + header.height + 14
         width: root.width - root.gutter * 2
-        model: ["Modrinth", "Customizado", "CurseForge"]
+        model: ["Modrinth", "Customizado"]
         currentIndex: root.source
         onCurrentIndexChanged: {
             root.source = currentIndex
@@ -324,36 +324,6 @@ Item {
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
                 }
             }
-        }
-    }
-
-    ColumnLayout {
-        visible: root.source === 2
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: sources.y + (root.height - sources.y) * 0.32
-        width: Math.min(420, root.width - root.gutter * 2)
-        spacing: 10
-        Rectangle {
-            Layout.alignment: Qt.AlignHCenter
-            width: 60; height: 60; radius: 30
-            color: Theme.fill
-            border.width: 1; border.color: Theme.line
-            UiIcon { anchors.centerIn: parent; width: 26; height: 26; name: "packs"; color: Theme.muted }
-        }
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: 8
-            text: "CurseForge em breve"
-            color: Theme.text
-            font.family: Theme.fontDisplay; font.pixelSize: 18; font.weight: Font.DemiBold
-        }
-        Text {
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WordWrap
-            text: "O acesso ao CurseForge precisa de uma chave de API própria do OmniLauncher."
-            color: Theme.muted
-            font.family: Theme.font; font.pixelSize: 13
         }
     }
 }
