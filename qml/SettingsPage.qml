@@ -348,29 +348,6 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Teclas e tudo mais de um jogo"
-                    description: runner.defaultKeybindCount > 0
-                        ? runner.defaultKeybindCount + " teclas salvas. Configure dentro de um jogo e copie de novo para atualizar."
-                        : "Configure as teclas dentro de um jogo uma vez e copie daqui: teclas (inclusive de mods), sons e os valores acima."
-                    RowLayout {
-                        spacing: 8
-                        ChoiceField {
-                            id: sourceGame
-                            width: 200
-                            model: launcher.games.map(function(game) { return game.title })
-                        }
-                        ActionButton {
-                            text: "Copiar"; reduced: root.reduced
-                            enabled: sourceGame.currentIndex >= 0 && launcher.games.length > 0
-                            onClicked: {
-                                const count = runner.importGameDefaults(launcher.games[sourceGame.currentIndex].id)
-                                root.notify(count < 0 ? "Esse jogo ainda não foi aberto, então não tem configurações para copiar."
-                                                      : count + " configurações copiadas como padrão.")
-                            }
-                        }
-                    }
-                }
-                SettingRow {
                     title: "Restaurar"
                     description: "Volta tudo aos padrões do próprio Minecraft."
                     divider: false
@@ -381,6 +358,17 @@ Item {
                     }
                 }
             }
+
+            SectionTitle { text: "Controles" }
+            Text {
+                Layout.fillWidth: true
+                Layout.leftMargin: 4
+                wrapMode: Text.WordWrap
+                text: "Clique numa tecla e aperte a nova (vale botão do mouse também). Entram em todo jogo novo; num jogo que já existe, use Aplicar padrões nos ajustes dele."
+                color: Theme.faint
+                font.family: Theme.font; font.pixelSize: 12
+            }
+            KeybindPanel { Layout.fillWidth: true; reduced: root.reduced }
 
             SectionTitle { text: "Discord" }
             Group {

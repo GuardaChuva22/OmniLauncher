@@ -53,7 +53,6 @@ class GameRunner final : public QObject
     // Minecraft options (options.txt keys → values) written into every new game before
     // its first start. Keys absent here keep the game's own defaults.
     Q_PROPERTY(QVariantMap gameDefaults READ gameDefaults NOTIFY gameDefaultsChanged)
-    Q_PROPERTY(int defaultKeybindCount READ defaultKeybindCount NOTIFY gameDefaultsChanged)
 
 public:
     explicit GameRunner(const QString &dataDirectory, QObject *parent = nullptr);
@@ -82,12 +81,8 @@ public:
     int systemMemoryMb() const;
     int sessionSeconds() const { return running() ? int(m_playClock.elapsed() / 1000) : 0; }
     QVariantMap gameDefaults() const { return m_gameDefaults; }
-    int defaultKeybindCount() const;
     Q_INVOKABLE void setGameDefault(const QString &key, const QString &value);
     Q_INVOKABLE void resetGameDefaults();
-    // Copies the known options, all sound levels and all keybinds from a game's options.txt.
-    // Returns how many values were taken, or -1 when the game has none yet.
-    Q_INVOKABLE int importGameDefaults(const QString &gameId);
     // Writes the defaults into an existing game's options.txt (other lines are kept).
     Q_INVOKABLE bool applyGameDefaults(const QString &gameId);
 

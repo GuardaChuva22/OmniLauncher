@@ -1536,14 +1536,6 @@ bool importable(const QString &key)
 }
 } // namespace
 
-int GameRunner::defaultKeybindCount() const
-{
-    int count = 0;
-    for (auto it = m_gameDefaults.begin(); it != m_gameDefaults.end(); ++it)
-        count += it.key().startsWith("key_") ? 1 : 0;
-    return count;
-}
-
 void GameRunner::saveGameDefaults()
 {
     QSaveFile file(path("minecraft-defaults.txt"));
@@ -1570,24 +1562,6 @@ void GameRunner::resetGameDefaults()
 {
     m_gameDefaults.clear();
     saveGameDefaults();
-}
-
-int GameRunner::importGameDefaults(const QString &gameId)
-{
-    QFile file(path("instances/" + gameId + "/options.txt"));
-    if (gameId.isEmpty() || !file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return -1;
-    int count = 0;
-    for (const auto &line : QString::fromUtf8(file.readAll()).split('\n', Qt::SkipEmptyParts)) {
-        const auto colon = line.indexOf(':');
-        const auto key = line.left(colon).trimmed();
-        if (colon <= 0 || !importable(key))
-            continue;
-        m_gameDefaults.insert(key, line.mid(colon + 1).trimmed());
-        ++count;
-    }
-    saveGameDefaults();
-    return count;
 }
 
 bool GameRunner::writeOptions(const QString &file) const
