@@ -58,6 +58,8 @@ public:
                                    const QString &versionNumber);
     // Marks a game as a subscribed custom pack (manifest link and installed version).
     Q_INVOKABLE void setCustomPack(const QString &id, const QString &url, const QString &version);
+    // Share code (and, for its editors, the editor key) of a pack on OmniLauncher Cloud.
+    Q_INVOKABLE void setCloudPack(const QString &id, const QString &code, const QString &editorKey = {});
     // Library tile art for a pack: its logo (copied like a cover) on a color taken from the logo.
     Q_INVOKABLE bool setPackArt(const QString &id, const QString &iconUrl);
     Q_INVOKABLE void clearError();

@@ -33,6 +33,8 @@ qt_add_executable(OmniLauncher WIN32
     src/core/UiSound.cpp
     src/core/Wrapped.h
     src/core/Wrapped.cpp
+    src/core/PackCloud.h
+    src/core/PackCloud.cpp
 )
 
 # Discord application (client) ID for Rich Presence. Public; OMNI_DISCORD_CLIENT_ID in the
@@ -43,6 +45,11 @@ if(omni_discord_client_id STREQUAL "")
     set(omni_discord_client_id "1565183680786202865")
 endif()
 target_compile_definitions(OmniLauncher PRIVATE OMNI_DISCORD_CLIENT_ID="${omni_discord_client_id}")
+
+# OmniLauncher Cloud (cloud/worker.js) for shared modpacks. Empty until it is deployed;
+# OMNI_CLOUD_URL in the environment overrides it at runtime (e.g. a local `wrangler dev`).
+set(OMNI_CLOUD_URL "" CACHE STRING "Base URL of the OmniLauncher Cloud worker")
+target_compile_definitions(OmniLauncher PRIVATE OMNI_CLOUD_URL="${OMNI_CLOUD_URL}")
 
 # Packaged builds know their commit and check the GitHub release for a newer one.
 execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

@@ -971,6 +971,7 @@ namespace {
 struct CustomManifest {
     QString name;
     QString version;
+    QString changelog;
     QString minecraft;
     QString loader;
     QString loaderVersion;
@@ -987,6 +988,7 @@ CustomManifest parseCustomManifest(const QByteArray &data)
     const auto pack = root.value("pack").toObject();
     result.name = pack.value("name").toString(root.value("name").toString()).trimmed();
     result.version = pack.value("version").toString(root.value("version").toString()).trimmed();
+    result.changelog = pack.value("changelog").toString().trimmed().left(300);
     result.minecraft = root.value("minecraft").toString().trimmed();
     for (const auto &[key, name] : {std::pair{"fabric", "Fabric"}, std::pair{"neoforge", "NeoForge"}, std::pair{"forge", "Forge"}}) {
         if (root.value(key).isObject()) {
@@ -1100,7 +1102,7 @@ void ModManager::checkCustom(const QString &gameId, const QString &url)
         const auto manifest = parseCustomManifest(reply->readAll());
         if (!manifest.error.isEmpty())
             return;
-        m_customLatest.insert(gameId, QVariantMap{{"version", manifest.version}, {"minecraft", manifest.minecraft},
+        m_customLatest.insert(gameId, QVariantMap{{"version", manifest.version}, {"changelog", manifest.changelog}, {"minecraft", manifest.minecraft},
                                                   {"files", manifest.files.size()}});
         emit customLatestChanged();
     });

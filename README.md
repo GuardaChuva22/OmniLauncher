@@ -72,6 +72,26 @@ Modpacks seus ou de amigos, assinados por link. O link aponta para um manifesto 
 
 `fabric` pode ser `forge` ou `neoforge` (com `"loader": "<versão>"`). `files[].sha1` também é aceito. `overrides` é opcional: um zip com `config/`, `defaultconfigs/` etc., aplicado sobre o jogo a cada instalação ou atualização — inclua aqui as configs que o pack precisa para funcionar.
 
+## OmniLauncher Cloud (modpacks compartilhados por código)
+
+Na aba Customizado, "Criar modpack" transforma um jogo da biblioteca num modpack com um código de 6 letras. Quem entra com o código recebe cada versão nova como atualização. Não há contas: quem cria recebe uma chave de editor, guardada no próprio launcher; o "link de editor" passa essa chave para outra pessoa ou outro PC.
+
+- Mods encontrados no Modrinth entram só como referência (URL e hash do CDN do Modrinth).
+- As configs (`config/`, `defaultconfigs/`, `kubejs/`) viram um zip enviado ao pack, assim como jars que não estão no Modrinth (até 24 MB cada, 40 arquivos por pack).
+- O servidor é `cloud/worker.js`, um Cloudflare Worker com um namespace KV (`PACKS`). Ele só aceita arquivos do CDN do Modrinth ou enviados ao próprio pack.
+
+Publicar o servidor (uma vez, numa conta Cloudflare só do OmniLauncher):
+
+```bash
+cd cloud
+npm install
+npx wrangler login
+npx wrangler kv namespace create PACKS   # cole o id em wrangler.toml
+npx wrangler deploy                      # imprime a URL do Worker
+```
+
+A URL vai em `OMNI_CLOUD_URL` no CMake (ou na variável de ambiente de mesmo nome, para testar com `npx wrangler dev`). Sem ela, a aba mostra que a nuvem ainda não está no ar.
+
 ## Nomenclatura — decisão confirmada
 
 | Termo na interface | Significado | Exemplos |

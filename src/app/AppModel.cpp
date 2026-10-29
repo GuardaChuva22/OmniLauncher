@@ -116,6 +116,15 @@ QVariant cleanGameSetting(const QString &key, const QVariant &value)
         const auto text = value.toString();
         return pattern.match(text).hasMatch() ? QVariant(text) : QVariant();
     }
+    // OmniLauncher Cloud: the pack's share code, and the editor key when this PC can publish it.
+    if (key == "cloudCode") {
+        static const QRegularExpression pattern(QStringLiteral("^[A-Z0-9]{6}$"));
+        return pattern.match(value.toString()).hasMatch() ? value : QVariant();
+    }
+    if (key == "cloudKey") {
+        static const QRegularExpression pattern(QStringLiteral("^[0-9a-f]{64}$"));
+        return pattern.match(value.toString()).hasMatch() ? value : QVariant();
+    }
     if (key == "lastPlayed")
         return QDateTime::fromString(value.toString(), Qt::ISODate).isValid() ? QVariant(value.toString()) : QVariant();
     if (key == "playSeconds") {
@@ -719,6 +728,27 @@ void AppModel::setCustomPack(const QString &id, const QString &url, const QStrin
         return;
     settings.insert("customPackUrl", cleanUrl);
     settings.insert("customPackVersion", cleanVersion);
+    m_gameSettings.insert(id, settings);
+    if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
+        m_gameSettings = previous;
+        return;
+    }
+    emit gameSettingsChanged();
+}
+
+void AppModel::setCloudPack(const QString &id, const QString &code, const QString &editorKey)
+{
+    if (indexOfId(m_games, id) < 0)
+        return;
+    const auto previous = m_gameSettings;
+    auto settings = m_gameSettings.value(id).toMap();
+    const auto cleanCode = cleanGameSetting("cloudCode", code);
+    if (!cleanCode.isValid())
+        return;
+    settings.insert("cloudCode", cleanCode);
+    const auto cleanKey = cleanGameSetting("cloudKey", editorKey);
+    if (cleanKey.isValid())
+        settings.insert("cloudKey", cleanKey);
     m_gameSettings.insert(id, settings);
     if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
         m_gameSettings = previous;
