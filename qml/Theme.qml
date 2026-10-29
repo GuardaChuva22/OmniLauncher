@@ -65,6 +65,15 @@ QtObject {
     readonly property var loaders: ["Vanilla", "Fabric", "Forge", "NeoForge"]
     readonly property var versions: ["1.21.1", "1.20.4", "1.20.1", "1.19.2"]
 
+    // Offline avatar face, chosen once per launch: Herobrine every 31 October,
+    // otherwise a 1 in 10,000 chance of the Omni Steve.
+    readonly property url offlineFace: {
+        const today = new Date()
+        const name = today.getMonth() === 9 && today.getDate() === 31 ? "herobrine_face"
+            : Math.random() < 0.0001 ? "omnisteve_face" : "steve_face"
+        return Qt.resolvedUrl("../assets/avatars/" + name + ".png")
+    }
+
     function brandSource(name) { return Qt.resolvedUrl("../assets/brand/" + name + ".png") }
     function coverSource(id) {
         if (!id) return Qt.resolvedUrl("../assets/covers/meadow.png")
