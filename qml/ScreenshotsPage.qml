@@ -22,10 +22,10 @@ Item {
     function refresh() { all = runner.screenshots() }
     function gameTitle(id) {
         const game = launcher.games.find(function(g) { return g.id === id })
-        return game ? game.title : "Jogo removido"
+        return game ? game.title : qsTr("Jogo removido")
     }
     function when(iso) {
-        return new Date(iso).toLocaleString(Qt.locale(), "d 'de' MMMM yyyy, HH:mm")
+        return new Date(iso).toLocaleString(Qt.locale(), qsTr("d 'de' MMMM yyyy, HH:mm"))
     }
     onVisibleChanged: if (visible) refresh()
     Connections {
@@ -43,7 +43,7 @@ Item {
             Layout.fillWidth: true
             Text {
                 id: titleText
-                text: "Capturas"
+                text: qsTr("Capturas")
                 color: Theme.text
                 font.family: Theme.fontDisplay; font.pixelSize: 30; font.weight: Font.DemiBold
                 font.letterSpacing: -0.6
@@ -63,7 +63,7 @@ Item {
         spacing: 6
         visible: root.all.length > 0
         Repeater {
-            model: [{ id: "", title: "Todos" }].concat(root.gamesWithShots.map(function(g) { return { id: g.id, title: g.title } }))
+            model: [{ id: "", title: qsTr("Todos") }].concat(root.gamesWithShots.map(function(g) { return { id: g.id, title: g.title } }))
             delegate: AbstractButton {
                 id: chip
                 required property var modelData
@@ -163,13 +163,13 @@ Item {
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Nenhuma captura ainda"
+            text: qsTr("Nenhuma captura ainda")
             color: Theme.text
             font.family: Theme.fontDisplay; font.pixelSize: 18; font.weight: Font.DemiBold
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Aperte F2 dentro do jogo e elas aparecem aqui."
+            text: qsTr("Aperte F2 dentro do jogo e elas aparecem aqui.")
             color: Theme.muted
             font.family: Theme.font; font.pixelSize: 13
         }
@@ -224,24 +224,24 @@ Item {
                 Layout.fillWidth: true
                 spacing: 2
                 Text { text: viewer.current ? root.gameTitle(viewer.current.gameId) : ""; color: Theme.text; font.family: Theme.font; font.pixelSize: 15; font.weight: Font.DemiBold }
-                Text { text: viewer.current ? root.when(viewer.current.takenAt) + "  ·  " + (root.viewing + 1) + " de " + root.shown.length : ""; color: Theme.muted; font.family: Theme.font; font.pixelSize: 12 }
+                Text { text: viewer.current ? root.when(viewer.current.takenAt) + "  ·  " + (root.viewing + 1) + qsTr(" de ") + root.shown.length : ""; color: Theme.muted; font.family: Theme.font; font.pixelSize: 12 }
             }
             ActionButton {
-                text: "Copiar"; iconName: "copy"; reduced: root.reduced
-                onClicked: root.notify(runner.copyImage(viewer.current.path) ? "Imagem copiada." : "Não foi possível copiar a imagem.")
+                text: qsTr("Copiar"); iconName: "copy"; reduced: root.reduced
+                onClicked: root.notify(runner.copyImage(viewer.current.path) ? qsTr("Imagem copiada.") : qsTr("Não foi possível copiar a imagem."))
             }
             ActionButton {
-                text: "Pasta"; iconName: "folder"; quiet: true; reduced: root.reduced
+                text: qsTr("Pasta"); iconName: "folder"; quiet: true; reduced: root.reduced
                 onClicked: runner.openFile(viewer.current.path.substring(0, viewer.current.path.lastIndexOf("/")))
             }
             ActionButton {
-                text: "Excluir"; iconName: "trash"; danger: true; quiet: true; reduced: root.reduced
+                text: qsTr("Excluir"); iconName: "trash"; danger: true; quiet: true; reduced: root.reduced
                 onClicked: {
                     if (runner.trashFile(viewer.current.path)) {
                         const index = root.viewing
                         root.refresh()
                         root.viewing = Math.min(index, root.shown.length - 1)
-                        root.notify("Captura movida para a Lixeira.")
+                        root.notify(qsTr("Captura movida para a Lixeira."))
                     }
                 }
             }

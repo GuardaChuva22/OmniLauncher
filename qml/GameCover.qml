@@ -19,7 +19,7 @@ FocusScope {
     height: width * 1.5 + 58
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: game.title + (selected ? ", selecionado" : "")
+    Accessible.name: game.title + (selected ? qsTr(", selecionado") : "")
     Accessible.onPressAction: chosen()
     onHighlightedChanged: previewed(highlighted)
     Keys.onReturnPressed: chosen()
@@ -222,7 +222,7 @@ FocusScope {
                 UiIcon { anchors.centerIn: parent; anchors.horizontalCenterOffset: 1; width: 17; height: 17; name: "play"; color: Theme.accentInk }
             }
             ToolTip.visible: hovered
-            ToolTip.text: "Jogar"
+            ToolTip.text: qsTr("Jogar")
             ToolTip.delay: 500
         }
     }
@@ -243,7 +243,7 @@ FocusScope {
         Text {
             width: parent.width
             readonly property bool playing: runner.running && runner.gameId === root.game.id
-            text: playing ? "Em execução" : root.game.version + "  ·  " + root.game.loader
+            text: playing ? qsTr("Em execução") : root.game.version + "  ·  " + root.game.loader
             font.family: Theme.font; font.pixelSize: 12
             font.weight: playing ? Font.DemiBold : Font.Normal
             color: playing ? Theme.accentText : Theme.muted

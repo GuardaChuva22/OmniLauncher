@@ -1,4 +1,5 @@
 #include "AppModel.h"
+#include "Language.h"
 #include "AuthManager.h"
 #include "DiscordPresence.h"
 #include "ServerManager.h"
@@ -73,6 +74,9 @@ int main(int argc, char *argv[])
     }
     QApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/OmniLauncher/assets/brand/app-icon.png")));
 
+    // Before anything builds text: the translator for the chosen language.
+    Language language;
+
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("OmniLauncher — protótipo da experiência desktop"));
     parser.addHelpOption();
@@ -102,6 +106,8 @@ int main(int argc, char *argv[])
     PackCloud cloud(model.dataDirectory());
     QObject::connect(&updates, &UpdateManager::quitRequested, &app, &QCoreApplication::quit, Qt::QueuedConnection);
     QQmlApplicationEngine engine;
+    language.setEngine(&engine);
+    engine.rootContext()->setContextProperty(QStringLiteral("i18n"), &language);
     engine.rootContext()->setContextProperty(QStringLiteral("launcher"), &model);
     engine.rootContext()->setContextProperty(QStringLiteral("runner"), &runner);
     engine.rootContext()->setContextProperty(QStringLiteral("mods"), &mods);

@@ -44,8 +44,8 @@ Item {
         width: root.width - root.inset * 2
         spacing: 4
         Repeater {
-            model: [{ label: "Jogos", icon: "grid", page: 0 }, { label: "Modpacks", icon: "packs", page: 1 },
-                    { label: "Capturas", icon: "image", page: 3 }, { label: "Servidores", icon: "server", page: 5 }]
+            model: [{ label: qsTr("Jogos"), icon: "grid", page: 0 }, { label: qsTr("Modpacks"), icon: "packs", page: 1 },
+                    { label: qsTr("Capturas"), icon: "image", page: 3 }, { label: qsTr("Servidores"), icon: "server", page: 5 }]
             delegate: NavItem {
                 required property var modelData
                 required property int index
@@ -69,7 +69,7 @@ Item {
         NavItem {
             id: downloadsItem
             Layout.fillWidth: true
-            text: "Downloads"
+            text: qsTr("Downloads")
             iconName: "download"
             compact: root.compact
             reduced: root.reduced
@@ -92,7 +92,7 @@ Item {
                 contentItem: ColumnLayout {
                     spacing: 10
                     Text {
-                        text: "Baixando agora"
+                        text: qsTr("Baixando agora")
                         color: Theme.muted
                         font.family: Theme.font; font.pixelSize: 12; font.weight: Font.DemiBold
                     }
@@ -137,7 +137,7 @@ Item {
         }
         NavItem {
             Layout.fillWidth: true
-            text: "Configurações"
+            text: qsTr("Configurações")
             iconName: "settings"
             compact: root.compact
             reduced: root.reduced
@@ -153,9 +153,9 @@ Item {
             hoverEnabled: true
             padding: 0
             leftPadding: root.compact ? 0 : 8; rightPadding: root.compact ? 0 : 10
-            Accessible.name: root.hasProfile ? "Perfis, " + launcher.activeProfile.name : "Perfis, escolher Perfil"
+            Accessible.name: root.hasProfile ? "Perfis, " + launcher.activeProfile.name : qsTr("Perfis, escolher Perfil")
             ToolTip.visible: root.compact && hovered
-            ToolTip.text: root.hasProfile ? launcher.activeProfile.name + (launcher.activeProfile.type === "microsoft" ? " · Microsoft" : " · Offline") : "Escolher Perfil"
+            ToolTip.text: root.hasProfile ? launcher.activeProfile.name + (launcher.activeProfile.type === "microsoft" ? qsTr(" · Microsoft") : qsTr(" · Offline")) : qsTr("Escolher Perfil")
             ToolTip.delay: 300
             onClicked: root.profileClicked()
             background: Rectangle {
@@ -194,15 +194,15 @@ Item {
                     spacing: 2
                     Text {
                         width: parent.width
-                        text: root.hasProfile ? launcher.activeProfile.name : "Escolher Perfil"
+                        text: root.hasProfile ? launcher.activeProfile.name : qsTr("Escolher Perfil")
                         color: Theme.text
                         font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold
                         elide: Text.ElideRight
                     }
                     Text {
                         width: parent.width
-                        text: !root.hasProfile ? "Nenhum perfil ativo"
-                            : launcher.activeProfile.type === "microsoft" ? "Conta Microsoft" : "Perfil offline"
+                        text: !root.hasProfile ? qsTr("Nenhum perfil ativo")
+                            : launcher.activeProfile.type === "microsoft" ? qsTr("Conta Microsoft") : qsTr("Perfil offline")
                         color: Theme.muted
                         font.family: Theme.font; font.pixelSize: 11
                         elide: Text.ElideRight

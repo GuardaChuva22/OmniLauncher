@@ -55,7 +55,7 @@ It is a personal project, built in C++ and Qt Quick, and shared with friends.
 **Details**
 - An opening title, soft glows and micro-animations, and quiet interface sounds (each can be turned off; "Reduce motion" removes animations).
 - Self-updates from this repository's releases.
-- Interface in Brazilian Portuguese.
+- **English and Brazilian Portuguese.** The launcher follows the Windows language by default, and you can switch it in Settings at any time, without restarting.
 
 ## Microsoft account, privacy and Minecraft
 
@@ -107,6 +107,7 @@ powershell -ExecutionPolicy Bypass -File scripts/run.ps1
 | `qml` | The whole interface (Qt Quick) |
 | `cloud` | OmniLauncher Cloud, a Cloudflare Worker for shared modpacks |
 | `installer` | The Inno Setup script |
+| `assets/i18n` | Translations: the code is written in Portuguese and `en.json` maps each text to English. `scripts/i18n_extract.py` lists texts that still need a translation |
 | `docs` | [Shared and custom modpacks](docs/CUSTOM-PACKS.md), and the original [design brief](docs/DESIGN.md) |
 
 ## Credits

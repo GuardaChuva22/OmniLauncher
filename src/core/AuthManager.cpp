@@ -1,5 +1,6 @@
 #include "AuthManager.h"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QDir>
@@ -49,12 +50,12 @@ QString credentialTarget(const QString &uuid)
 QString xboxError(const QJsonObject &reply)
 {
     switch (qint64(reply.value("XErr").toDouble())) {
-    case 2148916233: return QStringLiteral("Essa conta Microsoft não tem um perfil Xbox. Entre uma vez em xbox.com e tente de novo.");
-    case 2148916235: return QStringLiteral("O Xbox Live não está disponível no seu país.");
+    case 2148916233: return QCoreApplication::translate("OmniLauncher", "Essa conta Microsoft não tem um perfil Xbox. Entre uma vez em xbox.com e tente de novo.");
+    case 2148916235: return QCoreApplication::translate("OmniLauncher", "O Xbox Live não está disponível no seu país.");
     case 2148916236:
-    case 2148916237: return QStringLiteral("Essa conta precisa de verificação de idade no Xbox antes de jogar.");
-    case 2148916238: return QStringLiteral("Contas de menores precisam ser adicionadas a uma Família Microsoft por um adulto.");
-    default: return QStringLiteral("O Xbox Live recusou o acesso a essa conta.");
+    case 2148916237: return QCoreApplication::translate("OmniLauncher", "Essa conta precisa de verificação de idade no Xbox antes de jogar.");
+    case 2148916238: return QCoreApplication::translate("OmniLauncher", "Contas de menores precisam ser adicionadas a uma Família Microsoft por um adulto.");
+    default: return QCoreApplication::translate("OmniLauncher", "O Xbox Live recusou o acesso a essa conta.");
     }
 }
 } // namespace
@@ -97,7 +98,7 @@ void AuthManager::setStage(const QString &stage)
 void AuthManager::signIn()
 {
     if (!configured()) {
-        failSignIn(QStringLiteral("O login Microsoft ainda não foi configurado neste build (falta o client ID do app)."));
+        failSignIn(tr("O login Microsoft ainda não foi configurado neste build (falta o client ID do app)."));
         return;
     }
     if (busy())
@@ -107,7 +108,7 @@ void AuthManager::signIn()
     auto *server = new QTcpServer(this);
     if (!server->listen(QHostAddress::LocalHost, 0)) {
         server->deleteLater();
-        failSignIn(QStringLiteral("Não foi possível abrir a porta local para receber o login."));
+        failSignIn(tr("Não foi possível abrir a porta local para receber o login."));
         return;
     }
     m_server = server;
@@ -128,14 +129,14 @@ void AuthManager::signIn()
     query.addQueryItem("prompt", "select_account");
     QUrl url(kAuthorize);
     url.setQuery(query);
-    setStage(QStringLiteral("Continue o login no navegador"));
+    setStage(tr("Continue o login no navegador"));
     log(QStringLiteral("sign-in started, redirect %1").arg(m_redirectUri));
     QDesktopServices::openUrl(url);
     // Abandon a sign-in left open in the browser.
     QTimer::singleShot(5 * 60 * 1000, this, [this, server] {
         if (m_server == server) {
             cancel();
-            failSignIn(QStringLiteral("O login expirou. Tente de novo."));
+            failSignIn(tr("O login expirou. Tente de novo."));
         }
     });
 }
@@ -179,11 +180,11 @@ void AuthManager::onLoopbackRequest()
                                                          : "error " + params.queryItemValue("error")));
         if (params.hasQueryItem("error") || params.queryItemValue("state") != m_state) {
             failSignIn(params.queryItemValue("error") == "access_denied"
-                                  ? QStringLiteral("O login foi cancelado.")
-                                  : QStringLiteral("O login Microsoft não foi concluído."));
+                                  ? tr("O login foi cancelado.")
+                                  : tr("O login Microsoft não foi concluído."));
             return;
         }
-        setStage(QStringLiteral("Conectando sua conta"));
+        setStage(tr("Conectando sua conta"));
         exchangeToken({{"client_id", m_clientId}, {"scope", kScope}, {"grant_type", "authorization_code"},
                        {"code", params.queryItemValue("code", QUrl::FullyDecoded)}, {"redirect_uri", m_redirectUri},
                        {"code_verifier", m_verifier}},
@@ -235,12 +236,12 @@ void AuthManager::exchangeToken(const QMap<QString, QString> &form, Done done)
             return;
         }
         if (json.value("error").toString() == "invalid_grant") {
-            done(QStringLiteral("A sessão Microsoft expirou. Entre na conta novamente."), {});
+            done(tr("A sessão Microsoft expirou. Entre na conta novamente."), {});
             return;
         }
         done(reply->error() != QNetworkReply::NoError && json.isEmpty()
-                 ? QStringLiteral("Não foi possível falar com a Microsoft. Verifique sua conexão.")
-                 : QStringLiteral("A Microsoft recusou o login: %1").arg(json.value("error_description").toString().section('\n', 0, 0)),
+                 ? tr("Não foi possível falar com a Microsoft. Verifique sua conexão.")
+                 : tr("A Microsoft recusou o login: %1").arg(json.value("error_description").toString().section('\n', 0, 0)),
              {});
     });
 }
@@ -269,7 +270,7 @@ void AuthManager::minecraftLogin(const QString &msAccessToken, Done done)
                 .arg(xblReply->errorString()));
         const auto xblToken = xblJson.value("Token").toString();
         if (xblToken.isEmpty()) {
-            done(QStringLiteral("Não foi possível entrar no Xbox Live."), {});
+            done(tr("Não foi possível entrar no Xbox Live."), {});
             return;
         }
         const QJsonObject xsts{{"Properties", QJsonObject{{"SandboxId", "RETAIL"}, {"UserTokens", QJsonArray{xblToken}}}},
@@ -300,8 +301,8 @@ void AuthManager::minecraftLogin(const QString &msAccessToken, Done done)
                 const auto mcToken = mcJson.value("access_token").toString();
                 if (mcToken.isEmpty()) {
                     done(status == 403
-                             ? QStringLiteral("A Mojang ainda não liberou este app para login (o client ID precisa de aprovação para a API do Minecraft).")
-                             : QStringLiteral("Os serviços do Minecraft recusaram o login."),
+                             ? tr("A Mojang ainda não liberou este app para login (o client ID precisa de aprovação para a API do Minecraft).")
+                             : tr("Os serviços do Minecraft recusaram o login."),
                          {});
                     return;
                 }
@@ -318,8 +319,8 @@ void AuthManager::minecraftLogin(const QString &msAccessToken, Done done)
                     const auto uuid = profile.value("id").toString();
                     if (uuid.isEmpty()) {
                         done(profileReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 404
-                                 ? QStringLiteral("Essa conta não possui o Minecraft: Java Edition.")
-                                 : QStringLiteral("Não foi possível ler o perfil do Minecraft."),
+                                 ? tr("Essa conta não possui o Minecraft: Java Edition.")
+                                 : tr("Não foi possível ler o perfil do Minecraft."),
                              {});
                         return;
                     }
@@ -347,10 +348,10 @@ void AuthManager::requestSession(const QString &uuid)
     }
     const auto refresh = loadRefreshToken(uuid);
     if (!configured() || refresh.isEmpty()) {
-        emit sessionFailed(uuid, QStringLiteral("Entre na conta Microsoft novamente para jogar com esse Perfil."));
+        emit sessionFailed(uuid, tr("Entre na conta Microsoft novamente para jogar com esse Perfil."));
         return;
     }
-    setStage(QStringLiteral("Verificando sua conta Microsoft"));
+    setStage(tr("Verificando sua conta Microsoft"));
     exchangeToken({{"client_id", m_clientId}, {"scope", kScope}, {"grant_type", "refresh_token"}, {"refresh_token", refresh}},
                   [this, uuid](const QString &error, const QVariantMap &tokens) {
         if (!error.isEmpty()) {
@@ -363,7 +364,7 @@ void AuthManager::requestSession(const QString &uuid)
         minecraftLogin(tokens.value("access_token").toString(), [this, uuid](const QString &error, const QVariantMap &mc) {
             setStage({});
             if (error.isEmpty() && mc.value("uuid").toString() != uuid) {
-                emit sessionFailed(uuid, QStringLiteral("A conta Microsoft salva pertence a outro perfil do Minecraft."));
+                emit sessionFailed(uuid, tr("A conta Microsoft salva pertence a outro perfil do Minecraft."));
                 return;
             }
             if (!error.isEmpty()) {

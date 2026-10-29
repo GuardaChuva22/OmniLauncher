@@ -8,7 +8,7 @@ GlassDialog {
     property var game: null
     property string kind: "mod"
     property string loader: ""
-    title: kind === "shader" ? "Adicionar shaders" : kind === "resourcepack" ? "Adicionar resource packs" : "Adicionar mods"
+    title: kind === "shader" ? qsTr("Adicionar shaders") : kind === "resourcepack" ? qsTr("Adicionar resource packs") : qsTr("Adicionar mods")
     width: Math.min(780, parent ? parent.width - 80 : 780)
     height: Math.min(660, parent ? parent.height - 80 : 660)
 
@@ -24,8 +24,8 @@ GlassDialog {
         query.forceActiveFocus()
     }
     function formatCount(value) {
-        if (value >= 1e6) return (value / 1e6).toFixed(1).replace(".", ",") + " mi"
-        if (value >= 1e3) return Math.round(value / 1e3) + " mil"
+        if (value >= 1e6) return Number(value / 1e6).toLocaleString(Qt.locale(), "f", 1) + qsTr(" mi")
+        if (value >= 1e3) return Math.round(value / 1e3) + qsTr(" mil")
         return String(value)
     }
 
@@ -38,7 +38,7 @@ GlassDialog {
     contentItem: ColumnLayout {
         spacing: 14
         Text {
-            text: root.game ? "Minecraft " + root.game.version + "  ·  " + (root.kind === "mod" ? root.game.loader : root.kind === "shader" ? "Iris / OptiFine" : "Resource packs") + "  ·  Modrinth" : ""
+            text: root.game ? "Minecraft " + root.game.version + "  ·  " + (root.kind === "mod" ? root.game.loader : root.kind === "shader" ? qsTr("Iris / OptiFine") : qsTr("Resource packs")) + qsTr("  ·  Modrinth") : ""
             color: Theme.muted
             font.family: Theme.font; font.pixelSize: 13
             Layout.topMargin: -10
@@ -48,7 +48,7 @@ GlassDialog {
             Layout.fillWidth: true
             iconName: "search"
             clearable: true
-            placeholderText: root.kind === "shader" ? "Buscar shaders" : root.kind === "resourcepack" ? "Buscar resource packs" : "Buscar mods"
+            placeholderText: root.kind === "shader" ? qsTr("Buscar shaders") : root.kind === "resourcepack" ? qsTr("Buscar resource packs") : qsTr("Buscar mods")
             onTextChanged: searchDelay.restart()
         }
         Item {
@@ -116,14 +116,14 @@ GlassDialog {
                                     Layout.fillWidth: true
                                 }
                                 Text {
-                                    text: "por " + row.modelData.author
+                                    text: qsTr("por ") + row.modelData.author
                                     color: Theme.faint
                                     font.family: Theme.font; font.pixelSize: 12
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                 }
                                 Text {
-                                    text: root.formatCount(row.modelData.downloads) + " downloads"
+                                    text: root.formatCount(row.modelData.downloads) + qsTr(" downloads")
                                     color: Theme.faint
                                     font.family: Theme.font; font.pixelSize: 12
                                 }
@@ -140,7 +140,7 @@ GlassDialog {
                         }
                         ActionButton {
                             Layout.preferredWidth: 118
-                            text: row.installed ? "Instalado" : row.busy ? "Instalando…" : "Instalar"
+                            text: row.installed ? qsTr("Instalado") : row.busy ? qsTr("Instalando…") : qsTr("Instalar")
                             iconName: row.installed ? "check" : row.busy ? "" : "download"
                             primary: !row.installed && !row.busy
                             quiet: row.installed
@@ -155,7 +155,7 @@ GlassDialog {
             Text {
                 anchors.centerIn: parent
                 visible: results.count === 0
-                text: mods.searching ? "Buscando…" : mods.searchError !== "" ? mods.searchError : "Nada encontrado"
+                text: mods.searching ? qsTr("Buscando…") : mods.searchError !== "" ? mods.searchError : qsTr("Nada encontrado")
                 color: Theme.muted
                 font.family: Theme.font; font.pixelSize: 14
             }

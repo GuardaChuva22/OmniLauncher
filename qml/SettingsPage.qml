@@ -16,8 +16,8 @@ Item {
         return value === undefined ? fallback : value
     }
     function setOption(key, value) { runner.setGameDefault(key, String(value)) }
-    readonly property var afterLaunchOptions: [{ label: "Ir para a bandeja", value: "minimize" }, { label: "Fechar", value: "close" },
-                                               { label: "Manter aberto", value: "keep" }]
+    readonly property var afterLaunchOptions: [{ label: qsTr("Ir para a bandeja"), value: "minimize" }, { label: qsTr("Fechar"), value: "close" },
+                                               { label: qsTr("Manter aberto"), value: "keep" }]
     function setPreference(key, value) {
         if (!launcher.setPreference(key, value)) root.notify(launcher.lastError)
     }
@@ -81,7 +81,7 @@ Item {
     Text {
         id: title
         x: root.gutter; y: 50
-        text: "Configurações"
+        text: qsTr("Configurações")
         color: Theme.text
         font.family: Theme.fontDisplay; font.pixelSize: 30; font.weight: Font.DemiBold
         font.letterSpacing: -0.6
@@ -102,11 +102,23 @@ Item {
             width: flick.width
             spacing: 0
 
-            SectionTitle { text: "Aparência" }
+            SectionTitle { text: qsTr("Aparência") }
             Group {
                 SettingRow {
-                    title: "Reduzir movimento"
-                    description: "Trocas diretas, sem animações nas capas e no fundo."
+                    title: qsTr("Idioma")
+                    description: i18n.language === "auto" ? qsTr("Segue o idioma do Windows.") : ""
+                    ChoiceField {
+                        id: languageChoice
+                        readonly property var codes: ["auto", "pt", "en"]
+                        width: 220
+                        model: [qsTr("Automático (Windows)"), "Português (Brasil)", "English"]
+                        Binding on currentIndex { when: !languageChoice.popup.visible; value: Math.max(0, languageChoice.codes.indexOf(i18n.language)) }
+                        onActivated: function(index) { i18n.setLanguage(languageChoice.codes[index]) }
+                    }
+                }
+                SettingRow {
+                    title: qsTr("Reduzir movimento")
+                    description: qsTr("Trocas diretas, sem animações nas capas e no fundo.")
                     ToggleSwitch {
                         checked: launcher.reducedMotion
                         reduced: root.reduced
@@ -115,18 +127,18 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Fundo da capa"
-                    description: "O fundo acompanha a capa sob o cursor."
+                    title: qsTr("Fundo da capa")
+                    description: qsTr("O fundo acompanha a capa sob o cursor.")
                     divider: false
                     ToggleSwitch { checked: true; reduced: root.reduced; enabled: false }
                 }
             }
 
-            SectionTitle { text: "Sons" }
+            SectionTitle { text: qsTr("Sons") }
             Group {
                 SettingRow {
-                    title: "Sons da interface"
-                    description: "Cliques, switches, janelas e avisos, bem baixinho."
+                    title: qsTr("Sons da interface")
+                    description: qsTr("Cliques, switches, janelas e avisos, bem baixinho.")
                     ToggleSwitch {
                         checked: sfx.enabled
                         reduced: root.reduced
@@ -135,7 +147,7 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Volume"
+                    title: qsTr("Volume")
                     RowLayout {
                         spacing: 12
                         ValueSlider {
@@ -157,8 +169,8 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Som ao passar o mouse"
-                    description: "Um toque leve sobre capas, menus e listas."
+                    title: qsTr("Som ao passar o mouse")
+                    description: qsTr("Um toque leve sobre capas, menus e listas.")
                     divider: false
                     ToggleSwitch {
                         checked: sfx.hoverEnabled
@@ -170,21 +182,21 @@ Item {
                 }
             }
 
-            SectionTitle { text: "Perfis" }
+            SectionTitle { text: qsTr("Perfis") }
             Group {
                 SettingRow {
-                    title: launcher.activeProfileId ? launcher.activeProfile.name : "Nenhum perfil ativo"
-                    description: launcher.profiles.length + (launcher.profiles.length === 1 ? " perfil salvo" : " perfis salvos")
+                    title: launcher.activeProfileId ? launcher.activeProfile.name : qsTr("Nenhum perfil ativo")
+                    description: launcher.profiles.length + (launcher.profiles.length === 1 ? qsTr(" perfil salvo") : qsTr(" perfis salvos"))
                     divider: false
-                    ActionButton { text: "Gerenciar"; iconName: "user"; reduced: root.reduced; onClicked: root.manageProfiles() }
+                    ActionButton { text: qsTr("Gerenciar"); iconName: "user"; reduced: root.reduced; onClicked: root.manageProfiles() }
                 }
             }
 
-            SectionTitle { text: "Java e memória" }
+            SectionTitle { text: qsTr("Java e memória") }
             Group {
                 SettingRow {
-                    title: "Memória padrão"
-                    description: "Cada jogo pode substituir este valor. Este PC tem " + Math.round(runner.systemMemoryMb / 1024) + " GB."
+                    title: qsTr("Memória padrão")
+                    description: qsTr("Cada jogo pode substituir este valor. Este PC tem ") + Math.round(runner.systemMemoryMb / 1024) + " GB."
                     RowLayout {
                         spacing: 14
                         ValueSlider {
@@ -202,17 +214,17 @@ Item {
                 }
                 SettingRow {
                     title: "Java"
-                    description: "Baixado automaticamente na versão que cada jogo pede."
+                    description: qsTr("Baixado automaticamente na versão que cada jogo pede.")
                     divider: false
-                    Text { text: "Automático"; color: Theme.text; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium }
+                    Text { text: qsTr("Automático"); color: Theme.text; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium }
                 }
             }
 
-            SectionTitle { text: "Ao iniciar um jogo" }
+            SectionTitle { text: qsTr("Ao iniciar um jogo") }
             Group {
                 SettingRow {
-                    title: "Comportamento do launcher"
-                    description: "Ao fechar o jogo, o launcher volta para a frente."
+                    title: qsTr("Comportamento do launcher")
+                    description: qsTr("Ao fechar o jogo, o launcher volta para a frente.")
                     divider: false
                     ChoiceField {
                         id: afterLaunch
@@ -227,18 +239,18 @@ Item {
                 }
             }
 
-            SectionTitle { text: "Padrões do Minecraft" }
+            SectionTitle { text: qsTr("Padrões do Minecraft") }
             Text {
                 Layout.fillWidth: true
                 Layout.leftMargin: 4; Layout.bottomMargin: 12
-                text: "Aplicados a cada jogo novo antes da primeira abertura. Depois, o que você mudar dentro do jogo fica só nele."
+                text: qsTr("Aplicados a cada jogo novo antes da primeira abertura. Depois, o que você mudar dentro do jogo fica só nele.")
                 color: Theme.faint
                 font.family: Theme.font; font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }
             Group {
                 SettingRow {
-                    title: "Sensibilidade do mouse"
+                    title: qsTr("Sensibilidade do mouse")
                     OptionSlider {
                         reduced: root.reduced
                         key: "mouseSensitivity"; from: 0; to: 200; step: 1; suffix: "%"
@@ -247,17 +259,17 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Campo de visão (FOV)"
+                    title: qsTr("Campo de visão (FOV)")
                     OptionSlider {
                         reduced: root.reduced
                         key: "fov"; from: 30; to: 110; step: 1
                         shown: 70 + Number(root.option(key, "0")) * 40
                         toStored: function(v) { return ((v - 70) / 40).toFixed(4) }
-                        label: function(v) { return Math.round(v) === 70 ? "Normal" : Math.round(v) === 110 ? "Quake Pro" : String(Math.round(v)) }
+                        label: function(v) { return Math.round(v) === 70 ? qsTr("Normal") : Math.round(v) === 110 ? qsTr("Quake Pro") : String(Math.round(v)) }
                     }
                 }
                 SettingRow {
-                    title: "Volume geral"
+                    title: qsTr("Volume geral")
                     OptionSlider {
                         reduced: root.reduced
                         key: "soundCategory_master"; suffix: "%"
@@ -266,7 +278,7 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Música"
+                    title: qsTr("Música")
                     OptionSlider {
                         reduced: root.reduced
                         key: "soundCategory_music"; suffix: "%"
@@ -275,7 +287,7 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Distância de renderização"
+                    title: qsTr("Distância de renderização")
                     OptionSlider {
                         reduced: root.reduced
                         key: "renderDistance"; from: 2; to: 32; suffix: " chunks"
@@ -283,7 +295,7 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Distância de simulação"
+                    title: qsTr("Distância de simulação")
                     OptionSlider {
                         reduced: root.reduced
                         key: "simulationDistance"; from: 5; to: 32; suffix: " chunks"
@@ -291,51 +303,51 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "FPS máximo"
+                    title: qsTr("FPS máximo")
                     OptionSlider {
                         reduced: root.reduced
                         key: "maxFps"; from: 30; to: 260; step: 10
                         shown: Number(root.option(key, "120"))
-                        label: function(v) { return v >= 260 ? "Ilimitado" : String(Math.round(v)) }
+                        label: function(v) { return v >= 260 ? qsTr("Ilimitado") : String(Math.round(v)) }
                     }
                 }
                 SettingRow {
-                    title: "Brilho"
+                    title: qsTr("Brilho")
                     OptionSlider {
                         reduced: root.reduced
                         key: "gamma"; suffix: "%"
                         shown: Number(root.option(key, "0.5")) * 100
                         toStored: function(v) { return (v / 100).toFixed(2) }
-                        label: function(v) { return v <= 0 ? "Sombrio" : v >= 100 ? "Claro" : Math.round(v) + "%" }
+                        label: function(v) { return v <= 0 ? qsTr("Sombrio") : v >= 100 ? qsTr("Claro") : Math.round(v) + "%" }
                     }
                 }
                 SettingRow {
-                    title: "Escala da interface"
+                    title: qsTr("Escala da interface")
                     ChoiceField {
                         id: guiScale
                         width: 200
-                        model: ["Automática", "1×", "2×", "3×", "4×"]
+                        model: [qsTr("Automática"), qsTr("1×"), qsTr("2×"), qsTr("3×"), qsTr("4×")]
                         Binding on currentIndex { when: !guiScale.popup.visible; value: Math.min(4, Number(root.option("guiScale", "0"))) }
                         onActivated: function(index) { root.setOption("guiScale", index) }
                     }
                 }
                 SettingRow {
-                    title: "Idioma do jogo"
+                    title: qsTr("Idioma do jogo")
                     ChoiceField {
                         id: language
                         readonly property var codes: ["", "pt_br", "en_us", "es_es"]
                         width: 200
-                        model: ["Padrão do jogo", "Português (Brasil)", "English (US)", "Español"]
+                        model: [qsTr("Padrão do jogo"), qsTr("Português (Brasil)"), qsTr("English (US)"), qsTr("Español")]
                         Binding on currentIndex { when: !language.popup.visible; value: Math.max(0, language.codes.indexOf(root.option("lang", ""))) }
                         onActivated: function(index) { runner.setGameDefault("lang", language.codes[index]) }
                     }
                 }
                 SettingRow { title: "VSync"; OptionToggle { reduced: root.reduced; key: "enableVsync"; fallback: true } }
-                SettingRow { title: "Legendas"; OptionToggle { reduced: root.reduced; key: "showSubtitles" } }
-                SettingRow { title: "Pulo automático"; OptionToggle { reduced: root.reduced; key: "autoJump" } }
+                SettingRow { title: qsTr("Legendas"); OptionToggle { reduced: root.reduced; key: "showSubtitles" } }
+                SettingRow { title: qsTr("Pulo automático"); OptionToggle { reduced: root.reduced; key: "autoJump" } }
                 SettingRow {
-                    title: "Pular telas de primeira vez"
-                    description: "Acessibilidade inicial, tutorial e aviso do multiplayer."
+                    title: qsTr("Pular telas de primeira vez")
+                    description: qsTr("Acessibilidade inicial, tutorial e aviso do multiplayer.")
                     ToggleSwitch {
                         checked: root.option("onboardAccessibility", "true") === "false"
                         reduced: root.reduced
@@ -348,23 +360,23 @@ Item {
                     }
                 }
                 SettingRow {
-                    title: "Restaurar"
-                    description: "Volta tudo aos padrões do próprio Minecraft."
+                    title: qsTr("Restaurar")
+                    description: qsTr("Volta tudo aos padrões do próprio Minecraft.")
                     divider: false
                     ActionButton {
-                        text: "Restaurar"; quiet: true; reduced: root.reduced
+                        text: qsTr("Restaurar"); quiet: true; reduced: root.reduced
                         enabled: Object.keys(runner.gameDefaults).length > 0
                         onClicked: runner.resetGameDefaults()
                     }
                 }
             }
 
-            SectionTitle { text: "Controles" }
+            SectionTitle { text: qsTr("Controles") }
             Text {
                 Layout.fillWidth: true
                 Layout.leftMargin: 4
                 wrapMode: Text.WordWrap
-                text: "Clique numa tecla e aperte a nova (vale botão do mouse também). Entram em todo jogo novo; num jogo que já existe, use Aplicar padrões nos ajustes dele."
+                text: qsTr("Clique numa tecla e aperte a nova (vale botão do mouse também). Entram em todo jogo novo; num jogo que já existe, use Aplicar padrões nos ajustes dele.")
                 color: Theme.faint
                 font.family: Theme.font; font.pixelSize: 12
             }
@@ -373,10 +385,10 @@ Item {
             SectionTitle { text: "Discord" }
             Group {
                 SettingRow {
-                    title: "Mostrar o que estou jogando"
+                    title: qsTr("Mostrar o que estou jogando")
                     description: discord.configured
-                        ? (discord.connected ? "Conectado ao Discord." : "O Discord precisa estar aberto.") + " Mostra o jogo e o tempo de sessão no seu perfil."
-                        : "Indisponível neste build (falta o ID do app do Discord)."
+                        ? (discord.connected ? qsTr("Conectado ao Discord.") : qsTr("O Discord precisa estar aberto.")) + qsTr(" Mostra o jogo e o tempo de sessão no seu perfil.")
+                        : qsTr("Indisponível neste build (falta o ID do app do Discord).")
                     divider: false
                     ToggleSwitch {
                         enabled: discord.configured
@@ -387,22 +399,22 @@ Item {
                 }
             }
 
-            SectionTitle { text: "Atualizações" }
+            SectionTitle { text: qsTr("Atualizações") }
             Group {
                 SettingRow {
                     title: "OmniLauncher " + Qt.application.version + (updates.currentCommit ? "  ·  " + updates.currentCommit : "")
-                    description: !updates.enabled ? "Versão de desenvolvimento: atualizações automáticas desligadas."
-                        : updates.state === "checking" ? "Verificando…"
-                        : updates.state === "available" ? "Nova versão disponível" + (updates.changes ? ": " + updates.changes : ".")
+                    description: !updates.enabled ? qsTr("Versão de desenvolvimento: atualizações automáticas desligadas.")
+                        : updates.state === "checking" ? qsTr("Verificando…")
+                        : updates.state === "available" ? qsTr("Nova versão disponível") + (updates.changes ? ": " + updates.changes : ".")
                         : updates.state === "downloading" ? "Baixando " + (updates.progress >= 0 ? Math.round(updates.progress * 100) + "%" : "…")
-                        : updates.state === "installing" ? "Instalando e reiniciando…"
+                        : updates.state === "installing" ? qsTr("Instalando e reiniciando…")
                         : updates.state === "error" ? updates.error
-                        : updates.state === "current" ? "Você está na versão mais recente."
-                        : "As atualizações são verificadas ao abrir."
+                        : updates.state === "current" ? qsTr("Você está na versão mais recente.")
+                        : qsTr("As atualizações são verificadas ao abrir.")
                     divider: false
                     ActionButton {
                         visible: updates.enabled
-                        text: updates.state === "available" || updates.state === "error" && updates.changes !== "" ? "Atualizar e reiniciar" : "Verificar"
+                        text: updates.state === "available" || updates.state === "error" && updates.changes !== "" ? qsTr("Atualizar e reiniciar") : qsTr("Verificar")
                         primary: updates.state === "available"
                         iconName: updates.state === "available" ? "download" : ""
                         enabled: updates.state !== "checking" && updates.state !== "downloading" && updates.state !== "installing"
@@ -412,20 +424,20 @@ Item {
                 }
             }
 
-            SectionTitle { text: "Armazenamento" }
+            SectionTitle { text: qsTr("Armazenamento") }
             Group {
                 SettingRow {
-                    title: "Pasta de dados"
-                    description: "Jogos, versões baixadas, Java, capas importadas e cache."
+                    title: qsTr("Pasta de dados")
+                    description: qsTr("Jogos, versões baixadas, Java, capas importadas e cache.")
                     divider: false
-                    ActionButton { text: "Abrir"; iconName: "folder"; reduced: root.reduced; onClicked: runner.openDataFolder() }
+                    ActionButton { text: qsTr("Abrir"); iconName: "folder"; reduced: root.reduced; onClicked: runner.openDataFolder() }
                 }
             }
 
             Text {
                 Layout.topMargin: 32
                 Layout.leftMargin: 4
-                text: "OmniLauncher " + Qt.application.version + " · protótipo"
+                text: "OmniLauncher " + Qt.application.version + qsTr(" · protótipo")
                 color: Theme.faint
                 font.family: Theme.font; font.pixelSize: 12
             }

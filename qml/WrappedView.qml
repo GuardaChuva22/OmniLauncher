@@ -61,30 +61,31 @@ Item {
         list.push("final")
         return list
     }
-    function fmt(n) { return Number(Math.round(n || 0)).toLocaleString(Qt.locale("pt_BR"), "f", 0) }
+    function fmt(n) { return Number(Math.round(n || 0)).toLocaleString(Qt.locale(), "f", 0) }
     function seconds(d) { return Math.max(d.playSeconds || 0, Math.floor((d.playTicks || 0) / 20)) }
     // Under an hour reads better in minutes.
     function timeValue(s) { return s < 3600 ? Math.max(1, Math.round(s / 60)) : hours(s) }
-    function timeUnit(s) { return s < 3600 ? (Math.round(s / 60) <= 1 ? "minuto" : "minutos") : "horas" }
+    function timeUnit(s) { return s < 3600 ? (Math.round(s / 60) <= 1 ? qsTr("minuto") : qsTr("minutos")) : qsTr("horas") }
+    function playedLabel(s) { return s < 3600 ? (Math.round(s / 60) <= 1 ? qsTr("minuto jogado") : qsTr("minutos jogados")) : qsTr("horas jogadas") }
     function timeText(s) {
         const v = timeValue(s)
-        return s >= 3600 && v < 10 ? Number(v).toLocaleString(Qt.locale("pt_BR"), "f", 1) : fmt(v)
+        return s >= 3600 && v < 10 ? Number(v).toLocaleString(Qt.locale(), "f", 1) : fmt(v)
     }
     function hours(s) { const h = s / 3600; return h >= 10 ? Math.round(h) : Math.round(h * 10) / 10 }
     function km(cm) { return cm / 100000 }
     function distanceLine(cm) {
         const k = km(cm)
-        if (k < 1) return "São " + fmt(Math.max(1, cm / 10500)) + " campos de futebol de ponta a ponta."
-        if (k >= 430) return "Mais do que ir de São Paulo ao Rio de Janeiro."
-        if (k >= 95) return "Dá pra ir de São Paulo a Campinas."
-        return "É a Avenida Paulista inteira " + fmt(Math.max(1, k / 2.8)) + (k / 2.8 >= 1.5 ? " vezes." : " vez.")
+        if (k < 1) return qsTr("São ") + fmt(Math.max(1, cm / 10500)) + qsTr(" campos de futebol de ponta a ponta.")
+        if (k >= 430) return qsTr("Mais do que ir de São Paulo ao Rio de Janeiro.")
+        if (k >= 95) return qsTr("Dá pra ir de São Paulo a Campinas.")
+        return qsTr("É a Avenida Paulista inteira ") + fmt(Math.max(1, k / 2.8)) + (k / 2.8 >= 1.5 ? qsTr(" vezes.") : qsTr(" vez."))
     }
     function trivia(d) {
         const e = d.extras || {}
-        const all = [{ v: e.jumps, label: "pulos" }, { v: e.chests, label: "baús abertos" }, { v: e.hearts, label: "corações de dano causados" },
-                     { v: e.trades, label: "trocas com aldeões" }, { v: e.fish, label: "peixes pescados" }, { v: e.bred, label: "animais criados" },
-                     { v: e.sleeps, label: "noites dormidas" }, { v: e.enchants, label: "itens encantados" }, { v: e.cakes, label: "fatias de bolo" },
-                     { v: e.raids, label: "invasões vencidas" }, { v: e.playerKills, label: "jogadores derrotados" }]
+        const all = [{ v: e.jumps, label: "pulos" }, { v: e.chests, label: qsTr("baús abertos") }, { v: e.hearts, label: qsTr("corações de dano causados") },
+                     { v: e.trades, label: qsTr("trocas com aldeões") }, { v: e.fish, label: qsTr("peixes pescados") }, { v: e.bred, label: qsTr("animais criados") },
+                     { v: e.sleeps, label: qsTr("noites dormidas") }, { v: e.enchants, label: qsTr("itens encantados") }, { v: e.cakes, label: qsTr("fatias de bolo") },
+                     { v: e.raids, label: qsTr("invasões vencidas") }, { v: e.playerKills, label: qsTr("jogadores derrotados") }]
         return all.filter(function(x) { return x.v > 0 }).slice(0, 6)
     }
 
@@ -188,7 +189,7 @@ Item {
         property real shownValue: 0
         property string suffix: ""
         property int decimals: 0
-        text: (decimals > 0 ? Number(shownValue).toLocaleString(Qt.locale("pt_BR"), "f", decimals) : root.fmt(shownValue)) + suffix
+        text: (decimals > 0 ? Number(shownValue).toLocaleString(Qt.locale(), "f", decimals) : root.fmt(shownValue)) + suffix
         NumberAnimation on shownValue {
             running: true
             from: 0; to: count.target
@@ -289,7 +290,7 @@ Item {
         Text {
             visible: root.slides.length === 0 && root.shown
             anchors.centerIn: parent
-            text: "Juntando suas aventuras…"
+            text: qsTr("Juntando suas aventuras…")
             color: Theme.secondary
             font.family: Theme.font; font.pixelSize: 16
         }
@@ -309,7 +310,7 @@ Item {
         id: introSlide
         ColumnLayout {
             spacing: 14
-            Rise { delay: 0; Kicker { text: "Sua retrospectiva" } }
+            Rise { delay: 0; Kicker { text: qsTr("Sua retrospectiva") } }
             Rise { delay: 140; Layout.fillWidth: true; Big { width: stage.column; text: root.info.title || ""; font.pixelSize: 56; font.letterSpacing: -1.4; wrapMode: Text.WordWrap } }
             Rise {
                 delay: 420
@@ -324,10 +325,10 @@ Item {
                 delay: 700
                 Line {
                     width: stage.column
-                    text: !root.info.hasStats ? "Jogue um pouco nos seus mundos para a retrospectiva ganhar números."
-                        : "de Minecraft em " + root.fmt(root.info.worlds) + (root.info.worlds === 1 ? " mundo" : " mundos")
-                          + (root.info.scope === "all" ? ", " + root.fmt(root.info.games) + (root.info.games === 1 ? " jogo" : " jogos") : "")
-                          + (root.info.sessions > 0 ? " e " + root.fmt(root.info.sessions) + (root.info.sessions === 1 ? " sessão." : " sessões.") : ".")
+                    text: !root.info.hasStats ? qsTr("Jogue um pouco nos seus mundos para a retrospectiva ganhar números.")
+                        : qsTr("de Minecraft em ") + root.fmt(root.info.worlds) + (root.info.worlds === 1 ? qsTr(" mundo") : qsTr(" mundos"))
+                          + (root.info.scope === "all" ? ", " + root.fmt(root.info.games) + (root.info.games === 1 ? qsTr(" jogo") : qsTr(" jogos")) : "")
+                          + (root.info.sessions > 0 ? qsTr(" e ") + root.fmt(root.info.sessions) + (root.info.sessions === 1 ? qsTr(" sessão.") : qsTr(" sessões.")) : ".")
                 }
             }
         }
@@ -337,13 +338,13 @@ Item {
         id: worldSlide
         ColumnLayout {
             spacing: 14
-            Rise { Kicker { text: "Seu mundo favorito" } }
+            Rise { Kicker { text: qsTr("Seu mundo favorito") } }
             Rise { delay: 160; Big { width: stage.column; text: root.info.topWorld.name; wrapMode: Text.WordWrap; font.pixelSize: 76 } }
             Rise {
                 delay: 480
                 Line {
                     width: stage.column
-                    text: "Você passou " + root.timeText(root.info.topWorld.seconds) + " " + root.timeUnit(root.info.topWorld.seconds) + " lá" + (root.info.scope === "all" ? ", em " + root.info.topWorld.game : "") + "."
+                    text: qsTr("Você passou ") + root.timeText(root.info.topWorld.seconds) + " " + root.timeUnit(root.info.topWorld.seconds) + qsTr(" lá") + (root.info.scope === "all" ? qsTr(", em ") + root.info.topWorld.game : "") + "."
                 }
             }
             Rise {
@@ -352,7 +353,7 @@ Item {
                 Line {
                     width: stage.column
                     color: Theme.muted; font.pixelSize: 16
-                    text: "E o jogo que mais te prendeu foi " + root.info.topGame.title + "."
+                    text: qsTr("E o jogo que mais te prendeu foi ") + root.info.topGame.title + "."
                 }
             }
         }
@@ -362,7 +363,7 @@ Item {
         id: travelSlide
         ColumnLayout {
             spacing: 14
-            Rise { Kicker { text: "Você andou" } }
+            Rise { Kicker { text: qsTr("Você andou") } }
             Rise {
                 delay: 140
                 Row {
@@ -395,7 +396,7 @@ Item {
                             }
                         }
                         Text {
-                            text: root.km(modelData.cm) >= 1 ? Number(root.km(modelData.cm)).toLocaleString(Qt.locale("pt_BR"), "f", 1) + " km" : root.fmt(modelData.cm / 100) + " m"
+                            text: root.km(modelData.cm) >= 1 ? Number(root.km(modelData.cm)).toLocaleString(Qt.locale(), "f", 1) + " km" : root.fmt(modelData.cm / 100) + " m"
                             color: Theme.secondary; font.family: Theme.font; font.pixelSize: 14
                             Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight
                         }
@@ -409,13 +410,13 @@ Item {
         id: miningSlide
         ColumnLayout {
             spacing: 14
-            Rise { Kicker { text: "Blocos minerados" } }
+            Rise { Kicker { text: qsTr("Blocos minerados") } }
             Rise { delay: 140; Count { target: root.info.mined; color: Qt.lighter(root.tone, 1.15); font.pixelSize: 110 } }
             Rise {
                 delay: 380
                 Line {
                     width: stage.column
-                    text: root.info.topMined.length ? "E o que mais saiu da sua picareta foi " + root.info.topMined[0].name + "." : ""
+                    text: root.info.topMined.length ? qsTr("E o que mais saiu da sua picareta foi ") + root.info.topMined[0].name + "." : ""
                 }
             }
             Item { Layout.preferredHeight: 14 }
@@ -427,7 +428,7 @@ Item {
         id: combatSlide
         ColumnLayout {
             spacing: 14
-            Rise { Kicker { text: "Criaturas derrotadas" } }
+            Rise { Kicker { text: qsTr("Criaturas derrotadas") } }
             Rise { delay: 140; Count { target: root.info.mobKills; color: Qt.lighter(root.tone, 1.15); font.pixelSize: 110 } }
             Item { Layout.preferredHeight: 6 }
             Ranking { Layout.fillWidth: true; items: (root.info.topKilled || []).slice(0, 3); delay: 420 }
@@ -446,8 +447,8 @@ Item {
                     }
                     Line {
                         Layout.fillWidth: true
-                        text: "Você morreu " + root.fmt(root.info.deaths) + (root.info.deaths === 1 ? " vez" : " vezes")
-                            + (root.info.topKilledBy.length ? ". Quem mais te pegou: " + root.info.topKilledBy[0].name + "." : ".")
+                        text: qsTr("Você morreu ") + root.fmt(root.info.deaths) + (root.info.deaths === 1 ? qsTr(" vez") : qsTr(" vezes"))
+                            + (root.info.topKilledBy.length ? qsTr(". Quem mais te pegou: ") + root.info.topKilledBy[0].name + "." : ".")
                     }
                 }
             }
@@ -458,8 +459,8 @@ Item {
         id: triviaSlide
         ColumnLayout {
             spacing: 14
-            Rise { Kicker { text: "No meio do caminho" } }
-            Rise { delay: 120; Big { text: "Os detalhes"; font.pixelSize: 64 } }
+            Rise { Kicker { text: qsTr("No meio do caminho") } }
+            Rise { delay: 120; Big { text: qsTr("Os detalhes"); font.pixelSize: 64 } }
             Item { Layout.preferredHeight: 18 }
             GridLayout {
                 Layout.fillWidth: true
@@ -500,7 +501,7 @@ Item {
                     Line {
                         Layout.fillWidth: true
                         font.pixelSize: 16
-                        text: root.info.topCrafted.length ? "Seu item mais fabricado: " + root.info.topCrafted[0].name + " (" + root.fmt(root.info.topCrafted[0].count) + ")." : ""
+                        text: root.info.topCrafted.length ? qsTr("Seu item mais fabricado: ") + root.info.topCrafted[0].name + " (" + root.fmt(root.info.topCrafted[0].count) + ")." : ""
                     }
                 }
             }
@@ -567,16 +568,16 @@ Item {
                             Row {
                                 spacing: 10
                                 Text { id: cardHours; text: root.timeText(root.seconds(root.info)); color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: 76; font.weight: Font.Bold; font.letterSpacing: -2.2 }
-                                Text { anchors.baseline: cardHours.baseline; text: root.timeUnit(root.seconds(root.info)) + " jogad" + (root.timeUnit(root.seconds(root.info)) === "horas" ? "as" : "os"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 18; font.weight: Font.DemiBold }
+                                Text { anchors.baseline: cardHours.baseline; text: root.playedLabel(root.seconds(root.info)); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 18; font.weight: Font.DemiBold }
                             }
                             Item { width: 1; height: 20 }
                             Grid {
                                 columns: 2
                                 columnSpacing: 12; rowSpacing: 12
                                 Repeater {
-                                    model: [{ v: Number(root.km(root.info.distanceCm || 0)).toLocaleString(Qt.locale("pt_BR"), "f", 1), l: "km percorridos" },
-                                            { v: root.fmt(root.info.mined), l: "blocos minerados" },
-                                            { v: root.fmt(root.info.mobKills), l: "criaturas derrotadas" },
+                                    model: [{ v: Number(root.km(root.info.distanceCm || 0)).toLocaleString(Qt.locale(), "f", 1), l: qsTr("km percorridos") },
+                                            { v: root.fmt(root.info.mined), l: qsTr("blocos minerados") },
+                                            { v: root.fmt(root.info.mobKills), l: qsTr("criaturas derrotadas") },
                                             { v: root.fmt(root.info.deaths), l: "mortes" },
                                             { v: root.fmt(root.info.worlds), l: root.info.worlds === 1 ? "mundo" : "mundos" },
                                             { v: root.fmt((root.info.extras || {}).jumps), l: "pulos" }]
@@ -608,11 +609,11 @@ Item {
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: (root.info.topMined || []).length ? "Bloco do ano: " + root.info.topMined[0].name : ""
+                                text: (root.info.topMined || []).length ? qsTr("Bloco do ano: ") + root.info.topMined[0].name : ""
                                 color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
                                 elide: Text.ElideRight
                             }
-                            Text { text: new Date().toLocaleDateString(Qt.locale("pt_BR"), "MMMM yyyy"); color: Theme.faint; font.family: Theme.font; font.pixelSize: 12 }
+                            Text { text: new Date().toLocaleDateString(Qt.locale(), qsTr("MMMM yyyy")); color: Theme.faint; font.family: Theme.font; font.pixelSize: 12 }
                         }
                     }
                 }
@@ -623,26 +624,26 @@ Item {
                 Row {
                     spacing: 8
                     ActionButton {
-                        text: "Salvar imagem"; iconName: "download"; primary: true; reduced: root.reduced
+                        text: qsTr("Salvar imagem"); iconName: "download"; primary: true; reduced: root.reduced
                         onClicked: {
                             const folder = StandardPaths.writableLocation(StandardPaths.PicturesLocation).toString().replace(/^file:\/{3}/, "")
                             const path = decodeURIComponent(folder) + "/OmniLauncher-retrospectiva-" + Qt.formatDateTime(new Date(), "yyyy-MM-dd_HH-mm-ss") + ".png"
                             card.grabToImage(function(result) {
-                                if (result.saveToFile(path)) { root.notify("Imagem salva em Imagens."); runner.openFile(decodeURIComponent(folder)) }
-                                else root.notify("Não foi possível salvar a imagem.")
+                                if (result.saveToFile(path)) { root.notify(qsTr("Imagem salva em Imagens.")); runner.openFile(decodeURIComponent(folder)) }
+                                else root.notify(qsTr("Não foi possível salvar a imagem."))
                             }, Qt.size(1080, 1350))
                         }
                     }
                     ActionButton {
-                        text: "Copiar"; iconName: "copy"; reduced: root.reduced
+                        text: qsTr("Copiar"); iconName: "copy"; reduced: root.reduced
                         onClicked: {
                             const path = decodeURIComponent(StandardPaths.writableLocation(StandardPaths.TempLocation).toString().replace(/^file:\/{3}/, "")) + "/omnilauncher-retrospectiva.png"
                             card.grabToImage(function(result) {
-                                root.notify(result.saveToFile(path) && runner.copyImage(path) ? "Imagem copiada. É só colar." : "Não foi possível copiar a imagem.")
+                                root.notify(result.saveToFile(path) && runner.copyImage(path) ? qsTr("Imagem copiada. É só colar.") : qsTr("Não foi possível copiar a imagem."))
                             }, Qt.size(1080, 1350))
                         }
                     }
-                    ActionButton { text: "Ver de novo"; quiet: true; reduced: root.reduced; onClicked: root.go(0) }
+                    ActionButton { text: qsTr("Ver de novo"); quiet: true; reduced: root.reduced; onClicked: root.go(0) }
                 }
             }
         }

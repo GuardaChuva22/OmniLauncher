@@ -29,8 +29,8 @@ Item {
     property real now: Date.now()
 
     function stateLabel(state) {
-        return ({ stopped: "Parado", installing: "Instalando", starting: "Iniciando", running: "Online",
-                  stopping: "Parando", failed: "Erro" })[state] || "Parado"
+        return ({ stopped: qsTr("Parado"), installing: qsTr("Instalando"), starting: qsTr("Iniciando"), running: qsTr("Online"),
+                  stopping: qsTr("Parando"), failed: qsTr("Erro") })[state] || qsTr("Parado")
     }
     function stateColor(state) {
         if (state === "running") return Theme.success
@@ -58,7 +58,7 @@ Item {
         return h > 0 ? h + " h " + m + " min" : m > 0 ? m + " min" : s + " s"
     }
     function address(host) { return host + (Number(server ? server.port : 25565) === 25565 ? "" : ":" + server.port) }
-    function copy(text, what) { servers.copyText(text); root.notify(what + " copiado.") }
+    function copy(text, what) { servers.copyText(text); root.notify(what + qsTr(" copiado.")) }
     function bytes(n) { return n > 1073741824 ? (n / 1073741824).toFixed(1) + " GB" : (n / 1048576).toFixed(1) + " MB" }
     function command(text) { if (server) servers.sendCommand(server.id, text); listsRefresh.restart() }
 
@@ -225,7 +225,7 @@ Item {
             iconName: "copy"; quiet: true; round: true; width: 36; height: 36; reduced: root.reduced
             enabled: addressRow.value !== "" && addressRow.value !== "—"
             Accessible.name: "Copiar endereço"
-            onClicked: root.copy(addressRow.value, "Endereço")
+            onClicked: root.copy(addressRow.value, qsTr("Endereço"))
         }
     }
 
@@ -240,7 +240,7 @@ Item {
             Layout.fillWidth: true
             Text {
                 id: titleText
-                text: "Servidores"
+                text: qsTr("Servidores")
                 color: Theme.text
                 font.family: Theme.fontDisplay; font.pixelSize: 30; font.weight: Font.DemiBold
                 font.letterSpacing: -0.6
@@ -255,7 +255,7 @@ Item {
         }
         ActionButton {
             visible: servers.servers.length > 0
-            text: "Novo servidor"; iconName: "plus"; primary: true; reduced: root.reduced
+            text: qsTr("Novo servidor"); iconName: "plus"; primary: true; reduced: root.reduced
             onClicked: creator.prepare()
         }
     }
@@ -274,7 +274,7 @@ Item {
         }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Hospede um servidor no seu PC"
+            text: qsTr("Hospede um servidor no seu PC")
             color: Theme.text
             font.family: Theme.fontDisplay; font.pixelSize: 18; font.weight: Font.DemiBold
         }
@@ -282,14 +282,14 @@ Item {
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
-            text: "Escolha um jogo da biblioteca: o servidor usa a mesma versão, o mesmo loader e os mesmos mods."
+            text: qsTr("Escolha um jogo da biblioteca: o servidor usa a mesma versão, o mesmo loader e os mesmos mods.")
             color: Theme.muted
             font.family: Theme.font; font.pixelSize: 13
         }
         Item { width: 1; height: 8 }
         ActionButton {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Criar servidor"; iconName: "plus"; primary: true; reduced: root.reduced
+            text: qsTr("Criar servidor"); iconName: "plus"; primary: true; reduced: root.reduced
             onClicked: creator.prepare()
         }
     }
@@ -407,7 +407,7 @@ Item {
                         const game = root.gameOf(root.server)
                         const detail = root.status.detail ? "  ·  " + root.status.detail : ""
                         return "Minecraft " + root.server.version + (root.server.loader !== "Vanilla" ? " · " + root.server.loader + " " + root.server.loaderVersion : "")
-                            + (game ? "  ·  de " + game.title : "") + detail
+                            + (game ? qsTr("  ·  de ") + game.title : "") + detail
                     }
                     color: root.state === "failed" ? Theme.danger : Theme.muted
                     font.family: Theme.font; font.pixelSize: 13
@@ -416,23 +416,23 @@ Item {
             }
             ActionButton {
                 visible: !root.alive && root.state !== "installing"
-                text: root.server && !root.server.installed ? "Instalar" : "Iniciar"
+                text: root.server && !root.server.installed ? qsTr("Instalar") : qsTr("Iniciar")
                 iconName: "play"; primary: true; reduced: root.reduced
                 onClicked: servers.start(root.server.id)
             }
             ActionButton {
                 visible: root.online || root.state === "starting"
-                text: "Reiniciar"; iconName: "restart"; reduced: root.reduced
+                text: qsTr("Reiniciar"); iconName: "restart"; reduced: root.reduced
                 onClicked: servers.restart(root.server.id)
             }
             ActionButton {
                 visible: root.online || root.state === "starting"
-                text: "Parar"; iconName: "stop"; danger: true; reduced: root.reduced
+                text: qsTr("Parar"); iconName: "stop"; danger: true; reduced: root.reduced
                 onClicked: servers.stop(root.server.id)
             }
             ActionButton {
                 visible: root.state === "stopping"
-                text: "Forçar"; iconName: "close"; danger: true; quiet: true; reduced: root.reduced
+                text: qsTr("Forçar"); iconName: "close"; danger: true; quiet: true; reduced: root.reduced
                 onClicked: servers.kill(root.server.id)
             }
         }
@@ -443,23 +443,23 @@ Item {
             width: parent.width
             spacing: 12
             StatCard {
-                label: "Jogadores"
+                label: qsTr("Jogadores")
                 value: root.online ? root.players.length + " / " + root.prop("max-players", "20") : "—"
-                hint: root.players.length > 0 ? root.players.join(", ") : root.online ? "Ninguém online" : ""
+                hint: root.players.length > 0 ? root.players.join(", ") : root.online ? qsTr("Ninguém online") : ""
             }
-            StatCard { label: "Tempo ligado"; value: root.uptime() }
+            StatCard { label: qsTr("Tempo ligado"); value: root.uptime() }
             StatCard {
-                label: "Memória"
+                label: qsTr("Memória")
                 value: root.server ? (root.server.memoryMb / 1024).toFixed(root.server.memoryMb % 1024 === 0 ? 0 : 1) + " GB" : "—"
-                hint: "Máximo para o Java"
+                hint: qsTr("Máximo para o Java")
             }
             StatCard {
                 readonly property string shown: root.tunnel !== "" ? root.tunnel : root.address(servers.lanAddress)
-                label: root.tunnel !== "" ? "Endereço público" : "Endereço local"
+                label: root.tunnel !== "" ? qsTr("Endereço público") : qsTr("Endereço local")
                 value: shown
                 valueColor: root.tunnel !== "" ? Theme.accentText : Theme.text
-                hint: root.tunnel !== "" ? "Mande para os amigos · clique para copiar" : "Clique para copiar"
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copy(parent.shown, "Endereço") }
+                hint: root.tunnel !== "" ? qsTr("Mande para os amigos · clique para copiar") : qsTr("Clique para copiar")
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copy(parent.shown, qsTr("Endereço")) }
             }
         }
 
@@ -473,8 +473,8 @@ Item {
             border.width: 1; border.color: "#59E8C77A"
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 6
-                Text { text: "Algumas mudanças só valem depois de reiniciar o servidor."; color: "#F2DDA6"; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
-                ActionButton { text: "Reiniciar agora"; quiet: true; height: 32; reduced: root.reduced; onClicked: servers.restart(root.server.id) }
+                Text { text: qsTr("Algumas mudanças só valem depois de reiniciar o servidor."); color: "#F2DDA6"; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
+                ActionButton { text: qsTr("Reiniciar agora"); quiet: true; height: 32; reduced: root.reduced; onClicked: servers.restart(root.server.id) }
             }
         }
 
@@ -482,7 +482,7 @@ Item {
             id: tabs
             y: (restartBanner.visible ? restartBanner.y + restartBanner.height : stats.y + stats.height) + 18
             width: Math.min(parent.width, 560)
-            model: ["Console", "Configurações", "Jogadores", "Conexão", "Backups"]
+            model: [qsTr("Console"), qsTr("Configurações"), qsTr("Jogadores"), qsTr("Conexão"), qsTr("Backups")]
             reduced: root.reduced
             onCurrentIndexChanged: if (currentIndex === 2 || currentIndex === 4) root.refreshLists()
         }
@@ -529,7 +529,7 @@ Item {
                 Text {
                     visible: consoleModel.count === 0
                     anchors.centerIn: parent
-                    text: "O console aparece aqui quando o servidor inicia."
+                    text: qsTr("O console aparece aqui quando o servidor inicia.")
                     color: Theme.faint; font.family: Theme.font; font.pixelSize: 13
                 }
                 RowLayout {
@@ -542,7 +542,7 @@ Item {
                         Layout.fillWidth: true
                         iconName: "terminal"
                         enabled: root.online || root.state === "starting"
-                        placeholderText: enabled ? "Digite um comando (ex.: time set day, gamemode creative Steve)" : "Inicie o servidor para usar comandos"
+                        placeholderText: enabled ? qsTr("Digite um comando (ex.: time set day, gamemode creative Steve)") : qsTr("Inicie o servidor para usar comandos")
                         font.family: "Consolas"
                         property var history: []
                         property int historyIndex: -1
@@ -563,7 +563,7 @@ Item {
                         }
                     }
                     Repeater {
-                        model: [{ label: "Dia", cmd: "time set day" }, { label: "Sol", cmd: "weather clear" }, { label: "Salvar", cmd: "save-all" }, { label: "Lista", cmd: "list" }]
+                        model: [{ label: qsTr("Dia"), cmd: "time set day" }, { label: qsTr("Sol"), cmd: "weather clear" }, { label: qsTr("Salvar"), cmd: "save-all" }, { label: qsTr("Lista"), cmd: "list" }]
                         delegate: ActionButton {
                             required property var modelData
                             visible: dashboard.width > 760
@@ -593,23 +593,23 @@ Item {
                     id: settingsColumn
                     width: settingsFlick.width - 14
                     spacing: 0
-                    SectionTitle { text: "Geral"; Layout.topMargin: 0 }
+                    SectionTitle { text: qsTr("Geral"); Layout.topMargin: 0 }
                     Group {
                         SettingRow {
-                            title: "Nome"
-                            description: "Como o servidor aparece aqui no launcher."
+                            title: qsTr("Nome")
+                            description: qsTr("Como o servidor aparece aqui no launcher.")
                             InputField {
                                 id: nameField
                                 width: 260
                                 maximumLength: 48
                                 Binding on text { when: !nameField.activeFocus; value: root.server ? root.server.name : "" }
-                                onEditingFinished: if (root.server && text !== root.server.name && !servers.rename(root.server.id, text)) root.notify("Use um nome de 1 a 48 letras.")
+                                onEditingFinished: if (root.server && text !== root.server.name && !servers.rename(root.server.id, text)) root.notify(qsTr("Use um nome de 1 a 48 letras."))
                             }
                         }
-                        SettingRow { title: "Mensagem (MOTD)"; description: "Aparece na lista de servidores do Minecraft."; PropText { key: "motd"; maximumLength: 59 } }
+                        SettingRow { title: qsTr("Mensagem (MOTD)"); description: qsTr("Aparece na lista de servidores do Minecraft."); PropText { key: "motd"; maximumLength: 59 } }
                         SettingRow {
-                            title: "Memória do servidor"
-                            description: "Servidores com muitos mods precisam de 4 GB ou mais."
+                            title: qsTr("Memória do servidor")
+                            description: qsTr("Servidores com muitos mods precisam de 4 GB ou mais.")
                             RowLayout {
                                 spacing: 12
                                 ValueSlider {
@@ -624,82 +624,82 @@ Item {
                                 Text { Layout.preferredWidth: 64; text: Math.round(memorySlider.value) + " GB"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13 }
                             }
                         }
-                        SettingRow { title: "Máximo de jogadores"; PropNumber { key: "max-players"; from: 1; to: 100; fallback: 20 } }
-                        SettingRow { title: "Porta"; description: "Padrão 25565. Mude para rodar dois servidores ao mesmo tempo."; divider: false; PropText { key: "server-port"; width: 120; validator: IntValidator { bottom: 1024; top: 65535 } } }
+                        SettingRow { title: qsTr("Máximo de jogadores"); PropNumber { key: "max-players"; from: 1; to: 100; fallback: 20 } }
+                        SettingRow { title: qsTr("Porta"); description: qsTr("Padrão 25565. Mude para rodar dois servidores ao mesmo tempo."); divider: false; PropText { key: "server-port"; width: 120; validator: IntValidator { bottom: 1024; top: 65535 } } }
                     }
 
-                    SectionTitle { text: "Jogo" }
+                    SectionTitle { text: qsTr("Jogo") }
                     Group {
                         SettingRow {
-                            title: "Modo de jogo"
-                            PropChoice { key: "gamemode"; values: ["survival", "creative", "adventure", "spectator"]; model: ["Sobrevivência", "Criativo", "Aventura", "Espectador"] }
+                            title: qsTr("Modo de jogo")
+                            PropChoice { key: "gamemode"; values: ["survival", "creative", "adventure", "spectator"]; model: [qsTr("Sobrevivência"), qsTr("Criativo"), qsTr("Aventura"), qsTr("Espectador")] }
                         }
                         SettingRow {
-                            title: "Dificuldade"
-                            PropChoice { key: "difficulty"; values: ["peaceful", "easy", "normal", "hard"]; fallback: "easy"; model: ["Pacífico", "Fácil", "Normal", "Difícil"] }
+                            title: qsTr("Dificuldade")
+                            PropChoice { key: "difficulty"; values: ["peaceful", "easy", "normal", "hard"]; fallback: "easy"; model: [qsTr("Pacífico"), qsTr("Fácil"), qsTr("Normal"), qsTr("Difícil")] }
                         }
-                        SettingRow { title: "Hardcore"; description: "Morreu, virou espectador."; PropToggle { key: "hardcore" } }
-                        SettingRow { title: "PvP"; description: "Jogadores podem atacar uns aos outros."; PropToggle { key: "pvp"; fallback: true } }
-                        SettingRow { title: "Permitir voo"; description: "Evita expulsões por voo com mods de jetpack ou asas."; PropToggle { key: "allow-flight" } }
-                        SettingRow { title: "Blocos de comando"; PropToggle { key: "enable-command-block" } }
-                        SettingRow { title: "Proteção do spawn"; description: "Raio em blocos onde só operadores constroem."; PropNumber { key: "spawn-protection"; from: 0; to: 64; fallback: 16; suffix: " blocos" } }
-                        SettingRow { title: "Distância de visão"; PropNumber { key: "view-distance"; from: 3; to: 32; fallback: 10; suffix: " chunks" } }
-                        SettingRow { title: "Distância de simulação"; divider: false; PropNumber { key: "simulation-distance"; from: 3; to: 32; fallback: 10; suffix: " chunks" } }
+                        SettingRow { title: qsTr("Hardcore"); description: qsTr("Morreu, virou espectador."); PropToggle { key: "hardcore" } }
+                        SettingRow { title: "PvP"; description: qsTr("Jogadores podem atacar uns aos outros."); PropToggle { key: "pvp"; fallback: true } }
+                        SettingRow { title: qsTr("Permitir voo"); description: qsTr("Evita expulsões por voo com mods de jetpack ou asas."); PropToggle { key: "allow-flight" } }
+                        SettingRow { title: qsTr("Blocos de comando"); PropToggle { key: "enable-command-block" } }
+                        SettingRow { title: qsTr("Proteção do spawn"); description: qsTr("Raio em blocos onde só operadores constroem."); PropNumber { key: "spawn-protection"; from: 0; to: 64; fallback: 16; suffix: qsTr(" blocos") } }
+                        SettingRow { title: qsTr("Distância de visão"); PropNumber { key: "view-distance"; from: 3; to: 32; fallback: 10; suffix: " chunks" } }
+                        SettingRow { title: qsTr("Distância de simulação"); divider: false; PropNumber { key: "simulation-distance"; from: 3; to: 32; fallback: 10; suffix: " chunks" } }
                     }
 
-                    SectionTitle { text: "Mundo" }
+                    SectionTitle { text: qsTr("Mundo") }
                     Group {
-                        SettingRow { title: "Nome da pasta do mundo"; description: "Mude para começar um mundo novo (o antigo fica guardado)."; PropText { key: "level-name" } }
-                        SettingRow { title: "Seed"; description: "Só vale para mundos novos. Vazio = aleatória."; PropText { key: "level-seed"; placeholderText: "Aleatória" } }
+                        SettingRow { title: qsTr("Nome da pasta do mundo"); description: qsTr("Mude para começar um mundo novo (o antigo fica guardado)."); PropText { key: "level-name" } }
+                        SettingRow { title: qsTr("Seed"); description: qsTr("Só vale para mundos novos. Vazio = aleatória."); PropText { key: "level-seed"; placeholderText: qsTr("Aleatória") } }
                         SettingRow {
-                            title: "Tipo de mundo"
+                            title: qsTr("Tipo de mundo")
                             PropChoice {
                                 key: "level-type"
                                 values: ["minecraft:normal", "minecraft:flat", "minecraft:large_biomes", "minecraft:amplified"]
-                                model: ["Normal", "Plano", "Biomas grandes", "Amplificado"]
+                                model: [qsTr("Normal"), qsTr("Plano"), qsTr("Biomas grandes"), qsTr("Amplificado")]
                             }
                         }
-                        SettingRow { title: "Estruturas"; description: "Vilas, templos, fortalezas."; PropToggle { key: "generate-structures"; fallback: true } }
-                        SettingRow { title: "Nether"; PropToggle { key: "allow-nether"; fallback: true } }
-                        SettingRow { title: "Monstros"; divider: false; PropToggle { key: "spawn-monsters"; fallback: true } }
+                        SettingRow { title: qsTr("Estruturas"); description: qsTr("Vilas, templos, fortalezas."); PropToggle { key: "generate-structures"; fallback: true } }
+                        SettingRow { title: qsTr("Nether"); PropToggle { key: "allow-nether"; fallback: true } }
+                        SettingRow { title: qsTr("Monstros"); divider: false; PropToggle { key: "spawn-monsters"; fallback: true } }
                     }
 
-                    SectionTitle { text: "Acesso" }
+                    SectionTitle { text: qsTr("Acesso") }
                     Group {
                         SettingRow {
-                            title: "Só contas originais"
-                            description: "Ligado, só entra quem tem conta Microsoft. Deixe desligado para amigos com perfil offline."
+                            title: qsTr("Só contas originais")
+                            description: qsTr("Ligado, só entra quem tem conta Microsoft. Deixe desligado para amigos com perfil offline.")
                             PropToggle { key: "online-mode"; fallback: true }
                         }
-                        SettingRow { title: "Lista de permissões (whitelist)"; description: "Só entra quem estiver na lista (aba Jogadores)."; PropToggle { key: "white-list" } }
-                        SettingRow { title: "Aparecer como online"; description: "Mostra jogadores e status na lista do Minecraft."; divider: false; PropToggle { key: "enable-status"; fallback: true } }
+                        SettingRow { title: qsTr("Lista de permissões (whitelist)"); description: qsTr("Só entra quem estiver na lista (aba Jogadores)."); PropToggle { key: "white-list" } }
+                        SettingRow { title: qsTr("Aparecer como online"); description: qsTr("Mostra jogadores e status na lista do Minecraft."); divider: false; PropToggle { key: "enable-status"; fallback: true } }
                     }
 
-                    SectionTitle { text: "Arquivos" }
+                    SectionTitle { text: qsTr("Arquivos") }
                     Group {
                         SettingRow {
-                            title: "Mods e configurações"
-                            description: "Copia de novo do jogo os mods (menos os só de cliente) e as configs. Use depois de atualizar o modpack."
+                            title: qsTr("Mods e configurações")
+                            description: qsTr("Copia de novo do jogo os mods (menos os só de cliente) e as configs. Use depois de atualizar o modpack.")
                             ActionButton {
-                                text: "Sincronizar"; iconName: "download"; quiet: true; reduced: root.reduced
+                                text: qsTr("Sincronizar"); iconName: "download"; quiet: true; reduced: root.reduced
                                 enabled: root.state === "stopped" && root.server && root.server.loader !== "Vanilla"
                                 onClicked: servers.syncContent(root.server.id)
                             }
                         }
                         SettingRow {
-                            title: "Pasta do servidor"
-                            ActionButton { text: "Abrir"; iconName: "folder"; quiet: true; reduced: root.reduced; onClicked: servers.openFolder(root.server.id) }
+                            title: qsTr("Pasta do servidor")
+                            ActionButton { text: qsTr("Abrir"); iconName: "folder"; quiet: true; reduced: root.reduced; onClicked: servers.openFolder(root.server.id) }
                         }
                         SettingRow {
-                            title: "Reinstalar"
-                            description: "Baixa os arquivos do servidor de novo. O mundo e as configs ficam."
-                            ActionButton { text: "Reinstalar"; quiet: true; reduced: root.reduced; enabled: !root.busy; onClicked: servers.install(root.server.id) }
+                            title: qsTr("Reinstalar")
+                            description: qsTr("Baixa os arquivos do servidor de novo. O mundo e as configs ficam.")
+                            ActionButton { text: qsTr("Reinstalar"); quiet: true; reduced: root.reduced; enabled: !root.busy; onClicked: servers.install(root.server.id) }
                         }
                         SettingRow {
-                            title: "Excluir servidor"
-                            description: "Vai para a Lixeira do Windows, com o mundo."
+                            title: qsTr("Excluir servidor")
+                            description: qsTr("Vai para a Lixeira do Windows, com o mundo.")
                             divider: false
-                            ActionButton { text: "Excluir"; iconName: "trash"; danger: true; quiet: true; reduced: root.reduced; enabled: !root.busy; onClicked: deletion.open() }
+                            ActionButton { text: qsTr("Excluir"); iconName: "trash"; danger: true; quiet: true; reduced: root.reduced; enabled: !root.busy; onClicked: deletion.open() }
                         }
                     }
                 }
@@ -722,15 +722,15 @@ Item {
                         visible: !root.online
                         Layout.fillWidth: true
                         Layout.bottomMargin: 8
-                        text: "Inicie o servidor para gerenciar jogadores."
+                        text: qsTr("Inicie o servidor para gerenciar jogadores.")
                         color: Theme.muted; font.family: Theme.font; font.pixelSize: 13
                     }
-                    SectionTitle { text: "Online agora"; Layout.topMargin: 0 }
+                    SectionTitle { text: qsTr("Online agora"); Layout.topMargin: 0 }
                     Group {
                         Text {
                             visible: root.players.length === 0
                             Layout.margins: 20
-                            text: root.online ? "Ninguém online. Mande o endereço para seus amigos (aba Conexão)." : "Servidor parado."
+                            text: root.online ? qsTr("Ninguém online. Mande o endereço para seus amigos (aba Conexão).") : qsTr("Servidor parado.")
                             color: Theme.faint; font.family: Theme.font; font.pixelSize: 13
                         }
                         Repeater {
@@ -740,43 +740,43 @@ Item {
                                 required property string modelData
                                 required property int index
                                 title: modelData
-                                description: root.ops.indexOf(modelData) !== -1 ? "Operador" : ""
+                                description: root.ops.indexOf(modelData) !== -1 ? qsTr("Operador") : ""
                                 divider: index < root.players.length - 1
                                 Row {
                                     spacing: 6
                                     ActionButton {
-                                        text: root.ops.indexOf(onlineRow.modelData) !== -1 ? "Tirar op" : "Dar op"
+                                        text: root.ops.indexOf(onlineRow.modelData) !== -1 ? qsTr("Tirar op") : qsTr("Dar op")
                                         quiet: true; height: 34; reduced: root.reduced
                                         onClicked: root.command((root.ops.indexOf(onlineRow.modelData) !== -1 ? "deop " : "op ") + onlineRow.modelData)
                                     }
-                                    ActionButton { text: "Expulsar"; quiet: true; height: 34; reduced: root.reduced; onClicked: root.command("kick " + onlineRow.modelData) }
-                                    ActionButton { text: "Banir"; danger: true; quiet: true; height: 34; reduced: root.reduced; onClicked: root.command("ban " + onlineRow.modelData) }
+                                    ActionButton { text: qsTr("Expulsar"); quiet: true; height: 34; reduced: root.reduced; onClicked: root.command("kick " + onlineRow.modelData) }
+                                    ActionButton { text: qsTr("Banir"); danger: true; quiet: true; height: 34; reduced: root.reduced; onClicked: root.command("ban " + onlineRow.modelData) }
                                 }
                             }
                         }
                     }
 
-                    SectionTitle { text: "Adicionar à lista" }
+                    SectionTitle { text: qsTr("Adicionar à lista") }
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
                         InputField {
                             id: playerName
                             Layout.fillWidth: true
-                            placeholderText: "Nome do jogador"
+                            placeholderText: qsTr("Nome do jogador")
                             maximumLength: 16
                             validator: RegularExpressionValidator { regularExpression: /[A-Za-z0-9_]{0,16}/ }
                             enabled: root.online
                         }
-                        ActionButton { text: "Permitir"; reduced: root.reduced; enabled: root.online && playerName.text !== ""; onClicked: { root.command("whitelist add " + playerName.text); playerName.text = "" } }
-                        ActionButton { text: "Dar op"; quiet: true; reduced: root.reduced; enabled: root.online && playerName.text !== ""; onClicked: { root.command("op " + playerName.text); playerName.text = "" } }
-                        ActionButton { text: "Banir"; danger: true; quiet: true; reduced: root.reduced; enabled: root.online && playerName.text !== ""; onClicked: { root.command("ban " + playerName.text); playerName.text = "" } }
+                        ActionButton { text: qsTr("Permitir"); reduced: root.reduced; enabled: root.online && playerName.text !== ""; onClicked: { root.command("whitelist add " + playerName.text); playerName.text = "" } }
+                        ActionButton { text: qsTr("Dar op"); quiet: true; reduced: root.reduced; enabled: root.online && playerName.text !== ""; onClicked: { root.command("op " + playerName.text); playerName.text = "" } }
+                        ActionButton { text: qsTr("Banir"); danger: true; quiet: true; reduced: root.reduced; enabled: root.online && playerName.text !== ""; onClicked: { root.command("ban " + playerName.text); playerName.text = "" } }
                     }
 
                     Repeater {
-                        model: [{ title: "Lista de permissões", names: root.whitelist, remove: "whitelist remove ", empty: "Ninguém na lista." },
-                                { title: "Operadores", names: root.ops, remove: "deop ", empty: "Nenhum operador." },
-                                { title: "Banidos", names: root.banned, remove: "pardon ", empty: "Ninguém banido." }]
+                        model: [{ title: qsTr("Lista de permissões"), names: root.whitelist, remove: "whitelist remove ", empty: qsTr("Ninguém na lista.") },
+                                { title: qsTr("Operadores"), names: root.ops, remove: "deop ", empty: qsTr("Nenhum operador.") },
+                                { title: qsTr("Banidos"), names: root.banned, remove: "pardon ", empty: qsTr("Ninguém banido.") }]
                         delegate: ColumnLayout {
                             id: listBlock
                             required property var modelData
@@ -799,7 +799,7 @@ Item {
                                         title: modelData
                                         divider: index < listBlock.modelData.names.length - 1
                                         ActionButton {
-                                            text: "Remover"; quiet: true; height: 34; reduced: root.reduced
+                                            text: qsTr("Remover"); quiet: true; height: 34; reduced: root.reduced
                                             enabled: root.online
                                             onClicked: root.command(listBlock.modelData.remove + nameRow.modelData)
                                         }
@@ -824,13 +824,13 @@ Item {
                     id: connectionColumn
                     width: connectionFlick.width - 14
                     spacing: 0
-                    SectionTitle { text: "Conector"; Layout.topMargin: 0 }
+                    SectionTitle { text: qsTr("Conector"); Layout.topMargin: 0 }
                     Group {
                         SettingRow {
-                            title: "Endereço público sem configurar o roteador"
+                            title: qsTr("Endereço público sem configurar o roteador")
                             description: root.connectorSupported
-                                ? "Usa o e4mc: um túnel grátis que dá ao servidor um endereço *.e4mc.link, sem port forwarding, Hamachi ou Radmin. O endereço muda a cada início."
-                                : "Disponível em servidores com Fabric, Forge ou NeoForge (o conector é um mod)."
+                                ? qsTr("Usa o e4mc: um túnel grátis que dá ao servidor um endereço *.e4mc.link, sem port forwarding, Hamachi ou Radmin. O endereço muda a cada início.")
+                                : qsTr("Disponível em servidores com Fabric, Forge ou NeoForge (o conector é um mod).")
                             divider: root.connector
                             ToggleSwitch {
                                 id: connectorSwitch
@@ -844,28 +844,28 @@ Item {
                         }
                         AddressRow {
                             visible: root.connector
-                            label: "Endereço para os amigos"
+                            label: qsTr("Endereço para os amigos")
                             value: root.tunnel !== "" ? root.tunnel : "—"
-                            hint: root.tunnel !== "" ? "Funciona de qualquer lugar, com o Minecraft normal." : root.online ? "Reinicie o servidor para gerar o endereço." : "Aparece aqui quando o servidor iniciar."
+                            hint: root.tunnel !== "" ? qsTr("Funciona de qualquer lugar, com o Minecraft normal.") : root.online ? qsTr("Reinicie o servidor para gerar o endereço.") : qsTr("Aparece aqui quando o servidor iniciar.")
                         }
                     }
 
-                    SectionTitle { text: "Outros endereços" }
+                    SectionTitle { text: qsTr("Outros endereços") }
                     Group {
                         AddressRow {
-                            label: "Neste PC"
+                            label: qsTr("Neste PC")
                             value: root.address("localhost")
                         }
                         Rectangle { Layout.fillWidth: true; Layout.leftMargin: 20; Layout.rightMargin: 20; height: 1; color: Theme.line }
                         AddressRow {
-                            label: "Mesma rede (Wi-Fi ou cabo da sua casa)"
+                            label: qsTr("Mesma rede (Wi-Fi ou cabo da sua casa)")
                             value: root.address(servers.lanAddress)
                         }
                         Rectangle { Layout.fillWidth: true; Layout.leftMargin: 20; Layout.rightMargin: 20; height: 1; color: Theme.line }
                         AddressRow {
-                            label: "Pela internet"
+                            label: qsTr("Pela internet")
                             value: servers.publicAddress !== "" ? servers.publicAddress + ":" + (root.server ? root.server.port : 25565) : "—"
-                            hint: "Funciona só se a porta " + (root.server ? root.server.port : 25565) + " (TCP) estiver aberta no roteador (port forwarding) e a operadora não usar CGNAT."
+                            hint: qsTr("Funciona só se a porta ") + (root.server ? root.server.port : 25565) + qsTr(" (TCP) estiver aberta no roteador (port forwarding) e a operadora não usar CGNAT.")
                         }
                     }
                     Text {
@@ -873,7 +873,7 @@ Item {
                         Layout.topMargin: 14
                         Layout.leftMargin: 4
                         wrapMode: Text.WordWrap
-                        text: "Amigos com perfil offline só entram com \"Só contas originais\" desligado (aba Configurações). Todos precisam da mesma versão e dos mesmos mods: o jeito mais fácil é usar o mesmo modpack."
+                        text: qsTr("Amigos com perfil offline só entram com \"Só contas originais\" desligado (aba Configurações). Todos precisam da mesma versão e dos mesmos mods: o jeito mais fácil é usar o mesmo modpack.")
                         color: Theme.muted; font.family: Theme.font; font.pixelSize: 12
                     }
                 }
@@ -889,12 +889,12 @@ Item {
                     spacing: 8
                     Text {
                         Layout.fillWidth: true
-                        text: "Cópias do mundo em .zip. Com o servidor ligado, o mundo é salvo antes."
+                        text: qsTr("Cópias do mundo em .zip. Com o servidor ligado, o mundo é salvo antes.")
                         color: Theme.muted; font.family: Theme.font; font.pixelSize: 13
                         wrapMode: Text.WordWrap
                     }
-                    ActionButton { text: "Pasta"; iconName: "folder"; quiet: true; reduced: root.reduced; onClicked: servers.openFolder(root.server.id, "backups") }
-                    ActionButton { text: "Fazer backup"; iconName: "download"; primary: true; reduced: root.reduced; enabled: root.state !== "installing"; onClicked: servers.backup(root.server.id) }
+                    ActionButton { text: qsTr("Pasta"); iconName: "folder"; quiet: true; reduced: root.reduced; onClicked: servers.openFolder(root.server.id, "backups") }
+                    ActionButton { text: qsTr("Fazer backup"); iconName: "download"; primary: true; reduced: root.reduced; enabled: root.state !== "installing"; onClicked: servers.backup(root.server.id) }
                 }
                 ListView {
                     id: backupView
@@ -919,7 +919,7 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: 1
                                 Text { text: modelData.name; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium; Layout.fillWidth: true; elide: Text.ElideMiddle }
-                                Text { text: new Date(modelData.createdAt).toLocaleString(Qt.locale(), "d 'de' MMMM, HH:mm") + "  ·  " + root.bytes(modelData.sizeBytes); color: Theme.muted; font.family: Theme.font; font.pixelSize: 12 }
+                                Text { text: new Date(modelData.createdAt).toLocaleString(Qt.locale(), qsTr("d 'de' MMMM, HH:mm")) + "  ·  " + root.bytes(modelData.sizeBytes); color: Theme.muted; font.family: Theme.font; font.pixelSize: 12 }
                             }
                             ActionButton { iconName: "external"; quiet: true; round: true; width: 36; height: 36; reduced: root.reduced; Accessible.name: "Mostrar"; onClicked: runner.openFile(modelData.path.substring(0, modelData.path.lastIndexOf("/"))) }
                             ActionButton { iconName: "trash"; quiet: true; round: true; width: 36; height: 36; danger: true; reduced: root.reduced; Accessible.name: "Mover para a Lixeira"; onClicked: { runner.trashFile(modelData.path); root.refreshLists() } }
@@ -928,7 +928,7 @@ Item {
                     Text {
                         visible: root.backupList.length === 0
                         anchors.centerIn: parent
-                        text: "Nenhum backup ainda."
+                        text: qsTr("Nenhum backup ainda.")
                         color: Theme.faint; font.family: Theme.font; font.pixelSize: 13
                     }
                 }
@@ -940,7 +940,7 @@ Item {
     GlassDialog {
         id: creator
         parent: Overlay.overlay
-        title: "Novo servidor"
+        title: qsTr("Novo servidor")
         width: 460
         blurSource: root.blurSource
         reduced: root.reduced
@@ -956,7 +956,7 @@ Item {
         }
         contentItem: ColumnLayout {
             spacing: 0
-            Text { text: "Jogo"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.bottomMargin: 8 }
+            Text { text: qsTr("Jogo"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.bottomMargin: 8 }
             ChoiceField {
                 id: gameChoice
                 Layout.fillWidth: true
@@ -971,15 +971,15 @@ Item {
                 visible: creator.game !== null && creator.game.loader !== "Vanilla"
                 Layout.fillWidth: true; Layout.topMargin: 6
                 wrapMode: Text.WordWrap
-                text: "Os mods e configs do jogo vão junto; mods só de cliente (shaders, minimapa, HUD…) ficam de fora."
+                text: qsTr("Os mods e configs do jogo vão junto; mods só de cliente (shaders, minimapa, HUD…) ficam de fora.")
                 color: Theme.faint; font.family: Theme.font; font.pixelSize: 12
             }
-            Text { text: "Nome"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 18; Layout.bottomMargin: 8 }
-            InputField { id: serverName; Layout.fillWidth: true; maximumLength: 48; placeholderText: "Meu servidor" }
+            Text { text: qsTr("Nome"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 18; Layout.bottomMargin: 8 }
+            InputField { id: serverName; Layout.fillWidth: true; maximumLength: 48; placeholderText: qsTr("Meu servidor") }
             RowLayout {
                 Layout.topMargin: 18
                 Layout.fillWidth: true
-                Text { text: "Memória"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
+                Text { text: qsTr("Memória"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
                 Text { text: Math.round(creatorMemory.value) + " GB"; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold }
             }
             ValueSlider {
@@ -998,7 +998,7 @@ Item {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     textFormat: Text.StyledText
-                    text: "Li e aceito o <a href=\"https://aka.ms/MinecraftEULA\">EULA do Minecraft</a>, exigido pela Mojang para rodar um servidor."
+                    text: qsTr("Li e aceito o <a href=\"https://aka.ms/MinecraftEULA\">EULA do Minecraft</a>, exigido pela Mojang para rodar um servidor.")
                     linkColor: Theme.accentText
                     color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13
                     onLinkActivated: function(link) { Qt.openUrlExternally(link) }
@@ -1008,7 +1008,7 @@ Item {
             Text {
                 visible: creator.games.length === 0
                 Layout.topMargin: 12
-                text: "Crie um jogo na biblioteca primeiro."
+                text: qsTr("Crie um jogo na biblioteca primeiro.")
                 color: Theme.danger; font.family: Theme.font; font.pixelSize: 13
             }
             RowLayout {
@@ -1016,9 +1016,9 @@ Item {
                 Layout.fillWidth: true
                 spacing: 8
                 Item { Layout.fillWidth: true }
-                ActionButton { text: "Cancelar"; quiet: true; reduced: root.reduced; onClicked: creator.close() }
+                ActionButton { text: qsTr("Cancelar"); quiet: true; reduced: root.reduced; onClicked: creator.close() }
                 ActionButton {
-                    text: "Criar servidor"; primary: true; reduced: root.reduced
+                    text: qsTr("Criar servidor"); primary: true; reduced: root.reduced
                     enabled: creator.game !== null && eula.checked && serverName.text.trim() !== ""
                     onClicked: {
                         const id = servers.create(serverName.text, creator.game, Math.round(creatorMemory.value) * 1024, eula.checked)
@@ -1035,7 +1035,7 @@ Item {
     GlassDialog {
         id: deletion
         parent: Overlay.overlay
-        title: "Excluir servidor?"
+        title: qsTr("Excluir servidor?")
         width: 420
         showClose: false
         blurSource: root.blurSource
@@ -1045,7 +1045,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: (root.server ? root.server.name : "") + " e o mundo dele vão para a Lixeira do Windows. O jogo da biblioteca não é afetado."
+                text: (root.server ? root.server.name : "") + qsTr(" e o mundo dele vão para a Lixeira do Windows. O jogo da biblioteca não é afetado.")
                 color: Theme.secondary; font.family: Theme.font; font.pixelSize: 14
             }
             RowLayout {
@@ -1053,13 +1053,13 @@ Item {
                 Layout.fillWidth: true
                 spacing: 8
                 Item { Layout.fillWidth: true }
-                ActionButton { text: "Cancelar"; quiet: true; reduced: root.reduced; onClicked: deletion.close() }
+                ActionButton { text: qsTr("Cancelar"); quiet: true; reduced: root.reduced; onClicked: deletion.close() }
                 ActionButton {
-                    text: "Excluir"; danger: true; reduced: root.reduced
+                    text: qsTr("Excluir"); danger: true; reduced: root.reduced
                     onClicked: {
                         const name = root.server.name
-                        if (servers.remove(root.server.id)) root.notify(name + " foi para a Lixeira.")
-                        else root.notify("Pare o servidor antes de excluir.")
+                        if (servers.remove(root.server.id)) root.notify(name + qsTr(" foi para a Lixeira."))
+                        else root.notify(qsTr("Pare o servidor antes de excluir."))
                         deletion.close()
                     }
                 }

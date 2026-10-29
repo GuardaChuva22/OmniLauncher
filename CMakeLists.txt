@@ -15,6 +15,8 @@ qt_add_executable(OmniLauncher WIN32
     src/app/main.cpp
     src/app/AppModel.h
     src/app/AppModel.cpp
+    src/app/Language.h
+    src/app/Language.cpp
     src/core/Downloader.h
     src/core/Downloader.cpp
     src/core/GameRunner.h
@@ -83,7 +85,7 @@ file(GLOB_RECURSE OMNI_QML_FILES CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOU
 )
 file(GLOB_RECURSE OMNI_ASSET_FILES CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     "assets/*.png" "assets/*.jpg" "assets/*.jpeg" "assets/*.webp"
-    "assets/*.svg" "assets/*.ttf" "assets/*.otf" "assets/*.wav"
+    "assets/*.svg" "assets/*.ttf" "assets/*.otf" "assets/*.wav" "assets/*.json"
 )
 foreach(qml_file IN LISTS OMNI_QML_FILES)
     if(qml_file MATCHES "(^|/)Theme\\.qml$")

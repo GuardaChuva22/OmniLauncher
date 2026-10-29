@@ -315,18 +315,18 @@ QString ServerManager::create(const QString &name, const QVariantMap &game, int 
     const auto version = game.value("version").toString();
     const auto loader = game.value("loader", QStringLiteral("Vanilla")).toString();
     if (!eulaAccepted)
-        return fail(QStringLiteral("É preciso aceitar o EULA do Minecraft para hospedar um servidor."));
+        return fail(tr("É preciso aceitar o EULA do Minecraft para hospedar um servidor."));
     if (title.isEmpty() || title.size() > 48)
-        return fail(QStringLiteral("Dê ao servidor um nome de até 48 letras."));
+        return fail(tr("Dê ao servidor um nome de até 48 letras."));
     if (version.isEmpty())
-        return fail(QStringLiteral("Escolha um jogo."));
+        return fail(tr("Escolha um jogo."));
     if (!QFileInfo::exists(QDir(m_root).filePath(QStringLiteral("versions/%1/%1.json").arg(version))))
-        return fail(QStringLiteral("Inicie o jogo uma vez antes: o servidor usa a mesma versão e o mesmo Java."));
+        return fail(tr("Inicie o jogo uma vez antes: o servidor usa a mesma versão e o mesmo Java."));
     auto loaderVersion = loader == "Vanilla" ? QString() : game.value("loaderVersion").toString();
     if (loader != "Vanilla" && loaderVersion.isEmpty())
         loaderVersion = installedLoaderVersion(m_root, loader, version);
     if (loader != "Vanilla" && loaderVersion.isEmpty())
-        return fail(QStringLiteral("Inicie o jogo uma vez antes: o servidor usa a mesma versão do %1.").arg(loader));
+        return fail(tr("Inicie o jogo uma vez antes: o servidor usa a mesma versão do %1.").arg(loader));
 
     // First free port from 25565, so two servers can run side by side.
     QList<int> used;
@@ -383,10 +383,10 @@ void ServerManager::install(const QString &id)
     if (server.isEmpty() || state == "installing" || state == "starting" || state == "running" || state == "stopping")
         return;
     setStatus(id, QStringLiteral("installing"), QStringLiteral("Preparando"));
-    appendConsole(id, QStringLiteral("[OmniLauncher] Preparando o servidor %1 %2").arg(server.value("loader").toString(),
+    appendConsole(id, tr("[OmniLauncher] Preparando o servidor %1 %2").arg(server.value("loader").toString(),
                                                                                           server.value("version").toString()));
     if (!QFileInfo::exists(java(server))) {
-        failInstall(id, QStringLiteral("O Java deste jogo não está instalado. Inicie o jogo uma vez e tente de novo."));
+        failInstall(id, tr("O Java deste jogo não está instalado. Inicie o jogo uma vez e tente de novo."));
         return;
     }
     const auto versionJson = readJsonFile(QDir(m_root).filePath(
@@ -404,13 +404,13 @@ void ServerManager::installServerJar(const QString &id, const QVariantMap &versi
 {
     const auto url = versionJson.value("downloads").toMap().value("server").toMap().value("url").toString();
     if (url.isEmpty()) {
-        failInstall(id, QStringLiteral("A Mojang não publica servidor para esta versão."));
+        failInstall(id, tr("A Mojang não publica servidor para esta versão."));
         return;
     }
-    setStatus(id, QStringLiteral("installing"), QStringLiteral("Baixando o servidor do Minecraft"));
+    setStatus(id, QStringLiteral("installing"), tr("Baixando o servidor do Minecraft"));
     fetchTo(url, QDir(serverDir(id)).filePath("server.jar"), [this, id](bool ok) {
         if (!ok) {
-            failInstall(id, QStringLiteral("Não foi possível baixar o servidor do Minecraft."));
+            failInstall(id, tr("Não foi possível baixar o servidor do Minecraft."));
             return;
         }
         finishInstall(id, {QStringLiteral("-jar"), QStringLiteral("server.jar")});
@@ -422,16 +422,16 @@ void ServerManager::installFabric(const QString &id, const QVariantMap &versionJ
     // Fabric's server launcher runs the vanilla server.jar beside it.
     const auto url = versionJson.value("downloads").toMap().value("server").toMap().value("url").toString();
     if (url.isEmpty()) {
-        failInstall(id, QStringLiteral("A Mojang não publica servidor para esta versão."));
+        failInstall(id, tr("A Mojang não publica servidor para esta versão."));
         return;
     }
-    setStatus(id, QStringLiteral("installing"), QStringLiteral("Baixando o servidor do Minecraft"));
+    setStatus(id, QStringLiteral("installing"), tr("Baixando o servidor do Minecraft"));
     fetchTo(url, QDir(serverDir(id)).filePath("server.jar"), [this, id](bool ok) {
         if (!ok) {
-            failInstall(id, QStringLiteral("Não foi possível baixar o servidor do Minecraft."));
+            failInstall(id, tr("Não foi possível baixar o servidor do Minecraft."));
             return;
         }
-        setStatus(id, QStringLiteral("installing"), QStringLiteral("Baixando o Fabric"));
+        setStatus(id, QStringLiteral("installing"), tr("Baixando o Fabric"));
         auto *reply = get(kFabricMeta + "installer");
         connect(reply, &QNetworkReply::finished, this, [this, reply, id] {
             reply->deleteLater();
@@ -444,14 +444,14 @@ void ServerManager::installFabric(const QString &id, const QVariantMap &versionJ
             }
             const auto server = serverById(id);
             if (installer.isEmpty() || server.isEmpty()) {
-                failInstall(id, QStringLiteral("Não foi possível falar com o Fabric."));
+                failInstall(id, tr("Não foi possível falar com o Fabric."));
                 return;
             }
             const auto url = kFabricMeta + QStringLiteral("loader/%1/%2/%3/server/jar")
                                                .arg(server.value("version").toString(), server.value("loaderVersion").toString(), installer);
             fetchTo(url, QDir(serverDir(id)).filePath("fabric-server-launch.jar"), [this, id](bool ok) {
                 if (!ok) {
-                    failInstall(id, QStringLiteral("Não foi possível baixar o servidor do Fabric."));
+                    failInstall(id, tr("Não foi possível baixar o servidor do Fabric."));
                     return;
                 }
                 finishInstall(id, {QStringLiteral("-jar"), QStringLiteral("fabric-server-launch.jar")});
@@ -475,7 +475,7 @@ void ServerManager::installForge(const QString &id)
     const auto installer = QDir(m_root).filePath("cache/installers/" + installId + "-installer.jar");
 
     const auto runInstaller = [this, id, installer, server] {
-        setStatus(id, QStringLiteral("installing"), QStringLiteral("Instalando o %1 (pode levar alguns minutos)").arg(server.value("loader").toString()));
+        setStatus(id, QStringLiteral("installing"), tr("Instalando o %1 (pode levar alguns minutos)").arg(server.value("loader").toString()));
         auto *process = new QProcess(this);
         process->setWorkingDirectory(serverDir(id));
         process->setProcessChannelMode(QProcess::MergedChannels);
@@ -502,7 +502,7 @@ void ServerManager::installForge(const QString &id)
                         launch = {QStringLiteral("-jar"), jar};
             }
             if (code != 0 || launch.isEmpty()) {
-                failInstall(id, QStringLiteral("O instalador do servidor falhou. Veja o console para os detalhes."));
+                failInstall(id, tr("O instalador do servidor falhou. Veja o console para os detalhes."));
                 return;
             }
             finishInstall(id, launch);
@@ -514,10 +514,10 @@ void ServerManager::installForge(const QString &id)
         runInstaller();
         return;
     }
-    setStatus(id, QStringLiteral("installing"), QStringLiteral("Baixando o %1 %2").arg(server.value("loader").toString(), loaderVersion));
+    setStatus(id, QStringLiteral("installing"), tr("Baixando o %1 %2").arg(server.value("loader").toString(), loaderVersion));
     fetchTo(url, installer, [this, id, runInstaller](bool ok) {
         if (!ok) {
-            failInstall(id, QStringLiteral("Não foi possível baixar o instalador do servidor."));
+            failInstall(id, tr("Não foi possível baixar o instalador do servidor."));
             return;
         }
         runInstaller();
@@ -526,15 +526,15 @@ void ServerManager::installForge(const QString &id)
 
 void ServerManager::finishInstall(const QString &id, const QStringList &launch)
 {
-    setStatus(id, QStringLiteral("installing"), QStringLiteral("Copiando mods e configurações do jogo"));
+    setStatus(id, QStringLiteral("installing"), tr("Copiando mods e configurações do jogo"));
     copyGameContent(id, [this, id, launch](int copied, int skipped) {
         updateServer(id, {{"installed", true}, {"launch", launch}});
         if (copied + skipped > 0)
-            appendConsole(id, QStringLiteral("[OmniLauncher] %1 mods copiados do jogo, %2 só de cliente deixados de fora.")
+            appendConsole(id, tr("[OmniLauncher] %1 mods copiados do jogo, %2 só de cliente deixados de fora.")
                                   .arg(copied).arg(skipped));
-        appendConsole(id, QStringLiteral("[OmniLauncher] Servidor pronto. Clique em Iniciar."));
+        appendConsole(id, tr("[OmniLauncher] Servidor pronto. Clique em Iniciar."));
         setStatus(id, QStringLiteral("stopped"), QStringLiteral("Pronto"));
-        emit message(QStringLiteral("%1 está pronto.").arg(serverById(id).value("name").toString()));
+        emit message(tr("%1 está pronto.").arg(serverById(id).value("name").toString()));
     });
 }
 
@@ -543,10 +543,10 @@ void ServerManager::syncContent(const QString &id)
     const auto state = m_status.value(id).toMap().value("state").toString();
     if (serverById(id).isEmpty() || state != "stopped")
         return;
-    setStatus(id, QStringLiteral("installing"), QStringLiteral("Copiando mods e configurações do jogo"));
+    setStatus(id, QStringLiteral("installing"), tr("Copiando mods e configurações do jogo"));
     copyGameContent(id, [this, id](int copied, int skipped) {
         setStatus(id, QStringLiteral("stopped"), QStringLiteral("Pronto"));
-        emit message(QStringLiteral("%1 mods sincronizados com o jogo (%2 só de cliente ficaram de fora).").arg(copied).arg(skipped));
+        emit message(tr("%1 mods sincronizados com o jogo (%2 só de cliente ficaram de fora).").arg(copied).arg(skipped));
     });
 }
 
@@ -609,7 +609,7 @@ void ServerManager::copyGameContent(const QString &id, std::function<void(int, i
             }
             if (client) {
                 ++skipped;
-                appendConsole(id, QStringLiteral("[OmniLauncher] Só de cliente, fora do servidor: ") + jar);
+                appendConsole(id, tr("[OmniLauncher] Só de cliente, fora do servidor: ") + jar);
                 continue;
             }
             QFile::remove(target.filePath("mods/" + jar));
@@ -706,7 +706,7 @@ void ServerManager::start(const QString &id)
         process->deleteLater();
         m_processes.remove(id);
         const auto state = m_status.value(id).toMap().value("state").toString();
-        appendConsole(id, QStringLiteral("[OmniLauncher] O servidor fechou (código %1).").arg(code));
+        appendConsole(id, tr("[OmniLauncher] O servidor fechou (código %1).").arg(code));
         if (m_restartAfterStop.take(id)) {
             setStatus(id, QStringLiteral("stopped"));
             start(id);
@@ -716,13 +716,13 @@ void ServerManager::start(const QString &id)
         const auto detail = m_status.value(id).toMap().value("detail").toString();
         setStatus(id, clean ? QStringLiteral("stopped") : QStringLiteral("failed"),
                   clean ? QString() : detail.startsWith("A porta") ? detail
-                                     : QStringLiteral("O servidor fechou com erro. Veja o console."));
+                                     : tr("O servidor fechou com erro. Veja o console."));
     });
     connect(process, &QProcess::errorOccurred, this, [this, id](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart)
-            failInstall(id, QStringLiteral("Não foi possível abrir o Java do servidor."));
+            failInstall(id, tr("Não foi possível abrir o Java do servidor."));
     });
-    appendConsole(id, QStringLiteral("[OmniLauncher] Iniciando com %1 MB de memória…").arg(memory));
+    appendConsole(id, tr("[OmniLauncher] Iniciando com %1 MB de memória…").arg(memory));
     setStatus(id, QStringLiteral("starting"), QStringLiteral("Carregando"));
     process->start(java(server), arguments);
 #ifdef Q_OS_WIN
@@ -755,7 +755,7 @@ void ServerManager::parseLine(const QString &id, const QString &line)
         return;
     }
     if (auto match = done.match(line); match.hasMatch()) {
-        setStatus(id, QStringLiteral("running"), QStringLiteral("Online em %1 s").arg(match.captured(1)));
+        setStatus(id, QStringLiteral("running"), tr("Online em %1 s").arg(match.captured(1)));
         return;
     }
     if (auto match = joined.match(line); match.hasMatch()) {
@@ -778,9 +778,9 @@ void ServerManager::parseLine(const QString &id, const QString &line)
     }
     if (state == "starting") {
         if (auto match = progress.match(line); match.hasMatch())
-            setStatus(id, state, QStringLiteral("Gerando o mundo: %1%").arg(match.captured(1)));
+            setStatus(id, state, tr("Gerando o mundo: %1%").arg(match.captured(1)));
         else if (bind.match(line).hasMatch())
-            setStatus(id, state, QStringLiteral("A porta %1 já está em uso por outro programa.")
+            setStatus(id, state, tr("A porta %1 já está em uso por outro programa.")
                                      .arg(properties(id).value("server-port", "25565").toString()));
     }
 }
@@ -790,7 +790,7 @@ void ServerManager::stop(const QString &id)
     QProcess *process = m_processes.value(id);
     if (!process || process->state() == QProcess::NotRunning)
         return;
-    setStatus(id, QStringLiteral("stopping"), QStringLiteral("Salvando o mundo"));
+    setStatus(id, QStringLiteral("stopping"), tr("Salvando o mundo"));
     process->write("stop\n");
     // A server stuck on shutdown is ended after a minute.
     QTimer::singleShot(60000, this, [this, id, guard = QPointer<QProcess>(process)] {
@@ -811,7 +811,7 @@ void ServerManager::kill(const QString &id)
 {
     if (QProcess *process = m_processes.value(id)) {
         m_restartAfterStop.remove(id);
-        setStatus(id, QStringLiteral("stopping"), QStringLiteral("Forçando o fechamento"));
+        setStatus(id, QStringLiteral("stopping"), tr("Forçando o fechamento"));
         process->kill();
     }
 }
@@ -825,7 +825,7 @@ void ServerManager::sendCommand(const QString &id, const QString &command)
     appendConsole(id, QStringLiteral("> ") + text);
     process->write((text.startsWith('/') ? text.mid(1) : text).toUtf8() + '\n');
     if (text == "stop" || text == "/stop")
-        setStatus(id, QStringLiteral("stopping"), QStringLiteral("Salvando o mundo"));
+        setStatus(id, QStringLiteral("stopping"), tr("Salvando o mundo"));
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────
@@ -956,7 +956,7 @@ void ServerManager::setConnector(const QString &id, bool enabled)
         updateServer(id, {{"connectorOff", true}});
         emit connectorChanged(id);
         if (m_processes.value(id))
-            emit message(QStringLiteral("Conector desligado. Reinicie o servidor para aplicar."));
+            emit message(tr("Conector desligado. Reinicie o servidor para aplicar."));
         return;
     }
     updateServer(id, {{"connectorOff", false}});
@@ -977,14 +977,14 @@ void ServerManager::setConnector(const QString &id, bool enabled)
                 file = entry.toObject();
         const auto name = QFileInfo(file.value("filename").toString()).fileName();
         if (name.isEmpty() || !name.startsWith("e4mc", Qt::CaseInsensitive)) {
-            emit message(QStringLiteral("O conector ainda não tem versão para este Minecraft e loader."));
+            emit message(tr("O conector ainda não tem versão para este Minecraft e loader."));
             emit connectorChanged(id);
             return;
         }
         fetchTo(file.value("url").toString(), mods.filePath(name), [this, id](bool ok) {
-            emit message(ok ? (m_processes.value(id) ? QStringLiteral("Conector instalado. Reinicie o servidor para gerar o endereço.")
-                                                     : QStringLiteral("Conector instalado. O endereço aparece quando o servidor iniciar."))
-                            : QStringLiteral("Não foi possível baixar o conector."));
+            emit message(ok ? (m_processes.value(id) ? tr("Conector instalado. Reinicie o servidor para gerar o endereço.")
+                                                     : tr("Conector instalado. O endereço aparece quando o servidor iniciar."))
+                            : tr("Não foi possível baixar o conector."));
             emit connectorChanged(id);
         });
     });
@@ -999,7 +999,7 @@ void ServerManager::backup(const QString &id)
     const auto world = properties(id).value("level-name", "world").toString();
     const QDir dir(serverDir(id));
     if (!dir.exists(world)) {
-        emit message(QStringLiteral("O servidor ainda não tem mundo: inicie-o uma vez."));
+        emit message(tr("O servidor ainda não tem mundo: inicie-o uma vez."));
         return;
     }
     const auto zip = [this, id, world] {
@@ -1011,8 +1011,8 @@ void ServerManager::backup(const QString &id)
         tar->setWorkingDirectory(dir.absolutePath());
         connect(tar, &QProcess::finished, this, [this, tar, id, archive](int code) {
             tar->deleteLater();
-            emit message(code == 0 ? QStringLiteral("Backup salvo: %1").arg(QFileInfo(archive).fileName())
-                                   : QStringLiteral("Não foi possível fazer o backup do mundo."));
+            emit message(code == 0 ? tr("Backup salvo: %1").arg(QFileInfo(archive).fileName())
+                                   : tr("Não foi possível fazer o backup do mundo."));
             emit backupsChanged(id);
         });
         tar->start(QStandardPaths::findExecutable(QStringLiteral("tar")), {"-a", "-c", "--exclude", "session.lock", "-f", archive, world});
@@ -1022,7 +1022,7 @@ void ServerManager::backup(const QString &id)
     if (process && m_status.value(id).toMap().value("state") == "running") {
         sendCommand(id, QStringLiteral("save-all flush"));
         QTimer::singleShot(4000, this, zip);
-        emit message(QStringLiteral("Salvando o mundo para o backup…"));
+        emit message(tr("Salvando o mundo para o backup…"));
     } else {
         zip();
     }

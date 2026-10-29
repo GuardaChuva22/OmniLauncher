@@ -16,7 +16,7 @@
 
 ---
 
-![A biblioteca de jogos](docs/screenshots/home.webp)
+![A biblioteca de jogos](docs/screenshots/home-pt.webp)
 
 ## Por que o OmniLauncher
 
@@ -37,7 +37,7 @@ A maioria dos launchers parece um painel de configurações. O OmniLauncher come
 - Instale modpacks do Modrinth como jogos novos, troque a versão deles e atualize os mods instalados num clique.
 - Uma central de downloads mostra o que está baixando e o que já terminou.
 
-![Modpacks do Modrinth](docs/screenshots/modpacks.webp)
+![Modpacks do Modrinth](docs/screenshots/modpacks-pt.webp)
 
 **Jogar junto**
 - **Modpacks compartilhados.** Transforme um dos seus jogos num modpack, receba um código de seis letras e mande para os amigos. Eles entram com o código e recebem cada versão nova que você publicar, como atualização incremental. Sem criar conta.
@@ -55,7 +55,7 @@ A maioria dos launchers parece um painel de configurações. O OmniLauncher come
 **Detalhes**
 - Uma abertura com o título, glows suaves, microanimações e sons de interface bem baixos (dá para desligar cada um; "Reduzir movimento" tira as animações).
 - Atualiza sozinho pelas releases deste repositório.
-- Interface em português do Brasil.
+- **Português do Brasil e inglês.** O launcher segue o idioma do Windows e dá pra trocar em Configurações a qualquer momento, sem reiniciar.
 
 ## Conta Microsoft, privacidade e Minecraft
 
@@ -107,6 +107,7 @@ O `scripts/package.ps1` gera a release: o zip, e o instalador quando o [Inno Set
 | `qml` | Toda a interface (Qt Quick) |
 | `cloud` | A OmniLauncher Cloud, um Cloudflare Worker para os modpacks compartilhados |
 | `installer` | O script do Inno Setup |
+| `assets/i18n` | Traduções: o código é escrito em português e o `en.json` leva cada texto para o inglês. O `scripts/i18n_extract.py` lista os textos ainda sem tradução |
 | `docs` | [Modpacks compartilhados e customizados](docs/CUSTOM-PACKS.md), e o [documento de design](docs/DESIGN.md) original |
 
 ## Créditos

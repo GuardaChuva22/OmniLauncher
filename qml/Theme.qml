@@ -77,7 +77,7 @@ QtObject {
     // "12 min", "2 h 15 min", "34 h"; "" when never played.
     function playtime(seconds) {
         const minutes = Math.floor((seconds || 0) / 60)
-        if (seconds > 0 && minutes < 1) return "menos de 1 min"
+        if (seconds > 0 && minutes < 1) return qsTr("menos de 1 min")
         if (minutes < 1) return ""
         if (minutes < 60) return minutes + " min"
         const hours = Math.floor(minutes / 60)

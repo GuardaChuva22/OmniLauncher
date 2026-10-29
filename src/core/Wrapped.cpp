@@ -1,4 +1,4 @@
-#include "Wrapped.h"
+﻿#include "Wrapped.h"
 
 #include <QDir>
 #include <QFile>
@@ -173,7 +173,7 @@ QVariantMap Wrapped::build(const QVariantList &games, const QVariantMap &gameSet
         if (cm <= 0)
             continue;
         distance += cm;
-        travel.append(QVariantMap{{"key", QString::fromLatin1(key)}, {"label", QString::fromUtf8(label)}, {"cm", cm}});
+        travel.append(QVariantMap{{"key", QString::fromLatin1(key)}, {"label", tr(label)}, {"cm", cm}});
     }
     std::sort(travel.begin(), travel.end(), [](const QVariant &a, const QVariant &b) {
         return a.toMap().value("cm").toLongLong() > b.toMap().value("cm").toLongLong();
@@ -235,7 +235,7 @@ QVariantMap Wrapped::build(const QVariantList &games, const QVariantMap &gameSet
     const auto playTicks = c("play_time") > 0 ? c("play_time") : c("play_one_minute");
     return {
         {"scope", gameId.isEmpty() ? "all" : "game"},
-        {"title", gameId.isEmpty() ? QStringLiteral("Todo o seu Minecraft") : title},
+        {"title", gameId.isEmpty() ? tr("Todo o seu Minecraft") : title},
         {"games", gameCount},
         {"worlds", worldCount},
         {"sessions", c("leave_game")},

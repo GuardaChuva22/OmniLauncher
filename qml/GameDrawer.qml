@@ -50,22 +50,22 @@ FocusScope {
     readonly property var effective: (launcher.gameSettings, launcher.preferences, game ? launcher.launchSettings(game.id) : ({}))
     readonly property bool thisRunning: runner.running && runner.gameId === gameId
     readonly property bool otherRunning: runner.running && runner.gameId !== gameId
-    readonly property var resolutions: [{ label: "Padrão do jogo", value: "" }, { label: "1280 × 720", value: "1280x720" },
-                                        { label: "1600 × 900", value: "1600x900" }, { label: "1920 × 1080", value: "1920x1080" },
-                                        { label: "2560 × 1440", value: "2560x1440" }]
+    readonly property var resolutions: [{ label: qsTr("Padrão do jogo"), value: "" }, { label: qsTr("1280 × 720"), value: "1280x720" },
+                                        { label: qsTr("1600 × 900"), value: "1600x900" }, { label: qsTr("1920 × 1080"), value: "1920x1080" },
+                                        { label: qsTr("2560 × 1440"), value: "2560x1440" }]
 
     function lastPlayedText() {
-        if (!saved.lastPlayed) return "Nunca jogado"
+        if (!saved.lastPlayed) return qsTr("Nunca jogado")
         const date = new Date(saved.lastPlayed)
         const days = Math.floor((Date.now() - date.getTime()) / 86400000)
         if (days < 1) return "Hoje, " + date.toLocaleTimeString(Qt.locale(), "HH:mm")
-        if (days < 2) return "Ontem"
-        if (days < 7) return days + " dias atrás"
-        return date.toLocaleDateString(Qt.locale(), "d 'de' MMM yyyy")
+        if (days < 2) return qsTr("Ontem")
+        if (days < 7) return days + qsTr(" dias atrás")
+        return date.toLocaleDateString(Qt.locale(), qsTr("d 'de' MMM yyyy"))
     }
     readonly property int playSeconds: (saved.playSeconds || 0) + (thisRunning ? runner.sessionSeconds : 0)
     function playTimeText() {
-        return Theme.playtime(playSeconds) || "Nunca jogado"
+        return Theme.playtime(playSeconds) || qsTr("Nunca jogado")
     }
     function save(key, value) {
         if (game && !launcher.setGameSetting(game.id, key, value)) notify(launcher.lastError)
@@ -242,7 +242,7 @@ FocusScope {
                         }
                         Text {
                             text: root.game ? "Minecraft " + root.game.version
-                                + (root.playSeconds >= 60 ? "  ·  " + Theme.playtime(root.playSeconds) + " jogadas" : "") : ""
+                                + (root.playSeconds >= 60 ? "  ·  " + Theme.playtime(root.playSeconds) + qsTr(" jogadas") : "") : ""
                             color: Theme.muted
                             font.family: Theme.font; font.pixelSize: 13
                         }
@@ -255,7 +255,7 @@ FocusScope {
                     Layout.fillWidth: true
                     Layout.topMargin: 24
                     Layout.preferredHeight: 54
-                    text: root.thisRunning ? "Fechar o jogo" : "Jogar"
+                    text: root.thisRunning ? qsTr("Fechar o jogo") : qsTr("Jogar")
                     iconName: root.thisRunning ? "close" : "play"
                     primary: !root.thisRunning
                     enabled: !root.otherRunning && !runner.busy
@@ -267,9 +267,9 @@ FocusScope {
                     Layout.fillWidth: true
                     Layout.topMargin: 10
                     horizontalAlignment: Text.AlignHCenter
-                    text: root.thisRunning ? "Em execução como " + launcher.activeProfile.name
-                        : root.otherRunning ? "Outro jogo está em execução"
-                        : root.hasProfile ? "Como " + launcher.activeProfile.name : "Escolha um Perfil para jogar"
+                    text: root.thisRunning ? qsTr("Em execução como ") + launcher.activeProfile.name
+                        : root.otherRunning ? qsTr("Outro jogo está em execução")
+                        : root.hasProfile ? "Como " + launcher.activeProfile.name : qsTr("Escolha um Perfil para jogar")
                     color: Theme.muted
                     font.family: Theme.font; font.pixelSize: 12
                     elide: Text.ElideRight
@@ -279,20 +279,20 @@ FocusScope {
                     Layout.fillWidth: true
                     Layout.topMargin: 18
                     spacing: 8
-                    ActionButton { Layout.fillWidth: true; text: "Editar"; iconName: "edit"; reduced: root.reduced; onClicked: root.editRequested() }
-                    ActionButton { Layout.fillWidth: true; text: "Duplicar"; iconName: "copy"; reduced: root.reduced; onClicked: root.duplicateRequested() }
+                    ActionButton { Layout.fillWidth: true; text: qsTr("Editar"); iconName: "edit"; reduced: root.reduced; onClicked: root.editRequested() }
+                    ActionButton { Layout.fillWidth: true; text: qsTr("Duplicar"); iconName: "copy"; reduced: root.reduced; onClicked: root.duplicateRequested() }
                     ActionButton {
                         Layout.preferredWidth: 40
                         iconName: "folder"; reduced: root.reduced
                         Accessible.name: "Abrir pasta"
-                        ToolTip.visible: hovered; ToolTip.text: "Abrir pasta"; ToolTip.delay: 500
+                        ToolTip.visible: hovered; ToolTip.text: qsTr("Abrir pasta"); ToolTip.delay: 500
                         onClicked: runner.openGameFolder(root.gameId)
                     }
                     ActionButton {
                         Layout.preferredWidth: 40
                         iconName: "spark"; reduced: root.reduced
                         Accessible.name: "Retrospectiva deste jogo"
-                        ToolTip.visible: hovered; ToolTip.text: "Retrospectiva deste jogo"; ToolTip.delay: 500
+                        ToolTip.visible: hovered; ToolTip.text: qsTr("Retrospectiva deste jogo"); ToolTip.delay: 500
                         onClicked: root.wrappedRequested()
                     }
                 }
@@ -336,16 +336,16 @@ FocusScope {
                         RowLayout {
                             spacing: 6
                             ActionButton {
-                                text: "Ver relatório"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                text: qsTr("Ver relatório"); quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
                                 onClicked: runner.openFile(runner.diagnosis.file)
                             }
                             ActionButton {
                                 visible: (runner.diagnosis.kind === "memory")
-                                text: "Ajustar memória"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                text: qsTr("Ajustar memória"); quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
                                 onClicked: tabs.currentIndex = 3
                             }
                             ActionButton {
-                                text: "Dispensar"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                text: qsTr("Dispensar"); quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
                                 onClicked: runner.clearDiagnosis()
                             }
                         }
@@ -356,7 +356,7 @@ FocusScope {
                     id: tabs
                     Layout.fillWidth: true
                     Layout.topMargin: 26
-                    model: ["Visão geral", "Conteúdo", "Mundos", "Ajustes"]
+                    model: [qsTr("Visão geral"), qsTr("Conteúdo"), qsTr("Mundos"), qsTr("Ajustes")]
                     reduced: root.reduced
                     onCurrentIndexChanged: {
                         if (currentIndex === 1) root.checkModUpdates(false)
@@ -374,26 +374,26 @@ FocusScope {
                     ColumnLayout {
                         spacing: 0
                         InfoRow {
-                            label: "Perfil"
+                            label: qsTr("Perfil")
                             iconName: "user"
                             value: root.hasProfile ? launcher.activeProfile.name : ""
                             ActionButton {
-                                text: root.hasProfile ? "Trocar" : "Escolher"
+                                text: root.hasProfile ? qsTr("Trocar") : qsTr("Escolher")
                                 quiet: true; height: 30; reduced: root.reduced
                                 font.pixelSize: 12
                                 onClicked: root.profileRequested()
                             }
                         }
-                        InfoRow { label: "Versão do Minecraft"; iconName: "cube"; value: root.game ? root.game.version : "" }
+                        InfoRow { label: qsTr("Versão do Minecraft"); iconName: "cube"; value: root.game ? root.game.version : "" }
                         InfoRow {
                             id: customPackRow
                             readonly property var latest: mods.customLatest[root.gameId]
                             readonly property bool hasUpdate: !!latest && latest.version !== root.saved.customPackVersion
                             visible: !!root.saved.customPackUrl
-                            label: "Modpack customizado"; iconName: "packs"
+                            label: qsTr("Modpack customizado"); iconName: "packs"
                             value: root.saved.customPackVersion || ""
                             ActionButton {
-                                text: customPackRow.hasUpdate ? "Atualizar para " + customPackRow.latest.version : "Verificar"
+                                text: customPackRow.hasUpdate ? qsTr("Atualizar para ") + customPackRow.latest.version : qsTr("Verificar")
                                 primary: customPackRow.hasUpdate
                                 quiet: !customPackRow.hasUpdate
                                 height: 30; reduced: root.reduced
@@ -405,36 +405,36 @@ FocusScope {
                         }
                         InfoRow {
                             visible: !!root.saved.packProjectId
-                            label: "Modpack"; iconName: "packs"
+                            label: qsTr("Modpack"); iconName: "packs"
                             value: root.saved.packVersionNumber || ""
                             ActionButton {
-                                text: "Versões"; quiet: true; height: 30; reduced: root.reduced
+                                text: qsTr("Versões"); quiet: true; height: 30; reduced: root.reduced
                                 font.pixelSize: 12
                                 enabled: mods.packState === ""
                                 onClicked: root.packVersionsRequested()
                             }
                         }
-                        InfoRow { label: "Tipo de instalação"; iconName: "box"; value: root.game ? root.game.loader + (root.game.loaderVersion ? " " + root.game.loaderVersion : "") : "" }
+                        InfoRow { label: qsTr("Tipo de instalação"); iconName: "box"; value: root.game ? root.game.loader + (root.game.loaderVersion ? " " + root.game.loaderVersion : "") : "" }
                         InfoRow {
-                            label: "Mods"; iconName: "puzzle"
-                            value: root.vanilla ? "Não se aplica"
+                            label: qsTr("Mods"); iconName: "puzzle"
+                            value: root.vanilla ? qsTr("Não se aplica")
                                 : mods.gameId !== root.gameId || mods.kind !== "mod" ? "—"
-                                : mods.installed.length === 0 ? "Nenhum"
-                                : mods.installed.length === 1 ? "1 mod" : mods.installed.length + " mods"
+                                : mods.installed.length === 0 ? qsTr("Nenhum")
+                                : mods.installed.length === 1 ? qsTr("1 mod") : mods.installed.length + qsTr(" mods")
                         }
-                        InfoRow { label: "Última sessão"; iconName: "calendar"; value: root.lastPlayedText() }
-                        InfoRow { label: "Tempo de jogo"; iconName: "clock"; value: root.playTimeText() }
+                        InfoRow { label: qsTr("Última sessão"); iconName: "calendar"; value: root.lastPlayedText() }
+                        InfoRow { label: qsTr("Tempo de jogo"); iconName: "clock"; value: root.playTimeText() }
                         InfoRow {
-                            label: "Pasta"; iconName: "folder"; divider: false
+                            label: qsTr("Pasta"); iconName: "folder"; divider: false
                             ActionButton {
-                                text: "Abrir"; quiet: true; height: 30; reduced: root.reduced
+                                text: qsTr("Abrir"); quiet: true; height: 30; reduced: root.reduced
                                 font.pixelSize: 12
                                 onClicked: runner.openGameFolder(root.gameId)
                             }
                         }
                         ActionButton {
                             Layout.topMargin: 18
-                            text: "Remover jogo"; iconName: "trash"
+                            text: qsTr("Remover jogo"); iconName: "trash"
                             danger: true; quiet: true; centered: false
                             reduced: root.reduced
                             onClicked: root.removeRequested()
@@ -459,8 +459,8 @@ FocusScope {
                             Layout.topMargin: 14
                             spacing: 6
                             Repeater {
-                                model: [{ kind: "mod", label: "Mods" }, { kind: "shader", label: "Shaders" },
-                                        { kind: "resourcepack", label: "Resource packs" }]
+                                model: [{ kind: "mod", label: qsTr("Mods") }, { kind: "shader", label: qsTr("Shaders") },
+                                        { kind: "resourcepack", label: qsTr("Resource packs") }]
                                 delegate: AbstractButton {
                                     id: kindChip
                                     required property var modelData
@@ -502,15 +502,15 @@ FocusScope {
                                 Text {
                                     Layout.fillWidth: true
                                     text: root.game && root.game.loader === "Forge"
-                                        ? "Shaders precisam do Oculus neste jogo."
-                                        : "Shaders precisam do Iris neste jogo."
+                                        ? qsTr("Shaders precisam do Oculus neste jogo.")
+                                        : qsTr("Shaders precisam do Iris neste jogo.")
                                     color: Theme.text
                                     font.family: Theme.font; font.pixelSize: 13
                                     wrapMode: Text.WordWrap
                                 }
                                 ActionButton {
                                     readonly property string project: root.game && root.game.loader === "Forge" ? "oculus" : "iris"
-                                    text: mods.installing.indexOf(project) !== -1 ? "Instalando…" : "Instalar " + (project === "iris" ? "Iris" : "Oculus")
+                                    text: mods.installing.indexOf(project) !== -1 ? qsTr("Instalando…") : "Instalar " + (project === "iris" ? "Iris" : "Oculus")
                                     primary: true; implicitHeight: 32; font.pixelSize: 12; reduced: root.reduced
                                     enabled: mods.installing.indexOf(project) === -1
                                     onClicked: mods.install(project, root.gameId, root.game.version, root.game.loader, "mod")
@@ -526,19 +526,19 @@ FocusScope {
                             InputField {
                                 Layout.fillWidth: true
                                 iconName: "search"; clearable: true
-                                placeholderText: root.contentKind === "shader" ? "Buscar nos shaders"
-                                    : root.contentKind === "resourcepack" ? "Buscar nos resource packs" : "Buscar nos mods"
+                                placeholderText: root.contentKind === "shader" ? qsTr("Buscar nos shaders")
+                                    : root.contentKind === "resourcepack" ? qsTr("Buscar nos resource packs") : qsTr("Buscar nos mods")
                                 onTextChanged: modsTab.filter = text
                             }
                             ActionButton {
-                                text: "Adicionar"; iconName: "plus"; reduced: root.reduced
+                                text: qsTr("Adicionar"); iconName: "plus"; reduced: root.reduced
                                 onClicked: root.modsRequested()
                             }
                             ActionButton {
                                 Layout.preferredWidth: 40
                                 iconName: "folder"; reduced: root.reduced
                                 Accessible.name: "Abrir pasta"
-                                ToolTip.visible: hovered; ToolTip.text: "Abrir pasta"; ToolTip.delay: 500
+                                ToolTip.visible: hovered; ToolTip.text: qsTr("Abrir pasta"); ToolTip.delay: 500
                                 onClicked: runner.openFile(runner.instanceDirectory(root.gameId) + (root.contentKind === "shader" ? "\\shaderpacks"
                                     : root.contentKind === "resourcepack" ? "\\resourcepacks" : "\\mods")) || runner.openModsFolder(root.gameId)
                             }
@@ -552,15 +552,15 @@ FocusScope {
                             spacing: 8
                             Text {
                                 Layout.fillWidth: true
-                                readonly property string noun: root.contentKind === "shader" ? "shader" : root.contentKind === "resourcepack" ? "resource pack" : "mod"
+                                readonly property string noun: root.contentKind === "shader" ? "shader" : root.contentKind === "resourcepack" ? qsTr("resource pack") : "mod"
                                 text: modsTab.list.length + " " + noun + (modsTab.list.length === 1 ? "" : "s")
-                                    + (modsTab.disabledCount > 0 ? "  ·  " + modsTab.disabledCount + " desativado" + (modsTab.disabledCount > 1 ? "s" : "") : "")
+                                    + (modsTab.disabledCount > 0 ? "  ·  " + modsTab.disabledCount + (modsTab.disabledCount > 1 ? qsTr(" desativados") : qsTr(" desativado")) : "")
                                 color: Theme.muted
                                 font.family: Theme.font; font.pixelSize: 12
                             }
                             Text {
                                 visible: mods.checkingUpdates
-                                text: "Verificando atualizações…"
+                                text: qsTr("Verificando atualizações…")
                                 color: Theme.faint
                                 font.family: Theme.font; font.pixelSize: 12
                             }
@@ -576,7 +576,7 @@ FocusScope {
                             ActionButton {
                                 visible: !mods.checkingUpdates && mods.updateCount === 0
                                 implicitHeight: 30
-                                text: "Verificar atualizações"
+                                text: qsTr("Verificar atualizações")
                                 quiet: true; reduced: root.reduced
                                 font.pixelSize: 12
                                 onClicked: root.checkModUpdates(true)
@@ -653,7 +653,7 @@ FocusScope {
                                             }
                                             Text {
                                                 visible: !modRow.modelData.enabled
-                                                text: "desativado"
+                                                text: qsTr("desativado")
                                                 color: Theme.faint
                                                 font.family: Theme.font; font.pixelSize: 11
                                             }
@@ -661,7 +661,7 @@ FocusScope {
                                     }
                                     Text {
                                         visible: modRow.busy
-                                        text: "Instalando…"
+                                        text: qsTr("Instalando…")
                                         color: Theme.muted
                                         font.family: Theme.font; font.pixelSize: 11
                                     }
@@ -671,7 +671,7 @@ FocusScope {
                                         iconName: "download"; iconSize: 14
                                         primary: true; reduced: root.reduced
                                         Accessible.name: "Atualizar " + modRow.modelData.title
-                                        ToolTip.visible: hovered; ToolTip.text: "Atualizar para " + modRow.modelData.updateVersionNumber; ToolTip.delay: 400
+                                        ToolTip.visible: hovered; ToolTip.text: qsTr("Atualizar para ") + modRow.modelData.updateVersionNumber; ToolTip.delay: 400
                                         onClicked: mods.installVersionOf(modRow.modelData.projectId, modRow.modelData.updateVersionId,
                                                                          root.gameId, root.game.version, root.contentLoader, root.contentKind)
                                     }
@@ -714,12 +714,12 @@ FocusScope {
                                         }
                                     }
                                     Action {
-                                        text: "Mudar versão…"
+                                        text: qsTr("Mudar versão…")
                                         enabled: modRow.modelData.projectId !== ""
                                         onTriggered: root.modVersionRequested(modRow.modelData)
                                     }
                                     Action {
-                                        text: "Remover"
+                                        text: qsTr("Remover")
                                         onTriggered: mods.remove(root.gameId, modRow.modelData.file)
                                     }
                                 }
@@ -731,7 +731,7 @@ FocusScope {
                             visible: modsTab.list.length > 0 && modsTab.shown.length === 0
                             Layout.alignment: Qt.AlignHCenter
                             Layout.topMargin: 24
-                            text: "Nenhum mod corresponde à busca"
+                            text: qsTr("Nenhum mod corresponde à busca")
                             color: Theme.muted
                             font.family: Theme.font; font.pixelSize: 13
                         }
@@ -750,9 +750,9 @@ FocusScope {
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 Layout.topMargin: 6
-                                text: !root.contentAvailable ? (root.contentKind === "shader" ? "Shaders precisam de um loader" : "Vanilla não usa mods")
-                                    : root.contentKind === "shader" ? "Nenhum shader instalado"
-                                    : root.contentKind === "resourcepack" ? "Nenhum resource pack instalado" : "Nenhum mod instalado"
+                                text: !root.contentAvailable ? (root.contentKind === "shader" ? qsTr("Shaders precisam de um loader") : qsTr("Vanilla não usa mods"))
+                                    : root.contentKind === "shader" ? qsTr("Nenhum shader instalado")
+                                    : root.contentKind === "resourcepack" ? qsTr("Nenhum resource pack instalado") : qsTr("Nenhum mod instalado")
                                 color: Theme.text
                                 font.family: Theme.font; font.pixelSize: 15; font.weight: Font.DemiBold
                             }
@@ -760,9 +760,9 @@ FocusScope {
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
-                                text: !root.contentAvailable ? "Mude o tipo de instalação para Fabric, Forge ou NeoForge."
-                                    : root.contentKind === "mod" ? "Busque no Modrinth ou coloque arquivos .jar na pasta de mods."
-                                    : "Busque no Modrinth em Adicionar. Depois, ative em Opções do jogo."
+                                text: !root.contentAvailable ? qsTr("Mude o tipo de instalação para Fabric, Forge ou NeoForge.")
+                                    : root.contentKind === "mod" ? qsTr("Busque no Modrinth ou coloque arquivos .jar na pasta de mods.")
+                                    : qsTr("Busque no Modrinth em Adicionar. Depois, ative em Opções do jogo.")
                                 color: Theme.muted
                                 font.family: Theme.font; font.pixelSize: 13
                             }
@@ -770,7 +770,7 @@ FocusScope {
                                 visible: !root.contentAvailable
                                 Layout.alignment: Qt.AlignHCenter
                                 Layout.topMargin: 8
-                                text: "Mudar tipo de instalação"; reduced: root.reduced
+                                text: qsTr("Mudar tipo de instalação"); reduced: root.reduced
                                 onClicked: root.editRequested()
                             }
                         }
@@ -793,8 +793,8 @@ FocusScope {
                             const days = Math.floor((Date.now() - date.getTime()) / 86400000)
                             if (days < 1) return "hoje, " + date.toLocaleTimeString(Qt.locale(), "HH:mm")
                             if (days < 2) return "ontem"
-                            if (days < 30) return days + " dias atrás"
-                            return date.toLocaleDateString(Qt.locale(), "d MMM yyyy")
+                            if (days < 30) return days + qsTr(" dias atrás")
+                            return date.toLocaleDateString(Qt.locale(), qsTr("d MMM yyyy"))
                         }
                         Connections {
                             target: runner
@@ -814,16 +814,16 @@ FocusScope {
                             spacing: 8
                             Text {
                                 Layout.fillWidth: true
-                                text: worldsTab.list.length === 0 ? "" : worldsTab.list.length === 1 ? "1 mundo" : worldsTab.list.length + " mundos"
+                                text: worldsTab.list.length === 0 ? "" : worldsTab.list.length === 1 ? qsTr("1 mundo") : worldsTab.list.length + qsTr(" mundos")
                                 color: Theme.muted
                                 font.family: Theme.font; font.pixelSize: 12
                             }
                             ActionButton {
-                                text: "Backups"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
-                                onClicked: runner.openFile(runner.instanceDirectory(root.gameId) + "\\backups") || root.notify("Ainda não há backups deste jogo.")
+                                text: qsTr("Backups"); quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                onClicked: runner.openFile(runner.instanceDirectory(root.gameId) + "\\backups") || root.notify(qsTr("Ainda não há backups deste jogo."))
                             }
                             ActionButton {
-                                text: "Pasta"; iconName: "folder"; iconSize: 14; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                text: qsTr("Pasta"); iconName: "folder"; iconSize: 14; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
                                 onClicked: runner.openWorldsFolder(root.gameId)
                             }
                         }
@@ -880,7 +880,7 @@ FocusScope {
                                         width: 30; height: 30; round: true; quiet: true
                                         iconName: "copy"; iconSize: 14; reduced: root.reduced
                                         Accessible.name: "Fazer backup de " + worldRow.modelData.name
-                                        ToolTip.visible: hovered; ToolTip.text: "Fazer backup"; ToolTip.delay: 400
+                                        ToolTip.visible: hovered; ToolTip.text: qsTr("Fazer backup"); ToolTip.delay: 400
                                         onClicked: runner.backupWorld(root.gameId, worldRow.modelData.folder)
                                     }
                                     ActionButton {
@@ -888,7 +888,7 @@ FocusScope {
                                         width: 30; height: 30; round: true; quiet: true
                                         iconName: "folder"; iconSize: 14; reduced: root.reduced
                                         Accessible.name: "Abrir pasta de " + worldRow.modelData.name
-                                        ToolTip.visible: hovered; ToolTip.text: "Abrir pasta"; ToolTip.delay: 400
+                                        ToolTip.visible: hovered; ToolTip.text: qsTr("Abrir pasta"); ToolTip.delay: 400
                                         onClicked: runner.openWorldsFolder(root.gameId, worldRow.modelData.folder)
                                     }
                                     ActionButton {
@@ -896,20 +896,20 @@ FocusScope {
                                         width: 30; height: 30; round: true; quiet: true
                                         iconName: "trash"; iconSize: 14; reduced: root.reduced
                                         Accessible.name: "Apagar " + worldRow.modelData.name
-                                        ToolTip.visible: hovered; ToolTip.text: "Mover para a Lixeira"; ToolTip.delay: 400
+                                        ToolTip.visible: hovered; ToolTip.text: qsTr("Mover para a Lixeira"); ToolTip.delay: 400
                                         onClicked: worldsTab.confirmFolder = worldRow.modelData.folder
                                     }
                                     ActionButton {
                                         visible: worldRow.confirming
-                                        text: "Cancelar"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                        text: qsTr("Cancelar"); quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
                                         onClicked: worldsTab.confirmFolder = ""
                                     }
                                     ActionButton {
                                         visible: worldRow.confirming
-                                        text: "Mover para a Lixeira"; danger: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                        text: qsTr("Mover para a Lixeira"); danger: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
                                         onClicked: {
                                             worldsTab.confirmFolder = ""
-                                            if (!runner.trashWorld(root.gameId, worldRow.modelData.folder)) root.notify("Não foi possível mover o mundo para a Lixeira.")
+                                            if (!runner.trashWorld(root.gameId, worldRow.modelData.folder)) root.notify(qsTr("Não foi possível mover o mundo para a Lixeira."))
                                         }
                                     }
                                 }
@@ -931,7 +931,7 @@ FocusScope {
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 Layout.topMargin: 6
-                                text: "Nenhum mundo ainda"
+                                text: qsTr("Nenhum mundo ainda")
                                 color: Theme.text
                                 font.family: Theme.font; font.pixelSize: 15; font.weight: Font.DemiBold
                             }
@@ -939,7 +939,7 @@ FocusScope {
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
-                                text: "Mundos criados neste jogo aparecem aqui. Antes de atualizar um modpack, o OmniLauncher faz backup deles."
+                                text: qsTr("Mundos criados neste jogo aparecem aqui. Antes de atualizar um modpack, o OmniLauncher faz backup deles.")
                                 color: Theme.muted
                                 font.family: Theme.font; font.pixelSize: 13
                             }
@@ -955,23 +955,23 @@ FocusScope {
                             spacing: 8
                             Text {
                                 Layout.fillWidth: true
-                                text: "Padrões do Minecraft (sensibilidade, FOV, teclas…)"
+                                text: qsTr("Padrões do Minecraft (sensibilidade, FOV, teclas…)")
                                 color: Theme.secondary
                                 font.family: Theme.font; font.pixelSize: 13
                                 wrapMode: Text.WordWrap
                             }
                             ActionButton {
-                                text: "Aplicar"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                text: qsTr("Aplicar"); quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
                                 enabled: Object.keys(runner.gameDefaults).length > 0 && !root.thisRunning
-                                ToolTip.visible: hovered; ToolTip.text: "Grava os padrões de Configurações neste jogo"; ToolTip.delay: 400
-                                onClicked: root.notify(runner.applyGameDefaults(root.gameId) ? "Padrões aplicados a este jogo."
-                                                                                              : "Não foi possível aplicar os padrões.")
+                                ToolTip.visible: hovered; ToolTip.text: qsTr("Grava os padrões de Configurações neste jogo"); ToolTip.delay: 400
+                                onClicked: root.notify(runner.applyGameDefaults(root.gameId) ? qsTr("Padrões aplicados a este jogo.")
+                                                                                              : qsTr("Não foi possível aplicar os padrões."))
                             }
                         }
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.topMargin: 16
-                            Text { text: "Memória"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
+                            Text { text: qsTr("Memória"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
                             Text { text: memory.value + " GB"; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold }
                         }
                         ValueSlider {
@@ -993,10 +993,10 @@ FocusScope {
                             Text {
                                 Layout.fillWidth: true
                                 text: memory.value > parent.systemGb * 0.75
-                                      ? "Muito alto para este PC (" + parent.systemGb + " GB): o Windows pode ficar lento."
+                                      ? qsTr("Muito alto para este PC (") + parent.systemGb + qsTr(" GB): o Windows pode ficar lento.")
                                       : memory.value < parent.recommendedGb - 1
-                                        ? "Abaixo do recomendado (" + parent.recommendedGb + " GB) para este jogo: pode travar ou ficar lento."
-                                        : "Recomendado: " + parent.recommendedGb + " GB  ·  Este PC: " + parent.systemGb + " GB"
+                                        ? qsTr("Abaixo do recomendado (") + parent.recommendedGb + qsTr(" GB) para este jogo: pode travar ou ficar lento.")
+                                        : "Recomendado: " + parent.recommendedGb + qsTr(" GB  ·  Este PC: ") + parent.systemGb + " GB"
                                 color: memory.value > parent.systemGb * 0.75 || memory.value < parent.recommendedGb - 1 ? Theme.danger : Theme.faint
                                 font.family: Theme.font; font.pixelSize: 12
                                 wrapMode: Text.WordWrap
@@ -1013,17 +1013,17 @@ FocusScope {
                             Layout.fillWidth: true
                             Layout.topMargin: 12
                             Text { text: "Java"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
-                            Text { text: "Automático"; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium }
+                            Text { text: qsTr("Automático"); color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium }
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: "O OmniLauncher baixa a versão do Java que esta versão do Minecraft pede."
+                            text: qsTr("O OmniLauncher baixa a versão do Java que esta versão do Minecraft pede.")
                             color: Theme.faint
                             font.family: Theme.font; font.pixelSize: 12
                             wrapMode: Text.WordWrap
                         }
 
-                        Text { text: "Resolução da janela"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
+                        Text { text: qsTr("Resolução da janela"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
                         ChoiceField {
                             id: resolutionChoice
                             Layout.fillWidth: true
@@ -1035,7 +1035,7 @@ FocusScope {
                             onActivated: function(index) { root.save("resolution", root.resolutions[index].value) }
                         }
 
-                        Text { text: "Argumentos da JVM"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
+                        Text { text: qsTr("Argumentos da JVM"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 12 }
                         InputField {
                             id: jvmArgs
                             Layout.fillWidth: true
@@ -1055,7 +1055,7 @@ FocusScope {
             anchors.margins: 14
             spacing: 8
             Repeater {
-                model: [{ icon: "edit", label: "Editar jogo" }, { icon: "close", label: "Fechar" }]
+                model: [{ icon: "edit", label: qsTr("Editar jogo") }, { icon: "close", label: qsTr("Fechar") }]
                 delegate: AbstractButton {
                     id: heroButton
                     required property var modelData

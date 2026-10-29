@@ -26,7 +26,7 @@ FocusScope {
     readonly property var gridModel: filtering ? games : games.concat([{ id: "__create", isCreate: true }])
 
     function focusSearch() { search.forceActiveFocus(); search.selectAll() }
-    function clearFilters() { search.text = ""; loaderFilter = "Todos" }
+    function clearFilters() { search.text = ""; loaderFilter = qsTr("Todos") }
     function countFor(loader) {
         if (loader === "Todos") return allGames.length
         return allGames.filter(function(game) { return game.loader === loader }).length
@@ -56,7 +56,7 @@ FocusScope {
             Layout.alignment: Qt.AlignVCenter
             Text {
                 id: title
-                text: "Jogos"
+                text: qsTr("Jogos")
                 color: Theme.text
                 font.family: Theme.fontDisplay; font.pixelSize: 30; font.weight: Font.DemiBold
                 font.letterSpacing: -0.6
@@ -74,19 +74,19 @@ FocusScope {
             Layout.preferredWidth: Math.min(280, root.available * 0.32)
             iconName: "search"
             clearable: true
-            placeholderText: "Buscar jogo"
+            placeholderText: qsTr("Buscar jogo")
             Keys.onEscapePressed: { text = ""; root.forceActiveFocus() }
             Keys.onDownPressed: root.moveSelection(0)
         }
         ActionButton {
-            text: "Retrospectiva"
+            text: qsTr("Retrospectiva")
             iconName: "spark"
             quiet: true
             reduced: root.reduced
             onClicked: root.wrappedRequested()
         }
         ActionButton {
-            text: "Criar jogo"
+            text: qsTr("Criar jogo")
             iconName: "plus"
             reduced: root.reduced
             onClicked: root.createRequested()
@@ -101,7 +101,7 @@ FocusScope {
         x: root.gutter; y: header.y + header.height + 18
         spacing: 6
         Repeater {
-            model: ["Todos"].concat(Theme.loaders)
+            model: [qsTr("Todos")].concat(Theme.loaders)
             delegate: AbstractButton {
                 id: chip
                 required property string modelData
@@ -234,7 +234,7 @@ FocusScope {
                                 }
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "Criar jogo"
+                                    text: qsTr("Criar jogo")
                                     color: create.hovered ? Theme.text : Theme.secondary
                                     font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
                                 }
@@ -254,13 +254,13 @@ FocusScope {
         UiIcon { anchors.horizontalCenter: parent.horizontalCenter; name: "search"; width: 30; height: 30; color: Theme.faint }
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Nenhum jogo encontrado"
+            text: qsTr("Nenhum jogo encontrado")
             color: Theme.text
             font.family: Theme.fontDisplay; font.pixelSize: 18; font.weight: Font.DemiBold
         }
         ActionButton {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Limpar filtros"; quiet: true; reduced: root.reduced
+            text: qsTr("Limpar filtros"); quiet: true; reduced: root.reduced
             onClicked: root.clearFilters()
         }
     }

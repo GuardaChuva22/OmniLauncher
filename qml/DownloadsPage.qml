@@ -19,10 +19,10 @@ Item {
         if (!ms) return ""
         const minutes = Math.floor((Date.now() - ms) / 60000)
         if (minutes < 1) return "agora"
-        if (minutes < 60) return minutes + " min atrás"
+        if (minutes < 60) return minutes + qsTr(" min atrás")
         const hours = Math.floor(minutes / 60)
-        if (hours < 24) return hours + " h atrás"
-        return new Date(ms).toLocaleDateString(Qt.locale(), "d MMM")
+        if (hours < 24) return hours + qsTr(" h atrás")
+        return new Date(ms).toLocaleDateString(Qt.locale(), qsTr("d MMM"))
     }
     function cancel(item) {
         if (item.kind === "game") runner.cancel()
@@ -32,7 +32,7 @@ Item {
     Text {
         id: title
         x: root.gutter; y: 50
-        text: "Downloads"
+        text: qsTr("Downloads")
         color: Theme.text
         font.family: Theme.fontDisplay; font.pixelSize: 30; font.weight: Font.DemiBold
         font.letterSpacing: -0.6
@@ -54,7 +54,7 @@ Item {
             spacing: 0
 
             Text {
-                text: "BAIXANDO AGORA"
+                text: qsTr("BAIXANDO AGORA")
                 color: Theme.muted
                 font.family: Theme.font; font.pixelSize: 12; font.weight: Font.DemiBold
                 font.letterSpacing: 0.6
@@ -62,7 +62,7 @@ Item {
             }
             Text {
                 visible: root.active.length === 0
-                text: "Nada sendo baixado."
+                text: qsTr("Nada sendo baixado.")
                 color: Theme.faint
                 font.family: Theme.font; font.pixelSize: 13
                 Layout.bottomMargin: 8
@@ -138,7 +138,7 @@ Item {
                         }
                         ActionButton {
                             visible: activeRow.modelData.kind === "game" || activeRow.modelData.kind === "pack"
-                            text: "Cancelar"; quiet: true; reduced: root.reduced
+                            text: qsTr("Cancelar"); quiet: true; reduced: root.reduced
                             onClicked: root.cancel(activeRow.modelData)
                         }
                     }
@@ -151,20 +151,20 @@ Item {
                 Layout.bottomMargin: 10
                 Text {
                     Layout.fillWidth: true
-                    text: "HISTÓRICO"
+                    text: qsTr("HISTÓRICO")
                     color: Theme.muted
                     font.family: Theme.font; font.pixelSize: 12; font.weight: Font.DemiBold
                     font.letterSpacing: 0.6
                 }
                 ActionButton {
                     visible: root.finished.length > 0
-                    text: "Limpar histórico"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                    text: qsTr("Limpar histórico"); quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
                     onClicked: root.clearHistory()
                 }
             }
             Text {
                 visible: root.finished.length === 0
-                text: "Downloads concluídos aparecem aqui."
+                text: qsTr("Downloads concluídos aparecem aqui.")
                 color: Theme.faint
                 font.family: Theme.font; font.pixelSize: 13
             }
@@ -201,7 +201,7 @@ Item {
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: (doneRow.modelData.state === "done" ? "Concluído" : doneRow.modelData.state === "cancelled" ? "Cancelado" : "Falhou")
+                                text: (doneRow.modelData.state === "done" ? qsTr("Concluído") : doneRow.modelData.state === "cancelled" ? qsTr("Cancelado") : qsTr("Falhou"))
                                     + (doneRow.modelData.detail && doneRow.modelData.state !== "done" ? "  ·  " + doneRow.modelData.detail : "")
                                 color: doneRow.ok ? Theme.faint : Theme.danger
                                 font.family: Theme.font; font.pixelSize: 11

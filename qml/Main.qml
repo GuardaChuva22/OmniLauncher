@@ -68,19 +68,19 @@ ApplicationWindow {
     function contentTitle(projectId) {
         const hit = mods.results.find(function(r) { return r.id === projectId })
             || mods.installed.find(function(m) { return m.projectId === projectId })
-        return hit ? hit.title : projectId === "iris" ? "Iris Shaders" : projectId === "oculus" ? "Oculus" : "Conteúdo do Modrinth"
+        return hit ? hit.title : projectId === "iris" ? qsTr("Iris Shaders") : projectId === "oculus" ? "Oculus" : qsTr("Conteúdo do Modrinth")
     }
     function packTitle(projectId) {
-        if (projectId.indexOf("custom:") === 0) return "Modpack customizado"
+        if (projectId.indexOf("custom:") === 0) return qsTr("Modpack customizado")
         const hit = mods.packResults.find(function(r) { return r.id === projectId })
-        return hit ? hit.title : "Modpack"
+        return hit ? hit.title : qsTr("Modpack")
     }
     Connections {
         target: runner
         function onProgressChanged() {
             if (runner.state !== "downloading" || runner.detail === "") return
             const key = "game:" + runner.gameId
-            if (!window.downloadKeys[key]) window.startDownload(key, { title: window.launchedTitle + " — arquivos do jogo", kind: "game" })
+            if (!window.downloadKeys[key]) window.startDownload(key, { title: window.launchedTitle + qsTr(" — arquivos do jogo"), kind: "game" })
             window.updateDownload(key, { progress: runner.progress, detail: runner.detail })
         }
         function onStateChanged() {
@@ -95,7 +95,7 @@ ApplicationWindow {
         function onInstallingChanged() {
             for (const id of mods.installing)
                 if (window.knownInstalling.indexOf(id) === -1)
-                    window.startDownload("mod:" + id, { title: window.contentTitle(id), kind: "mod", detail: "Baixando do Modrinth" })
+                    window.startDownload("mod:" + id, { title: window.contentTitle(id), kind: "mod", detail: qsTr("Baixando do Modrinth") })
             window.knownInstalling = mods.installing.slice()
         }
         function onInstallFinished(projectId, ok, message) { window.finishDownload("mod:" + projectId, ok ? "done" : "failed", message) }
@@ -104,8 +104,8 @@ ApplicationWindow {
                 window.startDownload("pack", { title: window.packTitle(mods.packProjectId), kind: "pack" })
             window.updateDownload("pack", {
                 progress: mods.packState === "downloading" ? mods.packProgress : -1,
-                detail: mods.packState === "downloading" ? "Baixando arquivos do modpack"
-                      : mods.packState === "backing-up" ? "Fazendo backup dos mundos" : "Preparando"
+                detail: mods.packState === "downloading" ? qsTr("Baixando arquivos do modpack")
+                      : mods.packState === "backing-up" ? qsTr("Fazendo backup dos mundos") : qsTr("Preparando")
             })
         }
         function onPackFinished(gameId, ok, message) { window.finishDownload("pack", ok ? "done" : "failed", ok ? "" : message) }
@@ -114,7 +114,7 @@ ApplicationWindow {
         target: updates
         function onChanged() {
             if (updates.state === "downloading") {
-                if (!window.downloadKeys["update"]) window.startDownload("update", { title: "Atualização do OmniLauncher", kind: "update" })
+                if (!window.downloadKeys["update"]) window.startDownload("update", { title: qsTr("Atualização do OmniLauncher"), kind: "update" })
                 window.updateDownload("update", { progress: updates.progress, detail: updates.changes })
             } else if (window.downloadKeys["update"]) {
                 window.finishDownload("update", updates.state === "error" ? "failed" : "done", updates.state === "error" ? updates.error : "")
@@ -186,20 +186,20 @@ ApplicationWindow {
     }
     function duplicateGame(game) {
         if (!game) return
-        const id = launcher.addGame(game.title.slice(0, 64) + " (cópia)", game.version, game.loader, game.coverId, game.loaderVersion || "")
-        if (id) { selectedGameId = id; notify("Jogo duplicado.") }
+        const id = launcher.addGame(game.title.slice(0, 64) + qsTr(" (cópia)"), game.version, game.loader, game.coverId, game.loaderVersion || "")
+        if (id) { selectedGameId = id; notify(qsTr("Jogo duplicado.")) }
         else notify(launcher.lastError)
     }
     function beginLaunch(game) {
         if (!game) return
         selectedGameId = game.id
         if (runner.running) {
-            notify(runner.gameId === game.id ? "Esse jogo já está aberto." : "Feche o jogo em execução antes de iniciar outro.")
+            notify(runner.gameId === game.id ? qsTr("Esse jogo já está aberto.") : qsTr("Feche o jogo em execução antes de iniciar outro."))
             return
         }
         if (!launcher.activeProfileId) {
             profileMenu.open()
-            notify("Escolha um Perfil para iniciar.")
+            notify(qsTr("Escolha um Perfil para iniciar."))
             return
         }
         sfx.play("launch")
@@ -218,7 +218,7 @@ ApplicationWindow {
         target: auth
         function onSignedIn(profile) {
             window.bringToFront()
-            if (launcher.addMicrosoftProfile(profile.uuid, profile.name)) window.notify("Conta conectada: " + profile.name)
+            if (launcher.addMicrosoftProfile(profile.uuid, profile.name)) window.notify(qsTr("Conta conectada: ") + profile.name)
             else window.notify(launcher.lastError)
             profileMenu.open()
         }
@@ -246,17 +246,17 @@ ApplicationWindow {
     function pickPackVersion(pack, gameId) {
         pickerTarget = { kind: "pack", projectId: pack.id, imageUrl: pack.imageUrl || "", gameId: gameId || "" }
         const saved = gameId ? (launcher.gameSettings[gameId] || {}) : {}
-        versionPicker.title = "Versões de " + pack.title
+        versionPicker.title = qsTr("Versões de ") + pack.title
         versionPicker.currentId = saved.packVersionId || ""
-        versionPicker.actionText = gameId ? "Mudar para esta versão" : "Instalar esta versão"
+        versionPicker.actionText = gameId ? qsTr("Mudar para esta versão") : qsTr("Instalar esta versão")
         mods.fetchProjectVersions(pack.id)
         versionPicker.open()
     }
     function pickModVersion(game, mod) {
         pickerTarget = { kind: "mod", projectId: mod.projectId, game: game, content: drawer.contentKind, loader: drawer.contentLoader }
-        versionPicker.title = "Versões de " + mod.title
+        versionPicker.title = qsTr("Versões de ") + mod.title
         versionPicker.currentId = mod.versionId || ""
-        versionPicker.actionText = "Usar esta versão"
+        versionPicker.actionText = qsTr("Usar esta versão")
         mods.fetchProjectVersions(mod.projectId, game.version, drawer.contentLoader)
         versionPicker.open()
     }
@@ -286,7 +286,7 @@ ApplicationWindow {
             launcher.recordSession(gameId, seconds)
             // A clean exit can still hide trouble (e.g. data that blocks world creation).
             if (exitCode === 0 && runner.diagnosis.gameId === gameId)
-                window.notify(runner.diagnosis.title + ". Veja os detalhes no jogo.")
+                window.notify(runner.diagnosis.title + qsTr(". Veja os detalhes no jogo."))
             if (window.handoff || !window.visible || window.visibility === Window.Minimized) window.returnToLauncher()
             else { window.raise(); window.requestActivate() }
         }
@@ -330,7 +330,7 @@ ApplicationWindow {
         function onChanged() {
             if (updates.state === "available" && !window.updateNotified) {
                 window.updateNotified = true
-                window.notify("Nova versão do OmniLauncher disponível. Atualize em Configurações.")
+                window.notify(qsTr("Nova versão do OmniLauncher disponível. Atualize em Configurações."))
             }
         }
     }
@@ -343,7 +343,7 @@ ApplicationWindow {
                 const latest = mods.customLatest[gameId]
                 if (game && latest.version !== saved.customPackVersion && !window.customNotified[gameId]) {
                     window.customNotified[gameId] = true
-                    window.notify("Atualização disponível: " + game.title + " " + latest.version)
+                    window.notify(qsTr("Atualização disponível: ") + game.title + " " + latest.version)
                 }
             }
         }
@@ -691,7 +691,7 @@ ApplicationWindow {
                     width: parent.width
                     topPadding: 10
                     horizontalAlignment: Text.AlignHCenter
-                    text: parent.failed ? "Não foi possível iniciar" : window.handoff ? "Bom jogo" : runner.stage
+                    text: parent.failed ? qsTr("Não foi possível iniciar") : window.handoff ? qsTr("Bom jogo") : runner.stage
                     color: parent.failed ? Theme.danger : Theme.secondary
                     font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium
                 }
@@ -744,22 +744,22 @@ ApplicationWindow {
                     spacing: 8
                     ActionButton {
                         visible: runner.busy
-                        text: "Cancelar"; quiet: true; reduced: window.reduced
+                        text: qsTr("Cancelar"); quiet: true; reduced: window.reduced
                         onClicked: window.leaveLaunch()
                     }
                     ActionButton {
                         visible: runner.state === "failed"
-                        text: "Ver log"; iconName: "terminal"; quiet: true; reduced: window.reduced
-                        onClicked: if (!runner.openLog()) window.notify("Nenhum log disponível para esta tentativa.")
+                        text: qsTr("Ver log"); iconName: "terminal"; quiet: true; reduced: window.reduced
+                        onClicked: if (!runner.openLog()) window.notify(qsTr("Nenhum log disponível para esta tentativa."))
                     }
                     ActionButton {
                         visible: runner.state === "failed"
-                        text: "Voltar"; quiet: true; reduced: window.reduced
+                        text: qsTr("Voltar"); quiet: true; reduced: window.reduced
                         onClicked: window.leaveLaunch()
                     }
                     ActionButton {
                         visible: runner.state === "failed"
-                        text: "Tentar de novo"; iconName: "play"; primary: true; reduced: window.reduced
+                        text: qsTr("Tentar de novo"); iconName: "play"; primary: true; reduced: window.reduced
                         onClicked: {
                             const game = window.gameById(runner.gameId)
                             runner.dismiss()
@@ -812,7 +812,7 @@ ApplicationWindow {
                 width: 46; height: 36
                 hoverEnabled: true
                 focusPolicy: Qt.NoFocus
-                Accessible.name: ["Minimizar", "Maximizar ou restaurar", "Fechar"][index]
+                Accessible.name: [qsTr("Minimizar"), qsTr("Maximizar ou restaurar"), qsTr("Fechar")][index]
                 background: Rectangle {
                     color: captionButton.hovered ? (captionButton.index === 2 ? "#C42B1C" : "#1AFFFFFF") : "transparent"
                     Behavior on color { ColorAnimation { duration: 90 } }
@@ -880,14 +880,14 @@ ApplicationWindow {
         contentItem: ColumnLayout {
             spacing: 4
             Text {
-                text: "Perfis"
+                text: qsTr("Perfis")
                 color: Theme.text
                 font.family: Theme.fontDisplay; font.pixelSize: 16; font.weight: Font.DemiBold
                 Layout.leftMargin: 8; Layout.bottomMargin: 6
             }
             Text {
                 visible: !launcher.profiles.length
-                text: "Escolha como você vai jogar."
+                text: qsTr("Escolha como você vai jogar.")
                 color: Theme.muted
                 font.family: Theme.font; font.pixelSize: 13
                 Layout.leftMargin: 8; Layout.bottomMargin: 8
@@ -931,7 +931,7 @@ ApplicationWindow {
                                 spacing: 1; Layout.fillWidth: true
                                 Text { text: profileRow.modelData.name; color: Theme.text; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideRight; Layout.fillWidth: true }
                                 Text {
-                                    text: (profileRow.modelData.type === "microsoft" ? "Microsoft" : "Offline") + (profileRow.active ? " · ativo" : "")
+                                    text: (profileRow.modelData.type === "microsoft" ? "Microsoft" : qsTr("Offline")) + (profileRow.active ? qsTr(" · ativo") : "")
                                     color: Theme.muted; font.family: Theme.font; font.pixelSize: 11
                                 }
                             }
@@ -946,7 +946,7 @@ ApplicationWindow {
                         quiet: true; iconName: "trash"; iconSize: 14
                         visible: chooseProfile.hovered || hovered || visualFocus
                         Accessible.name: "Remover Perfil " + profileRow.modelData.name
-                        ToolTip.visible: hovered; ToolTip.text: "Remover"; ToolTip.delay: 500
+                        ToolTip.visible: hovered; ToolTip.text: qsTr("Remover"); ToolTip.delay: 500
                         onClicked: { profileMenu.close(); window.confirmRemoval(profileRow.modelData.id, profileRow.modelData.name, true) }
                     }
                 }
@@ -963,14 +963,14 @@ ApplicationWindow {
             }
             ActionButton {
                 Layout.fillWidth: true; centered: false; quiet: true
-                text: auth.busy ? auth.stage + "…" : "Conectar Microsoft"; iconName: "external"
+                text: auth.busy ? auth.stage + "…" : qsTr("Conectar Microsoft"); iconName: "external"
                 enabled: !auth.busy
                 font.weight: Font.Medium
                 onClicked: { profileMenu.close(); auth.signIn() }
             }
             ActionButton {
                 Layout.fillWidth: true; centered: false; quiet: true
-                text: "Criar perfil offline"; iconName: "plus"
+                text: qsTr("Criar perfil offline"); iconName: "plus"
                 font.weight: Font.Medium
                 enabled: launcher.offlineAllowed
                 onClicked: { profileMenu.close(); launcher.clearError(); profileName.text = ""; profileEditor.open(); profileName.forceActiveFocus() }
@@ -979,7 +979,7 @@ ApplicationWindow {
                 visible: !launcher.offlineAllowed
                 Layout.fillWidth: true
                 Layout.leftMargin: 12; Layout.rightMargin: 8; Layout.bottomMargin: 6
-                text: "Perfis offline ficam disponíveis depois que você conecta uma conta Microsoft com o Minecraft: Java Edition."
+                text: qsTr("Perfis offline ficam disponíveis depois que você conecta uma conta Microsoft com o Minecraft: Java Edition.")
                 color: Theme.faint
                 font.family: Theme.font; font.pixelSize: 12
                 wrapMode: Text.WordWrap
@@ -1013,14 +1013,14 @@ ApplicationWindow {
                 window.packChangeGameId = info.gameId
                 if (game && launcher.updateGame(game.id, game.title, info.version, info.loader, game.coverId, info.loaderVersion))
                     mods.installPackFiles(game.id)
-                else { mods.cancelPack(); window.notify(launcher.lastError || "Esse jogo não está mais na biblioteca.") }
+                else { mods.cancelPack(); window.notify(launcher.lastError || qsTr("Esse jogo não está mais na biblioteca.")) }
                 return
             }
             window.packChangeGameId = ""
             let cover = info.coverPath ? launcher.importCover(info.coverPath) : ""
             if (!cover) cover = "dusk"
             if (!info.coverPath && info.kind === "custom") cover = "meadow"
-            const id = launcher.addGame(info.title.slice(0, 72) || "Modpack", info.version, info.loader, cover, info.loaderVersion)
+            const id = launcher.addGame(info.title.slice(0, 72) || qsTr("Modpack"), info.version, info.loader, cover, info.loaderVersion)
             if (id) mods.installPackFiles(id)
             else { mods.cancelPack(); window.notify(launcher.lastError) }
         }
@@ -1030,7 +1030,7 @@ ApplicationWindow {
             if (ok && pack.kind === "custom") launcher.setCustomPack(gameId, pack.url, pack.versionNumber)
             else if (ok && pack.projectId) launcher.setPackSource(gameId, pack.projectId, pack.versionId, pack.versionNumber)
             if (!ok && gameId && !changed) launcher.removeGame(gameId)
-            window.notify(ok && !changed ? "Modpack instalado. Ele já está em Jogos." : message)
+            window.notify(ok && !changed ? qsTr("Modpack instalado. Ele já está em Jogos.") : message)
             if (ok && !changed && pack.projectId) mods.fetchPackIcon(gameId, pack.projectId)
             if (ok && !changed) {
                 // Size the memory to the pack that was just installed.
@@ -1046,7 +1046,7 @@ ApplicationWindow {
     GlassDialog {
         id: profileEditor
         objectName: "profileEditor"
-        title: "Criar perfil offline"
+        title: qsTr("Criar perfil offline")
         width: 420
         blurSource: appRoot
         reduced: window.reduced
@@ -1054,11 +1054,11 @@ ApplicationWindow {
         contentItem: ColumnLayout {
             spacing: 0
             ProfileAvatar { Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 72; Layout.preferredHeight: 72; Layout.topMargin: 4 }
-            Text { text: "Nome do jogador"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 24; Layout.bottomMargin: 8 }
-            InputField { id: profileName; objectName: "profileName"; Layout.fillWidth: true; placeholderText: "Seu nome no jogo"; maximumLength: 16; onAccepted: profileCreate.clicked() }
+            Text { text: qsTr("Nome do jogador"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 24; Layout.bottomMargin: 8 }
+            InputField { id: profileName; objectName: "profileName"; Layout.fillWidth: true; placeholderText: qsTr("Seu nome no jogo"); maximumLength: 16; onAccepted: profileCreate.clicked() }
             Text {
                 Layout.fillWidth: true; Layout.topMargin: 8
-                text: launcher.lastError !== "" ? launcher.lastError : "3 a 16 letras, números ou sublinhado."
+                text: launcher.lastError !== "" ? launcher.lastError : qsTr("3 a 16 letras, números ou sublinhado.")
                 color: launcher.lastError !== "" ? Theme.danger : Theme.faint
                 font.family: Theme.font; font.pixelSize: 12
                 wrapMode: Text.WordWrap
@@ -1067,11 +1067,11 @@ ApplicationWindow {
                 Layout.fillWidth: true; Layout.topMargin: 28
                 spacing: 8
                 Item { Layout.fillWidth: true }
-                ActionButton { text: "Cancelar"; quiet: true; reduced: window.reduced; onClicked: profileEditor.close() }
+                ActionButton { text: qsTr("Cancelar"); quiet: true; reduced: window.reduced; onClicked: profileEditor.close() }
                 ActionButton {
                     id: profileCreate
-                    text: "Criar perfil"; primary: true; reduced: window.reduced
-                    onClicked: if (launcher.addOfflineProfile(profileName.text)) { profileEditor.close(); window.notify("Perfil criado.") }
+                    text: qsTr("Criar perfil"); primary: true; reduced: window.reduced
+                    onClicked: if (launcher.addOfflineProfile(profileName.text)) { profileEditor.close(); window.notify(qsTr("Perfil criado.")) }
                 }
             }
         }
@@ -1117,7 +1117,7 @@ ApplicationWindow {
             ? (chosenLoaderVersion !== "" && (!loaderListReady || runner.loaderVersions.indexOf(chosenLoaderVersion) !== -1)
                ? chosenLoaderVersion : runner.recommendedLoader) : ""
         readonly property color tint: Theme.coverTint(chosenCover)
-        title: editingId ? "Editar jogo" : "Criar jogo"
+        title: editingId ? qsTr("Editar jogo") : qsTr("Criar jogo")
         width: Math.min(760, window.width - 80)
         blurSource: appRoot
         reduced: window.reduced
@@ -1202,7 +1202,7 @@ ApplicationWindow {
                             iconName: "image"; iconSize: 15
                             reduced: window.reduced
                             Accessible.name: "Escolher imagem"
-                            ToolTip.visible: hovered; ToolTip.text: "Escolher imagem do computador"; ToolTip.delay: 400
+                            ToolTip.visible: hovered; ToolTip.text: qsTr("Escolher imagem do computador"); ToolTip.delay: 400
                             onClicked: coverFile.open()
                         }
                     }
@@ -1212,16 +1212,16 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignTop
                     spacing: 0
-                    Text { text: "Nome"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.bottomMargin: 8 }
-                    InputField { id: gameName; objectName: "gameName"; Layout.fillWidth: true; placeholderText: "Como vai chamar seu jogo?"; maximumLength: 72 }
+                    Text { text: qsTr("Nome"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.bottomMargin: 8 }
+                    InputField { id: gameName; objectName: "gameName"; Layout.fillWidth: true; placeholderText: qsTr("Como vai chamar seu jogo?"); maximumLength: 72 }
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.topMargin: 20; Layout.bottomMargin: 8
                         spacing: 4
-                        Text { text: "Versão do Minecraft"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
+                        Text { text: qsTr("Versão do Minecraft"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
                         Repeater {
-                            model: [{ type: "release", label: "Lançamentos" }, { type: "snapshot", label: "Snapshots" },
-                                    { type: "old_beta", label: "Beta" }, { type: "old_alpha", label: "Alpha" }]
+                            model: [{ type: "release", label: qsTr("Lançamentos") }, { type: "snapshot", label: qsTr("Snapshots") },
+                                    { type: "old_beta", label: qsTr("Beta") }, { type: "old_alpha", label: qsTr("Alpha") }]
                             delegate: AbstractButton {
                                 id: typeChip
                                 required property var modelData
@@ -1252,17 +1252,17 @@ ApplicationWindow {
                         model: Theme.versions
                         onActivated: gameEditor.versionChanged()
                     }
-                    Text { text: "Tipo de instalação"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 20; Layout.bottomMargin: 8 }
+                    Text { text: qsTr("Tipo de instalação"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 20; Layout.bottomMargin: 8 }
                     GridLayout {
                         Layout.fillWidth: true
                         columns: 2
                         rowSpacing: 8; columnSpacing: 8
                         Repeater {
                             model: [
-                                { name: "Vanilla", hint: "Jogo original, sem mods" },
-                                { name: "Fabric", hint: "Leve, mods atualizados" },
-                                { name: "Forge", hint: "Catálogo clássico" },
-                                { name: "NeoForge", hint: "Sucessor do Forge" }
+                                { name: "Vanilla", hint: qsTr("Jogo original, sem mods") },
+                                { name: "Fabric", hint: qsTr("Leve, mods atualizados") },
+                                { name: "Forge", hint: qsTr("Catálogo clássico") },
+                                { name: "NeoForge", hint: qsTr("Sucessor do Forge") }
                             ]
                             delegate: AbstractButton {
                                 id: loaderOption
@@ -1297,7 +1297,7 @@ ApplicationWindow {
                                         Text { text: loaderOption.modelData.name; color: Theme.text; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.DemiBold }
                                         Text {
                                             width: parent.width
-                                            text: loaderOption.available ? loaderOption.modelData.hint : "Não existe para " + versionChoice.currentText
+                                            text: loaderOption.available ? loaderOption.modelData.hint : qsTr("Não existe para ") + versionChoice.currentText
                                             color: Theme.muted; font.family: Theme.font; font.pixelSize: 12; elide: Text.ElideRight
                                         }
                                     }
@@ -1316,7 +1316,7 @@ ApplicationWindow {
                     }
                     Text {
                         visible: gameEditor.chosenLoader !== "Vanilla" && gameEditor.loaderListReady
-                        text: "Versão do " + gameEditor.chosenLoader
+                        text: qsTr("Versão do ") + gameEditor.chosenLoader
                         color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13
                         Layout.topMargin: 20; Layout.bottomMargin: 8
                     }
@@ -1325,7 +1325,7 @@ ApplicationWindow {
                         visible: gameEditor.chosenLoader !== "Vanilla" && gameEditor.loaderListReady
                         Layout.fillWidth: true
                         model: runner.loaderVersions.map(function(version) {
-                            return version === runner.recommendedLoader ? version + "  ·  recomendada" : version
+                            return version === runner.recommendedLoader ? version + qsTr("  ·  recomendada") : version
                         })
                         Binding on currentIndex {
                             when: !loaderVersionChoice.popup.visible
@@ -1349,15 +1349,15 @@ ApplicationWindow {
                 spacing: 8
                 ActionButton {
                     visible: gameEditor.editingId !== ""
-                    text: "Remover"; quiet: true; danger: true; iconName: "trash"
+                    text: qsTr("Remover"); quiet: true; danger: true; iconName: "trash"
                     reduced: window.reduced
                     onClicked: window.confirmRemoval(gameEditor.editingId, gameName.text, false)
                 }
                 Item { Layout.fillWidth: true }
-                ActionButton { text: "Cancelar"; quiet: true; reduced: window.reduced; onClicked: gameEditor.close() }
+                ActionButton { text: qsTr("Cancelar"); quiet: true; reduced: window.reduced; onClicked: gameEditor.close() }
                 ActionButton {
                     objectName: "saveGameButton"
-                    text: gameEditor.editingId ? "Salvar" : "Criar jogo"
+                    text: gameEditor.editingId ? qsTr("Salvar") : qsTr("Criar jogo")
                     primary: true
                     iconName: gameEditor.editingId ? "check" : "plus"
                     reduced: window.reduced
@@ -1381,8 +1381,8 @@ ApplicationWindow {
     }
     FileDialog {
         id: coverFile
-        title: "Escolher capa"
-        nameFilters: ["Imagens (*.png *.jpg *.jpeg *.webp)"]
+        title: qsTr("Escolher capa")
+        nameFilters: [qsTr("Imagens (*.png *.jpg *.jpeg *.webp)")]
         fileMode: FileDialog.OpenFile
         onAccepted: {
             const imported = launcher.importCover(selectedFile)
@@ -1395,7 +1395,7 @@ ApplicationWindow {
         property string targetId: ""
         property string targetTitle: ""
         property bool isProfile: false
-        title: isProfile ? "Remover perfil?" : "Remover jogo?"
+        title: isProfile ? qsTr("Remover perfil?") : qsTr("Remover jogo?")
         width: 420
         showClose: false
         blurSource: appRoot
@@ -1405,8 +1405,8 @@ ApplicationWindow {
             Text {
                 Layout.fillWidth: true
                 text: removal.isProfile
-                    ? "“" + removal.targetTitle + "” deixará de aparecer em Perfis."
-                    : "“" + removal.targetTitle + "” sairá da sua biblioteca. Esta ação não pode ser desfeita."
+                    ? "“" + removal.targetTitle + qsTr("” deixará de aparecer em Perfis.")
+                    : "“" + removal.targetTitle + qsTr("” sairá da sua biblioteca. Esta ação não pode ser desfeita.")
                 color: Theme.secondary
                 font.family: Theme.font; font.pixelSize: 14
                 wrapMode: Text.WordWrap
@@ -1416,9 +1416,9 @@ ApplicationWindow {
                 Layout.fillWidth: true; Layout.topMargin: 28
                 spacing: 8
                 Item { Layout.fillWidth: true }
-                ActionButton { text: "Cancelar"; quiet: true; reduced: window.reduced; onClicked: removal.close() }
+                ActionButton { text: qsTr("Cancelar"); quiet: true; reduced: window.reduced; onClicked: removal.close() }
                 ActionButton {
-                    text: "Remover"; danger: true; iconName: "trash"
+                    text: qsTr("Remover"); danger: true; iconName: "trash"
                     reduced: window.reduced
                     onClicked: {
                         const profile = removal.isProfile ? launcher.profiles.find(function(p) { return p.id === removal.targetId }) : null

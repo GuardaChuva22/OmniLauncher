@@ -1,5 +1,6 @@
 #include "AppModel.h"
 
+#include <QCoreApplication>
 #include <QColor>
 #include <QDateTime>
 
@@ -55,11 +56,11 @@ QString validateGame(const QVariantMap &game, const QString &coversDirectory)
 {
     const auto title = game.value("title").toString();
     if (title.trimmed().isEmpty() || title.size() > 72)
-        return QStringLiteral("Escolha um nome para o jogo, com até 72 caracteres.");
+        return QCoreApplication::translate("OmniLauncher", "Escolha um nome para o jogo, com até 72 caracteres.");
 
     static const QRegularExpression versionPattern(QStringLiteral("^[A-Za-z0-9._+\\-]{1,32}$"));
     if (!versionPattern.match(game.value("version").toString()).hasMatch())
-        return QStringLiteral("Escolha uma versão válida do Minecraft.");
+        return QCoreApplication::translate("OmniLauncher", "Escolha uma versão válida do Minecraft.");
 
     static const QSet<QString> loaders = {"Vanilla", "Fabric", "Forge", "NeoForge"};
     if (!loaders.contains(game.value("loader").toString()))
@@ -67,12 +68,12 @@ QString validateGame(const QVariantMap &game, const QString &coversDirectory)
 
     static const QRegularExpression loaderVersionPattern(QStringLiteral("^[A-Za-z0-9._+\\-]{0,48}$"));
     if (!loaderVersionPattern.match(game.value("loaderVersion").toString()).hasMatch())
-        return QStringLiteral("Versão do loader inválida.");
+        return QCoreApplication::translate("OmniLauncher", "Versão do loader inválida.");
 
     static const QSet<QString> covers = {"meadow", "copper", "dusk", "frost"};
     const auto coverId = game.value("coverId").toString();
     if (!covers.contains(coverId) && !validImportedCover(coverId, coversDirectory))
-        return QStringLiteral("Escolha uma capa disponível ou importe uma imagem do computador.");
+        return QCoreApplication::translate("OmniLauncher", "Escolha uma capa disponível ou importe uma imagem do computador.");
 
     return {};
 }
@@ -293,8 +294,8 @@ void AppModel::load()
     if (!file.exists()) {
         m_games = {
             makeGame(QStringLiteral("Vanilla"), "1.21.1", "Vanilla", "meadow"),
-            makeGame(QStringLiteral("Create com amigos"), "1.20.1", "Fabric", "copper"),
-            makeGame(QStringLiteral("Além do horizonte"), "1.21.1", "NeoForge", "dusk"),
+            makeGame(tr("Create com amigos"), "1.20.1", "Fabric", "copper"),
+            makeGame(tr("Além do horizonte"), "1.21.1", "NeoForge", "dusk"),
             makeGame(QStringLiteral("Better Adventures"), "1.20.1", "Forge", "frost")
         };
         persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion);
@@ -302,14 +303,14 @@ void AppModel::load()
     }
     if (!file.open(QIODevice::ReadOnly)) {
         m_storageWritable = false;
-        setError(QStringLiteral("Não foi possível ler sua biblioteca. O arquivo foi preservado: %1")
+        setError(tr("Não foi possível ler sua biblioteca. O arquivo foi preservado: %1")
                      .arg(file.errorString()));
         return;
     }
     // A library should remain small. Refuse an unexpected large file before parsing it.
     if (file.size() > 4 * 1024 * 1024) {
         m_storageWritable = false;
-        setError(QStringLiteral("O arquivo da biblioteca é maior que o esperado e foi preservado."));
+        setError(tr("O arquivo da biblioteca é maior que o esperado e foi preservado."));
         return;
     }
     QJsonParseError parseError;
@@ -370,7 +371,7 @@ bool AppModel::persist(const QVariantList &games, const QVariantList &profiles,
     }
     const auto parentDirectory = QFileInfo(m_filePath).absolutePath();
     if (!QDir().mkpath(parentDirectory)) {
-        setError(QStringLiteral("Não foi possível criar a pasta dos dados do OmniLauncher."));
+        setError(tr("Não foi possível criar a pasta dos dados do OmniLauncher."));
         return false;
     }
     const QJsonObject root{
@@ -383,7 +384,7 @@ bool AppModel::persist(const QVariantList &games, const QVariantList &profiles,
     const auto data = QJsonDocument(root).toJson(QJsonDocument::Indented);
     QSaveFile file(m_filePath);
     if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit()) {
-        setError(QStringLiteral("Não foi possível salvar suas alterações: %1").arg(file.errorString()));
+        setError(tr("Não foi possível salvar suas alterações: %1").arg(file.errorString()));
         return false;
     }
     clearError();
@@ -415,7 +416,7 @@ bool AppModel::updateGame(const QString &id, const QString &title, const QString
     clearError();
     const auto index = indexOfId(m_games, id);
     if (index < 0) {
-        setError(QStringLiteral("Esse jogo não está mais na biblioteca."));
+        setError(tr("Esse jogo não está mais na biblioteca."));
         return false;
     }
     auto game = makeGame(title, version, loader, coverId, loaderVersion);
@@ -439,7 +440,7 @@ bool AppModel::removeGame(const QString &id)
     clearError();
     const auto index = indexOfId(m_games, id);
     if (index < 0) {
-        setError(QStringLiteral("Esse jogo não está mais na biblioteca."));
+        setError(tr("Esse jogo não está mais na biblioteca."));
         return false;
     }
     auto games = m_games;
@@ -461,13 +462,13 @@ QString AppModel::importCover(const QUrl &source)
 {
     clearError();
     if (!source.isLocalFile()) {
-        setError(QStringLiteral("Escolha uma imagem salva no computador."));
+        setError(tr("Escolha uma imagem salva no computador."));
         return {};
     }
     QFile file(source.toLocalFile());
     constexpr qint64 maxBytes = 20 * 1024 * 1024;
     if (!file.open(QIODevice::ReadOnly) || file.size() < 1 || file.size() > maxBytes) {
-        setError(QStringLiteral("Escolha uma imagem PNG, JPG ou WebP de até 20 MB."));
+        setError(tr("Escolha uma imagem PNG, JPG ou WebP de até 20 MB."));
         return {};
     }
     QImageReader reader(&file);
@@ -476,28 +477,28 @@ QString AppModel::importCover(const QUrl &source)
     if ((format != "png" && format != "jpeg" && format != "webp")
         || !size.isValid() || size.width() > 8192 || size.height() > 8192
         || qint64(size.width()) * size.height() > 24 * 1024 * 1024) {
-        setError(QStringLiteral("Use uma imagem PNG, JPG ou WebP de até 8192 px e 24 megapixels."));
+        setError(tr("Use uma imagem PNG, JPG ou WebP de até 8192 px e 24 megapixels."));
         return {};
     }
     // Decode once before copying: a plausible image header alone is not sufficient.
     if (reader.read().isNull()) {
-        setError(QStringLiteral("Essa imagem não pôde ser aberta. Escolha outro arquivo."));
+        setError(tr("Essa imagem não pôde ser aberta. Escolha outro arquivo."));
         return {};
     }
     if (!file.seek(0) || !QDir().mkpath(m_coversDirectory)) {
-        setError(QStringLiteral("Não foi possível preparar a cópia da capa."));
+        setError(tr("Não foi possível preparar a cópia da capa."));
         return {};
     }
     const auto bytes = file.read(maxBytes + 1);
     if (bytes.isEmpty() || bytes.size() > maxBytes || file.error() != QFileDevice::NoError) {
-        setError(QStringLiteral("Não foi possível ler a imagem selecionada."));
+        setError(tr("Não foi possível ler a imagem selecionada."));
         return {};
     }
     const auto extension = format == "jpeg" ? QStringLiteral("jpg") : QString::fromLatin1(format);
     const auto destination = QDir(m_coversDirectory).filePath(newId() + "." + extension);
     QSaveFile output(destination);
     if (!output.open(QIODevice::WriteOnly) || output.write(bytes) != bytes.size() || !output.commit()) {
-        setError(QStringLiteral("Não foi possível salvar uma cópia da capa: %1").arg(output.errorString()));
+        setError(tr("Não foi possível salvar uma cópia da capa: %1").arg(output.errorString()));
         return {};
     }
     return QUrl::fromLocalFile(destination).toString();
@@ -518,17 +519,17 @@ bool AppModel::addOfflineProfile(const QString &username)
 {
     clearError();
     if (!offlineAllowed()) {
-        setError(QStringLiteral("Conecte antes uma conta Microsoft que tenha o Minecraft: Java Edition."));
+        setError(tr("Conecte antes uma conta Microsoft que tenha o Minecraft: Java Edition."));
         return false;
     }
     const auto name = username.trimmed();
     if (!validOfflineName(name)) {
-        setError(QStringLiteral("Use de 3 a 16 caracteres: letras, números ou sublinhado (_)."));
+        setError(tr("Use de 3 a 16 caracteres: letras, números ou sublinhado (_)."));
         return false;
     }
     for (const auto &value : m_profiles) {
         if (value.toMap().value("name").toString().compare(name, Qt::CaseInsensitive) == 0) {
-            setError(QStringLiteral("Já existe um perfil com esse nome."));
+            setError(tr("Já existe um perfil com esse nome."));
             return false;
         }
     }
@@ -548,7 +549,7 @@ bool AppModel::selectProfile(const QString &id)
 {
     clearError();
     if (indexOfId(m_profiles, id) < 0) {
-        setError(QStringLiteral("Esse perfil não está mais disponível."));
+        setError(tr("Esse perfil não está mais disponível."));
         return false;
     }
     if (m_activeProfileId == id)
@@ -565,7 +566,7 @@ bool AppModel::removeProfile(const QString &id)
     clearError();
     const auto index = indexOfId(m_profiles, id);
     if (index < 0) {
-        setError(QStringLiteral("Esse perfil não está mais disponível."));
+        setError(tr("Esse perfil não está mais disponível."));
         return false;
     }
     auto profiles = m_profiles;
@@ -616,7 +617,7 @@ bool AppModel::setGameSetting(const QString &id, const QString &key, const QVari
 {
     clearError();
     if (indexOfId(m_games, id) < 0) {
-        setError(QStringLiteral("Esse jogo não está mais na biblioteca."));
+        setError(tr("Esse jogo não está mais na biblioteca."));
         return false;
     }
     if (key != "memoryMb" && key != "resolution" && key != "jvmArgs") {
@@ -625,7 +626,7 @@ bool AppModel::setGameSetting(const QString &id, const QString &key, const QVari
     }
     const auto cleaned = cleanGameSetting(key, value);
     if (!cleaned.isValid()) {
-        setError(QStringLiteral("Valor inválido para esse ajuste."));
+        setError(tr("Valor inválido para esse ajuste."));
         return false;
     }
     auto settings = m_gameSettings.value(id).toMap();
@@ -647,7 +648,7 @@ bool AppModel::setPreference(const QString &key, const QVariant &value)
     clearError();
     const auto cleaned = cleanPreference(key, value);
     if (!cleaned.isValid()) {
-        setError(QStringLiteral("Valor inválido para essa preferência."));
+        setError(tr("Valor inválido para essa preferência."));
         return false;
     }
     if (preferences().value(key) == cleaned)
@@ -683,7 +684,7 @@ bool AppModel::addMicrosoftProfile(const QString &uuid, const QString &name)
     clearError();
     static const QRegularExpression uuidPattern(QStringLiteral("^[0-9a-f]{32}$"));
     if (!uuidPattern.match(uuid).hasMatch() || !validOfflineName(name)) {
-        setError(QStringLiteral("A Microsoft retornou um perfil inválido."));
+        setError(tr("A Microsoft retornou um perfil inválido."));
         return false;
     }
     auto profiles = m_profiles;

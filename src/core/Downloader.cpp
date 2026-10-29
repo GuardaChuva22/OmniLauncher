@@ -136,25 +136,25 @@ void Downloader::onReplyFinished(QNetworkReply *reply)
         if (job.size >= 0 && data.size() != job.size)
             problem = QStringLiteral("tamanho inesperado");
         else if (!job.sha1.isEmpty() && sha1Of(data).compare(job.sha1, Qt::CaseInsensitive) != 0)
-            problem = QStringLiteral("arquivo corrompido (SHA-1 não confere)");
+            problem = tr("arquivo corrompido (SHA-1 não confere)");
         else if (!job.sha256.isEmpty()
                  && QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex())
                             .compare(job.sha256, Qt::CaseInsensitive) != 0)
-            problem = QStringLiteral("arquivo corrompido (SHA-256 não confere)");
+            problem = tr("arquivo corrompido (SHA-256 não confere)");
     }
     if (!problem.isEmpty()) {
         if (active.attempt + 1 < kAttempts) {
             launch(job, active.attempt + 1);
             return;
         }
-        finish(false, QStringLiteral("Falha ao baixar %1: %2").arg(QFileInfo(job.path).fileName(), problem));
+        finish(false, tr("Falha ao baixar %1: %2").arg(QFileInfo(job.path).fileName(), problem));
         return;
     }
 
     QSaveFile file(job.path);
     if (!QDir().mkpath(QFileInfo(job.path).absolutePath()) || !file.open(QIODevice::WriteOnly)
         || file.write(data) != data.size() || !file.commit()) {
-        finish(false, QStringLiteral("Não foi possível gravar %1: %2").arg(job.path, file.errorString()));
+        finish(false, tr("Não foi possível gravar %1: %2").arg(job.path, file.errorString()));
         return;
     }
     m_doneBytes += data.size();

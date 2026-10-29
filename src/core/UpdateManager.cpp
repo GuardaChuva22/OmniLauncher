@@ -71,7 +71,7 @@ void UpdateManager::check()
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            setState(QStringLiteral("error"), QStringLiteral("Não foi possível verificar atualizações."));
+            setState(QStringLiteral("error"), tr("Não foi possível verificar atualizações."));
             return;
         }
         QString label;
@@ -112,7 +112,7 @@ void UpdateManager::install()
     const auto installDir = QCoreApplication::applicationDirPath();
     QTemporaryFile probe(QDir(installDir).filePath("write-test-XXXXXX"));
     if (!probe.open()) {
-        setState(QStringLiteral("error"), QStringLiteral("A pasta do OmniLauncher não permite escrita. Baixe a nova versão manualmente."));
+        setState(QStringLiteral("error"), tr("A pasta do OmniLauncher não permite escrita. Baixe a nova versão manualmente."));
         return;
     }
     probe.close();
@@ -134,7 +134,7 @@ void UpdateManager::install()
         QSaveFile file(zip);
         if (reply->error() != QNetworkReply::NoError || data.size() < 1024 * 1024
             || !file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit()) {
-            setState(QStringLiteral("error"), QStringLiteral("Falha ao baixar a atualização."));
+            setState(QStringLiteral("error"), tr("Falha ao baixar a atualização."));
             return;
         }
         setState(QStringLiteral("installing"));
@@ -142,14 +142,14 @@ void UpdateManager::install()
         tar.start(QStandardPaths::findExecutable(QStringLiteral("tar")), {"-xf", zip, "-C", root});
         const auto staged = QDir(root).filePath("OmniLauncher");
         if (!tar.waitForFinished(120000) || tar.exitCode() != 0 || !QFileInfo::exists(QDir(staged).filePath("OmniLauncher.exe"))) {
-            setState(QStringLiteral("error"), QStringLiteral("O pacote da atualização veio incompleto."));
+            setState(QStringLiteral("error"), tr("O pacote da atualização veio incompleto."));
             return;
         }
         // Swap files after we exit, then start the new version.
         const auto script = QDir(root).filePath("apply-update.ps1");
         QFile out(script);
         if (!out.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            setState(QStringLiteral("error"), QStringLiteral("Não foi possível preparar a atualização."));
+            setState(QStringLiteral("error"), tr("Não foi possível preparar a atualização."));
             return;
         }
         const auto native = [](const QString &path) { return quoted(QDir::toNativeSeparators(path)); };
@@ -166,7 +166,7 @@ void UpdateManager::install()
         out.close();
         if (!QProcess::startDetached(QStringLiteral("powershell.exe"),
                                      {"-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", script})) {
-            setState(QStringLiteral("error"), QStringLiteral("Não foi possível iniciar o instalador da atualização."));
+            setState(QStringLiteral("error"), tr("Não foi possível iniciar o instalador da atualização."));
             return;
         }
         emit quitRequested();

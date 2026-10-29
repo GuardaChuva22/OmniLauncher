@@ -29,8 +29,8 @@ Item {
     readonly property real gutter: width < 900 ? 32 : 48
 
     function formatCount(value) {
-        if (value >= 1e6) return (value / 1e6).toFixed(1).replace(".", ",") + " mi"
-        if (value >= 1e3) return Math.round(value / 1e3) + " mil"
+        if (value >= 1e6) return Number(value / 1e6).toLocaleString(Qt.locale(), "f", 1) + qsTr(" mi")
+        if (value >= 1e3) return Math.round(value / 1e3) + qsTr(" mil")
         return String(value)
     }
     onVisibleChanged: if (visible && source === 0 && mods.packResults.length === 0 && !mods.packSearching) mods.searchPacks("", 0)
@@ -43,7 +43,7 @@ Item {
         width: root.width - root.gutter * 2
         spacing: 10
         Text {
-            text: "Modpacks"
+            text: qsTr("Modpacks")
             color: Theme.text
             font.family: Theme.fontDisplay; font.pixelSize: 30; font.weight: Font.DemiBold
             font.letterSpacing: -0.6
@@ -54,7 +54,7 @@ Item {
             visible: root.source === 0
             Layout.preferredWidth: Math.min(320, header.width * 0.38)
             iconName: "search"; clearable: true
-            placeholderText: "Buscar no Modrinth"
+            placeholderText: qsTr("Buscar no Modrinth")
             onTextChanged: searchDelay.restart()
         }
     }
@@ -63,7 +63,7 @@ Item {
         id: sources
         x: root.gutter; y: header.y + header.height + 14
         width: root.width - root.gutter * 2
-        model: ["Modrinth", "Customizado"]
+        model: ["Modrinth", qsTr("Customizado")]
         currentIndex: root.source
         onCurrentIndexChanged: {
             root.source = currentIndex
@@ -136,7 +136,7 @@ Item {
                             Layout.fillWidth: true
                         }
                         Text {
-                            text: "por " + pack.modelData.author
+                            text: qsTr("por ") + pack.modelData.author
                             color: Theme.faint
                             font.family: Theme.font; font.pixelSize: 12
                             elide: Text.ElideRight
@@ -153,8 +153,8 @@ Item {
                         elide: Text.ElideRight
                     }
                     Text {
-                        text: root.formatCount(pack.modelData.downloads) + " downloads"
-                            + (pack.modelData.latestVersion ? "  ·  até Minecraft " + pack.modelData.latestVersion : "")
+                        text: root.formatCount(pack.modelData.downloads) + qsTr(" downloads")
+                            + (pack.modelData.latestVersion ? qsTr("  ·  até Minecraft ") + pack.modelData.latestVersion : "")
                         color: Theme.faint
                         font.family: Theme.font; font.pixelSize: 12
                     }
@@ -165,22 +165,22 @@ Item {
                     enabled: mods.packState === ""
                     reduced: root.reduced
                     Accessible.name: "Versões"
-                    ToolTip.visible: hovered; ToolTip.text: pack.installedId ? "Mudar a versão instalada" : "Escolher versão"; ToolTip.delay: 400
+                    ToolTip.visible: hovered; ToolTip.text: pack.installedId ? qsTr("Mudar a versão instalada") : qsTr("Escolher versão"); ToolTip.delay: 400
                     onClicked: root.versionsRequested(pack.modelData, pack.installedId)
                 }
                 ActionButton {
                     Layout.preferredWidth: 150
                     visible: pack.installedId !== "" && !pack.installing
-                    text: "Instalado"; iconName: "check"
+                    text: qsTr("Instalado"); iconName: "check"
                     quiet: true; enabled: false
                     reduced: root.reduced
                 }
                 ActionButton {
                     Layout.preferredWidth: 150
                     visible: pack.installedId === "" || pack.installing
-                    text: !pack.installing ? "Instalar"
+                    text: !pack.installing ? qsTr("Instalar")
                         : mods.packState === "downloading" && mods.packProgress >= 0 ? "Instalando " + Math.round(mods.packProgress * 100) + "%"
-                        : "Preparando…"
+                        : qsTr("Preparando…")
                     iconName: pack.installing ? "" : "download"
                     primary: !pack.installing
                     enabled: !pack.installing && mods.packState === ""
@@ -193,7 +193,7 @@ Item {
         Text {
             anchors.centerIn: parent
             visible: list.count === 0
-            text: mods.packSearching ? "Buscando…" : mods.packSearchError !== "" ? mods.packSearchError : "Nenhum modpack encontrado"
+            text: mods.packSearching ? qsTr("Buscando…") : mods.packSearchError !== "" ? mods.packSearchError : qsTr("Nenhum modpack encontrado")
             color: Theme.muted
             font.family: Theme.font; font.pixelSize: 14
         }
@@ -221,16 +221,16 @@ Item {
             mods.prepareCustom(value)
             return true
         }
-        if (code === "") { root.notify("Cole o código de 6 letras do modpack (ou o link dele)."); return false }
-        if (!cloud.configured) { root.notify("A nuvem do OmniLauncher ainda não está no ar nesta versão."); return false }
+        if (code === "") { root.notify(qsTr("Cole o código de 6 letras do modpack (ou o link dele).")); return false }
+        if (!cloud.configured) { root.notify(qsTr("A nuvem do OmniLauncher ainda não está no ar nesta versão.")); return false }
         // An editor link for a pack this PC already follows only adds the key.
         const following = launcher.games.find(function(g) { return (launcher.gameSettings[g.id] || {}).cloudCode === code })
         if (following && key) {
             launcher.setCloudPack(following.id, code, key)
-            root.notify("Agora você também pode publicar versões de " + following.title + ".")
+            root.notify(qsTr("Agora você também pode publicar versões de ") + following.title + ".")
             return true
         }
-        if (following) { root.notify("Você já segue esse modpack: " + following.title + "."); return false }
+        if (following) { root.notify(qsTr("Você já segue esse modpack: ") + following.title + "."); return false }
         root.pendingEditor = key ? { code: code, key: key } : {}
         mods.prepareCustom(cloud.packUrl(code))
         return true
@@ -315,16 +315,16 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
-                        Text { text: "Crie seu modpack e chame os amigos"; color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: 18; font.weight: Font.DemiBold }
+                        Text { text: qsTr("Crie seu modpack e chame os amigos"); color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: 18; font.weight: Font.DemiBold }
                         Text {
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: "Escolha um jogo seu: os mods e as configs viram um modpack com um código. Quem entrar com o código recebe cada versão nova que você publicar."
+                            text: qsTr("Escolha um jogo seu: os mods e as configs viram um modpack com um código. Quem entrar com o código recebe cada versão nova que você publicar.")
                             color: Theme.muted; font.family: Theme.font; font.pixelSize: 13
                         }
                     }
                     ActionButton {
-                        text: "Criar modpack"; iconName: "plus"; primary: true; reduced: root.reduced
+                        text: qsTr("Criar modpack"); iconName: "plus"; primary: true; reduced: root.reduced
                         enabled: cloud.configured && cloud.state === ""
                         onClicked: publisher.prepare(null)
                     }
@@ -332,7 +332,7 @@ Item {
             }
 
             // Join
-            SectionLabel { text: "Entrar em um modpack" }
+            SectionLabel { text: qsTr("Entrar em um modpack") }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
@@ -340,12 +340,12 @@ Item {
                     id: joinField
                     Layout.fillWidth: true
                     iconName: "external"; clearable: true
-                    placeholderText: "Código do modpack (ex.: K7X2QM), link de editor ou link de manifesto"
+                    placeholderText: qsTr("Código do modpack (ex.: K7X2QM), link de editor ou link de manifesto")
                     onAccepted: joinButton.clicked()
                 }
                 ActionButton {
                     id: joinButton
-                    text: "Entrar"; iconName: "download"; primary: true
+                    text: qsTr("Entrar"); iconName: "download"; primary: true
                     enabled: joinField.text.trim() !== "" && mods.packState === ""
                     reduced: root.reduced
                     onClicked: if (root.join(joinField.text)) joinField.text = ""
@@ -356,7 +356,7 @@ Item {
                 Layout.topMargin: 8
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: "A nuvem de modpacks do OmniLauncher ainda está sendo preparada. Por enquanto funcionam só links de manifesto."
+                text: qsTr("A nuvem de modpacks do OmniLauncher ainda está sendo preparada. Por enquanto funcionam só links de manifesto.")
                 color: Theme.faint; font.family: Theme.font; font.pixelSize: 12
             }
             Text {
@@ -365,13 +365,13 @@ Item {
                 Layout.topMargin: 10
                 text: mods.packState === "downloading"
                     ? "Instalando " + (mods.packProgress >= 0 ? Math.round(mods.packProgress * 100) + "%" : "…")
-                    : mods.packState === "backing-up" ? "Fazendo backup dos mundos…" : "Lendo o modpack…"
+                    : mods.packState === "backing-up" ? qsTr("Fazendo backup dos mundos…") : qsTr("Lendo o modpack…")
                 color: Theme.accentText
                 font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
             }
 
             // Mine
-            SectionLabel { visible: root.myPacks.length > 0; text: "Meus modpacks" }
+            SectionLabel { visible: root.myPacks.length > 0; text: qsTr("Meus modpacks") }
             Repeater {
                 model: root.myPacks
                 delegate: Item {
@@ -390,12 +390,12 @@ Item {
                             spacing: 4
                             Text { Layout.fillWidth: true; text: mineRow.modelData.title; color: Theme.text; font.family: Theme.font; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight }
                             Text {
-                                text: "Versão " + (mineRow.saved.customPackVersion || "?") + "  ·  Minecraft " + mineRow.modelData.version + "  ·  " + mineRow.modelData.loader
+                                text: qsTr("Versão ") + (mineRow.saved.customPackVersion || "?") + qsTr("  ·  Minecraft ") + mineRow.modelData.version + "  ·  " + mineRow.modelData.loader
                                 color: Theme.muted; font.family: Theme.font; font.pixelSize: 12
                             }
                             Row {
                                 spacing: 8
-                                Text { text: mineRow.publishing ? cloud.detail : "Código"; color: mineRow.publishing ? Theme.accentText : Theme.faint; font.family: Theme.font; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: mineRow.publishing ? cloud.detail : qsTr("Código"); color: mineRow.publishing ? Theme.accentText : Theme.faint; font.family: Theme.font; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
                                 Rectangle {
                                     visible: !mineRow.publishing
                                     implicitWidth: codeText.implicitWidth + 14; implicitHeight: 22; radius: 6
@@ -405,16 +405,16 @@ Item {
                             }
                         }
                         ActionButton {
-                            text: "Copiar código"; iconName: "copy"; quiet: true; reduced: root.reduced
-                            onClicked: { servers.copyText(mineRow.saved.cloudCode); root.notify("Código " + mineRow.saved.cloudCode + " copiado. Mande pros seus amigos.") }
+                            text: qsTr("Copiar código"); iconName: "copy"; quiet: true; reduced: root.reduced
+                            onClicked: { servers.copyText(mineRow.saved.cloudCode); root.notify(qsTr("Código ") + mineRow.saved.cloudCode + qsTr(" copiado. Mande pros seus amigos.")) }
                         }
                         ActionButton {
-                            text: "Publicar versão"; iconName: "download"; primary: true; reduced: root.reduced
+                            text: qsTr("Publicar versão"); iconName: "download"; primary: true; reduced: root.reduced
                             enabled: cloud.state === ""
                             onClicked: publisher.prepare(mineRow.modelData)
                         }
                         ActionButton {
-                            text: "Abrir"; quiet: true; reduced: root.reduced
+                            text: qsTr("Abrir"); quiet: true; reduced: root.reduced
                             onClicked: root.openGameRequested(mineRow.modelData.id)
                         }
                     }
@@ -423,7 +423,7 @@ Item {
             }
 
             // Followed
-            SectionLabel { visible: root.followedPacks.length > 0; text: "Seguindo" }
+            SectionLabel { visible: root.followedPacks.length > 0; text: qsTr("Seguindo") }
             Repeater {
                 model: root.followedPacks
                 delegate: Item {
@@ -444,19 +444,19 @@ Item {
                             spacing: 4
                             Text { Layout.fillWidth: true; text: customRow.modelData.title; color: Theme.text; font.family: Theme.font; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight }
                             Text {
-                                text: "Versão " + (customRow.saved.customPackVersion || "?") + "  ·  Minecraft " + customRow.modelData.version
-                                    + "  ·  " + customRow.modelData.loader + (customRow.saved.cloudCode ? "  ·  código " + customRow.saved.cloudCode : "")
+                                text: qsTr("Versão ") + (customRow.saved.customPackVersion || "?") + qsTr("  ·  Minecraft ") + customRow.modelData.version
+                                    + "  ·  " + customRow.modelData.loader + (customRow.saved.cloudCode ? qsTr("  ·  código ") + customRow.saved.cloudCode : "")
                                 color: Theme.muted
                                 font.family: Theme.font; font.pixelSize: 12
                             }
                             Text {
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
-                                text: customRow.busy ? "Atualizando…"
-                                    : customRow.hasUpdate ? "Nova versão: " + customRow.latest.version
+                                text: customRow.busy ? qsTr("Atualizando…")
+                                    : customRow.hasUpdate ? qsTr("Nova versão: ") + customRow.latest.version
                                       + (customRow.latest.minecraft !== customRow.modelData.version ? " (Minecraft " + customRow.latest.minecraft + ")" : "")
                                       + (customRow.latest.changelog ? "  ·  " + customRow.latest.changelog : "")
-                                    : customRow.latest ? "Atualizado" : "Verificando…"
+                                    : customRow.latest ? qsTr("Atualizado") : qsTr("Verificando…")
                                 color: customRow.hasUpdate || customRow.busy ? Theme.accentText : Theme.faint
                                 font.family: Theme.font; font.pixelSize: 12
                                 font.weight: customRow.hasUpdate ? Font.DemiBold : Font.Normal
@@ -464,13 +464,13 @@ Item {
                         }
                         ActionButton {
                             visible: customRow.hasUpdate
-                            text: "Atualizar"; iconName: "download"; primary: true
+                            text: qsTr("Atualizar"); iconName: "download"; primary: true
                             enabled: mods.packState === ""
                             reduced: root.reduced
                             onClicked: mods.prepareCustom(customRow.saved.customPackUrl, customRow.modelData.id)
                         }
                         ActionButton {
-                            text: "Abrir"; quiet: true
+                            text: qsTr("Abrir"); quiet: true
                             reduced: root.reduced
                             onClicked: root.openGameRequested(customRow.modelData.id)
                         }
@@ -499,7 +499,7 @@ Item {
         })
         readonly property var game: fixedGame ? fixedGame : (gamePick.currentIndex >= 0 ? candidates[gamePick.currentIndex] : null)
         readonly property var saved: game ? (launcher.gameSettings[game.id] || {}) : ({})
-        title: step === "done" ? "Modpack publicado" : fixedGame ? "Publicar nova versão" : "Criar modpack"
+        title: step === "done" ? qsTr("Modpack publicado") : fixedGame ? qsTr("Publicar nova versão") : qsTr("Criar modpack")
         function prepare(game) {
             fixedGame = game
             step = "form"
@@ -523,7 +523,7 @@ Item {
                 visible: publisher.step === "form"
                 Layout.fillWidth: true
                 spacing: 0
-                Text { visible: !publisher.fixedGame; text: "Jogo"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.bottomMargin: 8 }
+                Text { visible: !publisher.fixedGame; text: qsTr("Jogo"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.bottomMargin: 8 }
                 ChoiceField {
                     id: gamePick
                     visible: !publisher.fixedGame
@@ -535,20 +535,20 @@ Item {
                     visible: !publisher.fixedGame && publisher.candidates.length === 0
                     Layout.fillWidth: true; Layout.topMargin: 8
                     wrapMode: Text.WordWrap
-                    text: "Nenhum jogo com Fabric, Forge ou NeoForge disponível. Crie um jogo com mods primeiro."
+                    text: qsTr("Nenhum jogo com Fabric, Forge ou NeoForge disponível. Crie um jogo com mods primeiro.")
                     color: Theme.danger; font.family: Theme.font; font.pixelSize: 13
                 }
-                Text { text: "Nome"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: publisher.fixedGame ? 0 : 18; Layout.bottomMargin: 8 }
-                InputField { id: packName; Layout.fillWidth: true; maximumLength: 80; placeholderText: "Nome do modpack" }
-                Text { text: "Versão"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 18; Layout.bottomMargin: 8 }
+                Text { text: qsTr("Nome"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: publisher.fixedGame ? 0 : 18; Layout.bottomMargin: 8 }
+                InputField { id: packName; Layout.fillWidth: true; maximumLength: 80; placeholderText: qsTr("Nome do modpack") }
+                Text { text: qsTr("Versão"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 18; Layout.bottomMargin: 8 }
                 InputField { id: packVersion; Layout.fillWidth: true; maximumLength: 40; placeholderText: "1" }
-                Text { text: "Novidades (opcional)"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 18; Layout.bottomMargin: 8 }
+                Text { text: qsTr("Novidades (opcional)"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 18; Layout.bottomMargin: 8 }
                 TextArea {
                     id: changelog
                     Layout.fillWidth: true
                     Layout.preferredHeight: 84
                     wrapMode: TextEdit.Wrap
-                    placeholderText: "Ex.: adicionei Create e deixei a noite mais escura."
+                    placeholderText: qsTr("Ex.: adicionei Create e deixei a noite mais escura.")
                     placeholderTextColor: Theme.faint
                     color: Theme.text
                     font.family: Theme.font; font.pixelSize: 14
@@ -558,7 +558,7 @@ Item {
                 Text {
                     Layout.fillWidth: true; Layout.topMargin: 14
                     wrapMode: Text.WordWrap
-                    text: "Mods do Modrinth vão só como referência. Configs e mods de fora do Modrinth são enviados para a nuvem (até 24 MB cada)."
+                    text: qsTr("Mods do Modrinth vão só como referência. Configs e mods de fora do Modrinth são enviados para a nuvem (até 24 MB cada).")
                     color: Theme.faint; font.family: Theme.font; font.pixelSize: 12
                 }
                 RowLayout {
@@ -566,9 +566,9 @@ Item {
                     Layout.fillWidth: true
                     spacing: 8
                     Item { Layout.fillWidth: true }
-                    ActionButton { text: "Cancelar"; quiet: true; reduced: root.reduced; onClicked: publisher.close() }
+                    ActionButton { text: qsTr("Cancelar"); quiet: true; reduced: root.reduced; onClicked: publisher.close() }
                     ActionButton {
-                        text: publisher.fixedGame ? "Publicar versão" : "Criar e publicar"; primary: true; reduced: root.reduced
+                        text: publisher.fixedGame ? qsTr("Publicar versão") : qsTr("Criar e publicar"); primary: true; reduced: root.reduced
                         enabled: publisher.game !== null && packName.text.trim() !== "" && packVersion.text.trim() !== "" && cloud.state === ""
                         onClicked: cloud.publish(publisher.game, publisher.saved, packName.text, packVersion.text, changelog.text)
                     }
@@ -601,7 +601,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: "Versão " + (publisher.outcome.version || "") + " no ar. Mande o código para os amigos: eles colam em Modpacks → Customizado → Entrar."
+                    text: qsTr("Versão ") + (publisher.outcome.version || "") + qsTr(" no ar. Mande o código para os amigos: eles colam em Modpacks → Customizado → Entrar.")
                     color: Theme.secondary; font.family: Theme.font; font.pixelSize: 14
                 }
                 Rectangle {
@@ -623,25 +623,25 @@ Item {
                     spacing: 8
                     ActionButton {
                         Layout.fillWidth: true
-                        text: "Copiar código"; iconName: "copy"; primary: true; reduced: root.reduced
-                        onClicked: { servers.copyText(publisher.outcome.code); root.notify("Código copiado.") }
+                        text: qsTr("Copiar código"); iconName: "copy"; primary: true; reduced: root.reduced
+                        onClicked: { servers.copyText(publisher.outcome.code); root.notify(qsTr("Código copiado.")) }
                     }
                     ActionButton {
                         Layout.fillWidth: true
-                        text: "Copiar link de editor"; iconName: "edit"; quiet: true; reduced: root.reduced
-                        onClicked: { servers.copyText(cloud.editorLink(publisher.outcome.code, publisher.outcome.editorKey)); root.notify("Link de editor copiado. Quem tiver ele pode publicar versões.") }
+                        text: qsTr("Copiar link de editor"); iconName: "edit"; quiet: true; reduced: root.reduced
+                        onClicked: { servers.copyText(cloud.editorLink(publisher.outcome.code, publisher.outcome.editorKey)); root.notify(qsTr("Link de editor copiado. Quem tiver ele pode publicar versões.")) }
                     }
                 }
                 Text {
                     Layout.fillWidth: true; Layout.topMargin: 12
                     wrapMode: Text.WordWrap
-                    text: "O link de editor é a chave do modpack: guarde e só passe para quem também vai publicar (ou para o seu outro PC)."
+                    text: qsTr("O link de editor é a chave do modpack: guarde e só passe para quem também vai publicar (ou para o seu outro PC).")
                     color: Theme.faint; font.family: Theme.font; font.pixelSize: 12
                 }
                 RowLayout {
                     Layout.topMargin: 22
                     Item { Layout.fillWidth: true }
-                    ActionButton { text: "Pronto"; quiet: true; reduced: root.reduced; onClicked: publisher.close() }
+                    ActionButton { text: qsTr("Pronto"); quiet: true; reduced: root.reduced; onClicked: publisher.close() }
                 }
             }
         }

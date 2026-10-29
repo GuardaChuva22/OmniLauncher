@@ -1,6 +1,7 @@
 #include "ModManager.h"
 #include "Downloader.h"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QDirIterator>
@@ -65,7 +66,7 @@ ModManager::ModManager(const QString &dataDirectory, QObject *parent)
             return;
         const auto gameId = m_packGameId;
         if (!ok) {
-            failPack(error.isEmpty() ? QStringLiteral("Instalação do modpack cancelada.") : error, gameId);
+            failPack(error.isEmpty() ? tr("Instalação do modpack cancelada.") : error, gameId);
             return;
         }
         // Overrides (configs, resource packs, extra mods) go on top of the downloaded files.
@@ -110,8 +111,8 @@ ModManager::ModManager(const QString &dataDirectory, QObject *parent)
         m_packTargetGame.clear();
         setPackState({});
         emit packFinished(gameId, true,
-                          changed ? (pack.value("kind") == "custom" ? QStringLiteral("Modpack atualizado para %1.").arg(pack.value("versionNumber").toString())
-                                                                    : QStringLiteral("Versão do modpack alterada."))
+                          changed ? (pack.value("kind") == "custom" ? tr("Modpack atualizado para %1.").arg(pack.value("versionNumber").toString())
+                                                                    : tr("Versão do modpack alterada."))
                                   : QStringLiteral("Modpack instalado."),
                           pack);
     });
@@ -161,7 +162,7 @@ void ModManager::searchPacks(const QString &query, int offset)
             return;
         m_packSearching = false;
         if (reply->error() != QNetworkReply::NoError) {
-            m_packSearchError = QStringLiteral("Não foi possível falar com o Modrinth. Verifique sua conexão.");
+            m_packSearchError = tr("Não foi possível falar com o Modrinth. Verifique sua conexão.");
             emit packResultsChanged();
             return;
         }
@@ -207,7 +208,7 @@ void ModManager::preparePack(const QString &projectId, const QString &imageUrl, 
         const auto document = QJsonDocument::fromJson(reply->readAll());
         const auto version = document.isArray() ? document.array().first().toObject() : document.object();
         if (reply->error() != QNetworkReply::NoError || version.isEmpty()) {
-            failPack(QStringLiteral("Não foi possível obter uma versão desse modpack."));
+            failPack(tr("Não foi possível obter uma versão desse modpack."));
             return;
         }
         m_packVersion = {{"projectId", version.value("project_id").toString()}, {"versionId", version.value("id").toString()},
@@ -217,7 +218,7 @@ void ModManager::preparePack(const QString &projectId, const QString &imageUrl, 
             if (value.toObject().value("primary").toBool() || file.isEmpty())
                 file = value.toObject();
         if (!file.value("filename").toString().endsWith(".mrpack")) {
-            failPack(QStringLiteral("Esse modpack não tem um arquivo .mrpack."));
+            failPack(tr("Esse modpack não tem um arquivo .mrpack."));
             return;
         }
         const auto cache = QDir(m_root).filePath("cache/packs");
@@ -234,7 +235,7 @@ void ModManager::preparePack(const QString &projectId, const QString &imageUrl, 
             if (download->error() != QNetworkReply::NoError
                 || (!expected.isEmpty() && sha1.compare(expected, Qt::CaseInsensitive) != 0)
                 || !out.open(QIODevice::WriteOnly) || out.write(data) != data.size() || !out.commit()) {
-                failPack(QStringLiteral("Falha ao baixar o modpack."));
+                failPack(tr("Falha ao baixar o modpack."));
                 return;
             }
             // .mrpack is a zip; Windows' bundled tar extracts it.
@@ -246,7 +247,7 @@ void ModManager::preparePack(const QString &projectId, const QString &imageUrl, 
                 QFile::remove(archive);
                 QFile indexFile(QDir(m_packDirectory).filePath("modrinth.index.json"));
                 if (code != 0 || !indexFile.open(QIODevice::ReadOnly)) {
-                    failPack(QStringLiteral("O arquivo do modpack está corrompido."));
+                    failPack(tr("O arquivo do modpack está corrompido."));
                     return;
                 }
                 m_packIndex = QJsonDocument::fromJson(indexFile.readAll()).object();
@@ -263,7 +264,7 @@ void ModManager::preparePack(const QString &projectId, const QString &imageUrl, 
                     }
                 }
                 if (minecraft.isEmpty() || loader.isEmpty()) {
-                    failPack(QStringLiteral("Esse modpack usa um loader que ainda não é suportado."));
+                    failPack(tr("Esse modpack usa um loader que ainda não é suportado."));
                     return;
                 }
                 const auto emitPrepared = [this, minecraft, loader, loaderVersion](const QString &coverPath) {
@@ -314,7 +315,7 @@ void ModManager::installPackFiles(const QString &gameId)
         connect(tar, &QProcess::finished, this, [this, tar, gameId](int code) {
             tar->deleteLater();
             if (code != 0) {
-                failPack(QStringLiteral("Não foi possível fazer o backup dos mundos antes de atualizar."), gameId);
+                failPack(tr("Não foi possível fazer o backup dos mundos antes de atualizar."), gameId);
                 return;
             }
             m_packState = QStringLiteral("waiting");
@@ -379,7 +380,7 @@ void ModManager::cancelPack()
     if (m_packState == "downloading")
         m_packDownloader->cancel();
     else if (!m_packState.isEmpty())
-        failPack(QStringLiteral("Instalação do modpack cancelada."));
+        failPack(tr("Instalação do modpack cancelada."));
 }
 
 QNetworkReply *ModManager::get(const QString &url)
@@ -467,7 +468,7 @@ void ModManager::search(const QString &query, const QString &gameVersion, const 
             return; // A newer search replaced this one.
         m_searching = false;
         if (reply->error() != QNetworkReply::NoError) {
-            m_searchError = QStringLiteral("Não foi possível falar com o Modrinth. Verifique sua conexão.");
+            m_searchError = tr("Não foi possível falar com o Modrinth. Verifique sua conexão.");
             emit resultsChanged();
             return;
         }
@@ -528,12 +529,12 @@ void ModManager::resolveProject(Install *job, const QString &projectId, const QS
         reply->deleteLater();
         const auto versions = QJsonDocument::fromJson(reply->readAll()).array();
         if (reply->error() != QNetworkReply::NoError) {
-            job->error = QStringLiteral("Não foi possível falar com o Modrinth.");
+            job->error = tr("Não foi possível falar com o Modrinth.");
         } else if (versions.isEmpty()) {
             if (job->error.isEmpty())
                 job->error = projectId == job->rootProject
-                    ? QStringLiteral("Esse mod não tem versão para o Minecraft %1 com %2.").arg(job->gameVersion, job->loader)
-                    : QStringLiteral("Uma dependência obrigatória não tem versão compatível.");
+                    ? tr("Esse mod não tem versão para o Minecraft %1 com %2.").arg(job->gameVersion, job->loader)
+                    : tr("Uma dependência obrigatória não tem versão compatível.");
         } else {
             installVersion(job, versions.first().toObject(), {});
         }
@@ -550,7 +551,7 @@ void ModManager::resolveVersion(Install *job, const QString &versionId)
         const auto version = QJsonDocument::fromJson(reply->readAll()).object();
         const auto project = version.value("project_id").toString();
         if (reply->error() != QNetworkReply::NoError || project.isEmpty()) {
-            job->error = QStringLiteral("Não foi possível obter uma dependência do mod.");
+            job->error = tr("Não foi possível obter uma dependência do mod.");
         } else if (!job->seenProjects.contains(project)) {
             job->seenProjects.insert(project);
             installVersion(job, version, {});
@@ -586,7 +587,7 @@ void ModManager::installVersion(Install *job, const QJsonObject &version, const 
         file = files.first().toObject();
     const auto fileName = QFileInfo(file.value("filename").toString()).fileName();
     if (fileName.isEmpty() || !fileName.endsWith(extensionFor(job->kind), Qt::CaseInsensitive)) {
-        job->error = QStringLiteral("O Modrinth não forneceu um arquivo %1 para esse conteúdo.").arg(extensionFor(job->kind));
+        job->error = tr("O Modrinth não forneceu um arquivo %1 para esse conteúdo.").arg(extensionFor(job->kind));
         return;
     }
     const auto expectedSha1 = file.value("hashes").toObject().value("sha1").toString();
@@ -602,7 +603,7 @@ void ModManager::installVersion(Install *job, const QJsonObject &version, const 
         const auto sha1 = QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex());
         if (reply->error() != QNetworkReply::NoError || data.isEmpty()
             || (!expectedSha1.isEmpty() && sha1.compare(expectedSha1, Qt::CaseInsensitive) != 0)) {
-            job->error = QStringLiteral("Falha ao baixar %1.").arg(fileName);
+            job->error = tr("Falha ao baixar %1.").arg(fileName);
             step(job, -1);
             return;
         }
@@ -610,7 +611,7 @@ void ModManager::installVersion(Install *job, const QJsonObject &version, const 
         QDir().mkpath(mods.path());
         QSaveFile out(mods.filePath(fileName));
         if (!out.open(QIODevice::WriteOnly) || out.write(data) != data.size() || !out.commit()) {
-            job->error = QStringLiteral("Não foi possível gravar %1.").arg(fileName);
+            job->error = tr("Não foi possível gravar %1.").arg(fileName);
             step(job, -1);
             return;
         }
@@ -655,7 +656,7 @@ void ModManager::step(Install *job, int delta)
             loadInstalled(m_gameId);
         const bool ok = job->error.isEmpty();
         emit installFinished(job->rootProject, ok,
-                             ok ? (job->added > 1 ? QStringLiteral("Instalado com %1 dependência(s).").arg(job->added - 1)
+                             ok ? (job->added > 1 ? tr("Instalado com %1 dependência(s).").arg(job->added - 1)
                                                   : QStringLiteral("Instalado."))
                                 : job->error);
         delete job;
@@ -945,7 +946,7 @@ void ModManager::installVersionOf(const QString &projectId, const QString &versi
         reply->deleteLater();
         const auto version = QJsonDocument::fromJson(reply->readAll()).object();
         if (reply->error() != QNetworkReply::NoError || version.isEmpty())
-            job->error = QStringLiteral("Não foi possível obter essa versão do mod.");
+            job->error = tr("Não foi possível obter essa versão do mod.");
         else
             installVersion(job, version, {});
         step(job, -1);
@@ -998,7 +999,7 @@ CustomManifest parseCustomManifest(const QByteArray &data)
         }
     }
     if (result.name.isEmpty() || result.version.isEmpty() || result.minecraft.isEmpty() || result.loader.isEmpty()) {
-        result.error = QStringLiteral("Esse link não é um manifesto de modpack válido (faltam nome, versão, Minecraft ou loader).");
+        result.error = QCoreApplication::translate("OmniLauncher", "Esse link não é um manifesto de modpack válido (faltam nome, versão, Minecraft ou loader).");
         return result;
     }
     for (const auto &value : root.value("files").toArray()) {
@@ -1018,7 +1019,7 @@ CustomManifest parseCustomManifest(const QByteArray &data)
     result.overridesUrl = overrides.value("url").toString();
     result.overridesSha256 = overrides.value("sha256").toString().toLower();
     if (result.files.isEmpty())
-        result.error = QStringLiteral("O manifesto não lista nenhum arquivo para baixar.");
+        result.error = QCoreApplication::translate("OmniLauncher", "O manifesto não lista nenhum arquivo para baixar.");
     return result;
 }
 } // namespace
@@ -1029,7 +1030,7 @@ void ModManager::prepareCustom(const QString &url, const QString &targetGameId)
     if (!m_packState.isEmpty() || link.isEmpty())
         return;
     if (!(link.startsWith("https://") || link.startsWith("http://") || link.startsWith("file:"))) {
-        emit packFinished({}, false, QStringLiteral("Cole um link http(s) para o manifesto do modpack."), {});
+        emit packFinished({}, false, tr("Cole um link http(s) para o manifesto do modpack."), {});
         return;
     }
     m_packProjectId = "custom:" + link;
@@ -1039,7 +1040,7 @@ void ModManager::prepareCustom(const QString &url, const QString &targetGameId)
     connect(reply, &QNetworkReply::finished, this, [this, reply, link] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            failPack(QStringLiteral("Não foi possível baixar o manifesto do modpack."));
+            failPack(tr("Não foi possível baixar o manifesto do modpack."));
             return;
         }
         const auto manifest = parseCustomManifest(reply->readAll());
@@ -1073,7 +1074,7 @@ void ModManager::prepareCustom(const QString &url, const QString &targetGameId)
             QSaveFile out(archive);
             if (zipReply->error() != QNetworkReply::NoError || data.isEmpty() || (!expected.isEmpty() && sha256 != expected)
                 || !out.open(QIODevice::WriteOnly) || out.write(data) != data.size() || !out.commit()) {
-                failPack(QStringLiteral("Não foi possível baixar as configurações do modpack."));
+                failPack(tr("Não foi possível baixar as configurações do modpack."));
                 return;
             }
             QProcess tar;
@@ -1081,7 +1082,7 @@ void ModManager::prepareCustom(const QString &url, const QString &targetGameId)
             const bool ok = tar.waitForFinished(120000) && tar.exitCode() == 0;
             QFile::remove(archive);
             if (!ok) {
-                failPack(QStringLiteral("O arquivo de configurações do modpack está corrompido."));
+                failPack(tr("O arquivo de configurações do modpack está corrompido."));
                 return;
             }
             setPackState(QStringLiteral("waiting"));

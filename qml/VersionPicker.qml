@@ -67,9 +67,9 @@ GlassDialog {
                         }
                         Repeater {
                             model: [
-                                { show: option.current, label: "Atual", strong: true },
-                                { show: option.index === 0 && !option.current, label: "Mais recente", strong: false },
-                                { show: option.modelData.type !== "release", label: option.modelData.type === "beta" ? "Beta" : "Alpha", strong: false }
+                                { show: option.current, label: qsTr("Atual"), strong: true },
+                                { show: option.index === 0 && !option.current, label: qsTr("Mais recente"), strong: false },
+                                { show: option.modelData.type !== "release", label: option.modelData.type === "beta" ? qsTr("Beta") : qsTr("Alpha"), strong: false }
                             ].filter(function(tag) { return tag.show })
                             delegate: Rectangle {
                                 required property var modelData
@@ -93,7 +93,7 @@ GlassDialog {
             Text {
                 anchors.centerIn: parent
                 visible: list.count === 0
-                text: mods.versionChoicesLoading ? "Buscando versões…" : "Nenhuma versão compatível encontrada"
+                text: mods.versionChoicesLoading ? qsTr("Buscando versões…") : qsTr("Nenhuma versão compatível encontrada")
                 color: Theme.muted
                 font.family: Theme.font; font.pixelSize: 14
             }
@@ -102,7 +102,7 @@ GlassDialog {
             Layout.fillWidth: true
             spacing: 8
             Item { Layout.fillWidth: true }
-            ActionButton { text: "Cancelar"; quiet: true; reduced: root.reduced; onClicked: root.close() }
+            ActionButton { text: qsTr("Cancelar"); quiet: true; reduced: root.reduced; onClicked: root.close() }
             ActionButton {
                 text: root.actionText
                 primary: true

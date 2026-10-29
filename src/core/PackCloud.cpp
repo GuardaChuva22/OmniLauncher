@@ -129,7 +129,7 @@ void PackCloud::publish(const QVariantMap &game, const QVariantMap &settings, co
         return;
     m_gameId = game.value("id").toString();
     if (!configured()) {
-        fail(QStringLiteral("A nuvem do OmniLauncher ainda não foi configurada nesta versão."));
+        fail(tr("A nuvem do OmniLauncher ainda não foi configurada nesta versão."));
         return;
     }
     m_game = game;
@@ -145,23 +145,23 @@ void PackCloud::publish(const QVariantMap &game, const QVariantMap &settings, co
     m_overrides = {};
     m_overridesFile = {};
     if (!m_code.isEmpty() && m_key.isEmpty()) {
-        fail(QStringLiteral("Você segue esse modpack, mas não é editor dele. Peça o link de editor a quem criou."));
+        fail(tr("Você segue esse modpack, mas não é editor dele. Peça o link de editor a quem criou."));
         return;
     }
     if (game.value("loader").toString() == "Vanilla") {
-        fail(QStringLiteral("Modpacks precisam de Fabric, Forge ou NeoForge."));
+        fail(tr("Modpacks precisam de Fabric, Forge ou NeoForge."));
         return;
     }
     if (m_name.isEmpty() || m_version.isEmpty()) {
-        fail(QStringLiteral("Dê um nome e uma versão ao modpack."));
+        fail(tr("Dê um nome e uma versão ao modpack."));
         return;
     }
     if (loaderVersion().isEmpty()) {
-        fail(QStringLiteral("Inicie o jogo uma vez antes de publicar: o pack usa a versão do loader instalada."));
+        fail(tr("Inicie o jogo uma vez antes de publicar: o pack usa a versão do loader instalada."));
         return;
     }
 
-    setState(QStringLiteral("scanning"), QStringLiteral("Lendo os mods do jogo"));
+    setState(QStringLiteral("scanning"), tr("Lendo os mods do jogo"));
     const QDir instance(QDir(m_root).filePath("instances/" + m_gameId));
     for (const auto &[folder, pattern] : {std::pair{"mods", "*.jar"}, std::pair{"resourcepacks", "*.zip"}, std::pair{"shaderpacks", "*.zip"}}) {
         const QDir dir(instance.filePath(QString::fromLatin1(folder)));
@@ -181,7 +181,7 @@ void PackCloud::publish(const QVariantMap &game, const QVariantMap &settings, co
         }
     }
     if (m_bySha1.isEmpty()) {
-        fail(QStringLiteral("Esse jogo não tem mods para virar modpack."));
+        fail(tr("Esse jogo não tem mods para virar modpack."));
         return;
     }
 
@@ -199,11 +199,11 @@ void PackCloud::publish(const QVariantMap &game, const QVariantMap &settings, co
         tar.start(QStandardPaths::findExecutable(QStringLiteral("tar")), QStringList{"-a", "-c", "-f", archive} + folders);
         QFile zip(archive);
         if (!tar.waitForFinished(120000) || tar.exitCode() != 0 || !zip.open(QIODevice::ReadOnly)) {
-            fail(QStringLiteral("Não foi possível juntar as configurações do jogo."));
+            fail(tr("Não foi possível juntar as configurações do jogo."));
             return;
         }
         if (zip.size() > kMaxUpload) {
-            fail(QStringLiteral("As configurações passam de 24 MB. Tire arquivos grandes da pasta config."));
+            fail(tr("As configurações passam de 24 MB. Tire arquivos grandes da pasta config."));
             return;
         }
         QCryptographicHash sha256(QCryptographicHash::Sha256);
@@ -215,7 +215,7 @@ void PackCloud::publish(const QVariantMap &game, const QVariantMap &settings, co
 
 void PackCloud::resolveOnModrinth()
 {
-    setState(QStringLiteral("scanning"), QStringLiteral("Procurando os mods no Modrinth"));
+    setState(QStringLiteral("scanning"), tr("Procurando os mods no Modrinth"));
     QJsonArray hashes;
     for (auto it = m_bySha1.begin(); it != m_bySha1.end(); ++it)
         hashes.append(it.key());
@@ -227,7 +227,7 @@ void PackCloud::resolveOnModrinth()
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            fail(QStringLiteral("Não foi possível falar com o Modrinth."));
+            fail(tr("Não foi possível falar com o Modrinth."));
             return;
         }
         const auto versions = QJsonDocument::fromJson(reply->readAll()).object();
@@ -241,7 +241,7 @@ void PackCloud::resolveOnModrinth()
                                            {"sha1", it.key()}});
             } else {
                 if (it->size > kMaxUpload) {
-                    fail(QStringLiteral("%1 não está no Modrinth e passa de 24 MB.").arg(QFileInfo(it->path).fileName()));
+                    fail(tr("%1 não está no Modrinth e passa de 24 MB.").arg(QFileInfo(it->path).fileName()));
                     return;
                 }
                 m_uploads.append(*it);
@@ -250,7 +250,7 @@ void PackCloud::resolveOnModrinth()
         if (!m_overridesFile.file.isEmpty())
             m_uploads.append(m_overridesFile);
         if (m_uploads.size() > kMaxUploads) {
-            fail(QStringLiteral("Mais de %1 arquivos fora do Modrinth. Prefira as versões do Modrinth desses mods.").arg(kMaxUploads));
+            fail(tr("Mais de %1 arquivos fora do Modrinth. Prefira as versões do Modrinth desses mods.").arg(kMaxUploads));
             return;
         }
         ensurePack();
@@ -263,7 +263,7 @@ void PackCloud::ensurePack()
         uploadNext();
         return;
     }
-    setState(QStringLiteral("publishing"), QStringLiteral("Criando o modpack na nuvem"));
+    setState(QStringLiteral("publishing"), tr("Criando o modpack na nuvem"));
     auto *reply = request(QStringLiteral("POST"), QStringLiteral("/api/packs"));
     connect(reply, &QNetworkReply::finished, this, [this, reply] {
         reply->deleteLater();
@@ -271,7 +271,7 @@ void PackCloud::ensurePack()
         m_code = answer.value("code").toString();
         m_key = answer.value("editorKey").toString();
         if (m_code.isEmpty() || m_key.isEmpty()) {
-            fail(answer.value("error").toString(QStringLiteral("A nuvem do OmniLauncher não respondeu.")));
+            fail(answer.value("error").toString(tr("A nuvem do OmniLauncher não respondeu.")));
             return;
         }
         uploadNext();
@@ -285,8 +285,8 @@ void PackCloud::uploadNext()
         return;
     }
     const auto upload = m_uploads.takeFirst();
-    const auto name = upload.path.isEmpty() ? QStringLiteral("configurações") : QFileInfo(upload.path).fileName();
-    setState(QStringLiteral("uploading"), QStringLiteral("Enviando %1").arg(name));
+    const auto name = upload.path.isEmpty() ? tr("configurações") : QFileInfo(upload.path).fileName();
+    setState(QStringLiteral("uploading"), tr("Enviando %1").arg(name));
     const auto filePath = QStringLiteral("/p/%1/files/%2").arg(m_code, upload.sha256);
     const auto record = [this, upload](const QString &url) {
         if (upload.path.isEmpty())
@@ -305,7 +305,7 @@ void PackCloud::uploadNext()
         }
         QFile file(upload.file);
         if (!file.open(QIODevice::ReadOnly)) {
-            fail(QStringLiteral("Não foi possível ler %1.").arg(upload.file));
+            fail(tr("Não foi possível ler %1.").arg(upload.file));
             return;
         }
         auto *put = request(QStringLiteral("PUT"), QStringLiteral("/api/packs/%1/files/%2").arg(m_code, upload.sha256),
@@ -315,7 +315,7 @@ void PackCloud::uploadNext()
             const auto answer = QJsonDocument::fromJson(put->readAll()).object();
             const auto url = answer.value("url").toString();
             if (url.isEmpty()) {
-                fail(answer.value("error").toString(QStringLiteral("O envio de um arquivo falhou.")));
+                fail(answer.value("error").toString(tr("O envio de um arquivo falhou.")));
                 return;
             }
             record(url);
@@ -325,7 +325,7 @@ void PackCloud::uploadNext()
 
 void PackCloud::sendManifest()
 {
-    setState(QStringLiteral("publishing"), QStringLiteral("Publicando a versão %1").arg(m_version));
+    setState(QStringLiteral("publishing"), tr("Publicando a versão %1").arg(m_version));
     QJsonObject manifest{
         {"pack", QJsonObject{{"name", m_name}, {"version", m_version}, {"changelog", m_changelog}}},
         {"minecraft", m_game.value("version").toString()},
@@ -340,7 +340,7 @@ void PackCloud::sendManifest()
         reply->deleteLater();
         const auto answer = QJsonDocument::fromJson(reply->readAll()).object();
         if (!answer.contains("version")) {
-            fail(answer.value("error").toString(QStringLiteral("A publicação falhou.")));
+            fail(answer.value("error").toString(tr("A publicação falhou.")));
             return;
         }
         const auto gameId = m_gameId;
@@ -348,6 +348,6 @@ void PackCloud::sendManifest()
                                  {"files", m_files.size()}};
         m_gameId.clear();
         setState({});
-        emit published(gameId, true, QStringLiteral("Versão %1 publicada.").arg(m_version), result);
+        emit published(gameId, true, tr("Versão %1 publicada.").arg(m_version), result);
     });
 }

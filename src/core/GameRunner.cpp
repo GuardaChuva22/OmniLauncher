@@ -565,8 +565,8 @@ void GameRunner::onBatchFinished(bool ok, const QString &error)
         return; // Cancelled or already failed.
     auto next = std::exchange(m_next, nullptr);
     if (!ok) {
-        fail(error.isEmpty() ? QStringLiteral("O download foi interrompido.")
-                             : error + QStringLiteral("\nVerifique sua conexão e tente de novo."));
+        fail(error.isEmpty() ? tr("O download foi interrompido.")
+                             : error + tr("\nVerifique sua conexão e tente de novo."));
         return;
     }
     if (next)
@@ -581,7 +581,7 @@ void GameRunner::onBatchProgress()
     const auto total = m_downloader->totalBytes();
     const auto received = m_downloader->receivedBytes();
     m_progress = total > 0 ? qBound(0.0, double(received) / double(total), 1.0) : 0;
-    m_detail = QStringLiteral("%1 de %2 arquivos · %3 de %4")
+    m_detail = tr("%1 de %2 arquivos · %3 de %4")
                    .arg(QLocale().toString(m_downloader->completedFiles()),
                         QLocale().toString(m_downloader->totalFiles()),
                         formatBytes(received), formatBytes(total));
@@ -607,11 +607,11 @@ bool GameRunner::launch(const QVariantMap &game, const QString &playerName, cons
     m_loader = game.value("loader").toString();
     m_loaderVersion = game.value("loaderVersion").toString();
     if (m_loader != "Vanilla" && m_loader != "Fabric" && m_loader != "Forge" && m_loader != "NeoForge") {
-        fail(QStringLiteral("%1 ainda não é suportado.").arg(m_loader));
+        fail(tr("%1 ainda não é suportado.").arg(m_loader));
         return true;
     }
     if (playerName.isEmpty()) {
-        fail(QStringLiteral("Escolha um Perfil para iniciar."));
+        fail(tr("Escolha um Perfil para iniciar."));
         return true;
     }
     stepVersionJson();
@@ -649,23 +649,23 @@ void GameRunner::stepVersionJson()
             return;
         }
         fail(m_versionIndex.isEmpty()
-                 ? QStringLiteral("Não foi possível obter a lista de versões da Mojang. Verifique sua conexão.")
-                 : QStringLiteral("A versão %1 não existe no catálogo da Mojang.").arg(m_versionId));
+                 ? tr("Não foi possível obter a lista de versões da Mojang. Verifique sua conexão.")
+                 : tr("A versão %1 não existe no catálogo da Mojang.").arg(m_versionId));
         return;
     }
     const auto entry = m_versionIndex.value(m_versionId);
-    runBatch({{entry.first, jsonPath, entry.second, -1}}, QStringLiteral("Buscando a versão %1").arg(m_versionId),
+    runBatch({{entry.first, jsonPath, entry.second, -1}}, tr("Buscando a versão %1").arg(m_versionId),
              false, [this] { stepParseVersion(); });
 }
 
 void GameRunner::stepParseVersion()
 {
     if (!readJson(path(QStringLiteral("versions/%1/%1.json").arg(m_versionId)), m_version)) {
-        fail(QStringLiteral("As informações da versão %1 estão corrompidas.").arg(m_versionId));
+        fail(tr("As informações da versão %1 estão corrompidas.").arg(m_versionId));
         return;
     }
     if (m_version.contains("inheritsFrom")) {
-        fail(QStringLiteral("Versões derivadas ainda não são suportadas."));
+        fail(tr("Versões derivadas ainda não são suportadas."));
         return;
     }
     if (m_loader == "Forge" || m_loader == "NeoForge") {
@@ -673,12 +673,12 @@ void GameRunner::stepParseVersion()
             stepForgeInstaller();
             return;
         }
-        setStage(QStringLiteral("Buscando o %1").arg(m_loader));
+        setStage(tr("Buscando o %1").arg(m_loader));
         loadForgeList(m_loader, m_versionId, [this](const QStringList &, const QString &recommended) {
             if (!busy())
                 return;
             if (recommended.isEmpty()) {
-                fail(QStringLiteral("O %1 não tem versão para o Minecraft %2.").arg(m_loader, m_versionId));
+                fail(tr("O %1 não tem versão para o Minecraft %2.").arg(m_loader, m_versionId));
                 return;
             }
             m_loaderVersion = recommended;
@@ -696,7 +696,7 @@ void GameRunner::stepParseVersion()
         if (list.exists() && list.lastModified().secsTo(QDateTime::currentDateTime()) > 86400)
             QFile::remove(list.filePath());
         runBatch({{QUrl(kFabricMeta + m_versionId), path("meta/fabric/" + m_versionId + ".json"), {}, -1}},
-                 QStringLiteral("Buscando o Fabric"), false, [this] { stepFabricProfile(); });
+                 tr("Buscando o Fabric"), false, [this] { stepFabricProfile(); });
         return;
     }
     stepAssetsAndJava();
@@ -713,17 +713,17 @@ void GameRunner::stepFabricProfile()
     }
     if (loaderVersion.isEmpty()) {
         listFile.remove();
-        fail(QStringLiteral("O Fabric não tem suporte para o Minecraft %1.").arg(m_versionId));
+        fail(tr("O Fabric não tem suporte para o Minecraft %1.").arg(m_versionId));
         return;
     }
     const auto profileId = QStringLiteral("fabric-loader-%1-%2").arg(loaderVersion, m_versionId);
     const auto profilePath = path(QStringLiteral("versions/%1/%1.json").arg(profileId));
     runBatch({{QUrl(kFabricMeta + m_versionId + '/' + loaderVersion + "/profile/json"), profilePath, {}, -1}},
-             QStringLiteral("Buscando o Fabric %1").arg(loaderVersion), false, [this, profilePath] {
+             tr("Buscando o Fabric %1").arg(loaderVersion), false, [this, profilePath] {
         QJsonObject profile;
         if (!readJson(profilePath, profile)) {
             QFile::remove(profilePath);
-            fail(QStringLiteral("O perfil do Fabric veio inválido. Tente de novo."));
+            fail(tr("O perfil do Fabric veio inválido. Tente de novo."));
             return;
         }
         mergeLoaderProfile(profile);
@@ -766,7 +766,7 @@ void GameRunner::stepForgeInstaller()
         : QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(full);
     m_forgeInstaller = path("cache/installers/" + m_forgeInstallId + "-installer.jar");
     m_forgeDir = path("cache/installers/" + m_forgeInstallId);
-    runBatch({{QUrl(url), m_forgeInstaller, {}, -1}}, QStringLiteral("Baixando o %1 %2").arg(m_loader, m_loaderVersion),
+    runBatch({{QUrl(url), m_forgeInstaller, {}, -1}}, tr("Baixando o %1 %2").arg(m_loader, m_loaderVersion),
              false, [this] { stepForgeExtract(); });
 }
 
@@ -783,7 +783,7 @@ void GameRunner::stepForgeExtract()
     if (!extracted || !readJson(QDir(m_forgeDir).filePath(versionJson.mid(versionJson.startsWith('/') ? 1 : 0)), loaderVersion)
         || !m_forgeProfile.contains("processors")) {
         QFile::remove(m_forgeInstaller);
-        fail(QStringLiteral("O instalador do %1 %2 não pôde ser lido (versões antigas do Forge não são suportadas).")
+        fail(tr("O instalador do %1 %2 não pôde ser lido (versões antigas do Forge não são suportadas).")
                  .arg(m_loader, m_loaderVersion));
         return;
     }
@@ -855,7 +855,7 @@ void GameRunner::runNextProcessor()
         stepPrepareAndStart();
         return;
     }
-    setStage(QStringLiteral("Instalando o %1 (%2 de %3)").arg(m_loader).arg(m_processorIndex + 1).arg(processors.size()));
+    setStage(tr("Instalando o %1 (%2 de %3)").arg(m_loader).arg(m_processorIndex + 1).arg(processors.size()));
 
     const auto processor = processors.at(m_processorIndex).toObject();
     const auto jar = path("libraries/" + mavenPath(processor.value("jar").toString()));
@@ -872,7 +872,7 @@ void GameRunner::runNextProcessor()
     static const QRegularExpression mainClass(QStringLiteral("^Main-Class:\\s*(\\S+)"), QRegularExpression::MultilineOption);
     const auto main = mainClass.match(text).captured(1);
     if (main.isEmpty()) {
-        fail(QStringLiteral("O instalador do %1 está incompleto (%2).").arg(m_loader, QFileInfo(jar).fileName()));
+        fail(tr("O instalador do %1 está incompleto (%2).").arg(m_loader, QFileInfo(jar).fileName()));
         return;
     }
     QStringList arguments{QStringLiteral("-cp"), classpath.join(';'), main};
@@ -891,7 +891,7 @@ void GameRunner::runNextProcessor()
             return;
         if (status != QProcess::NormalExit || code != 0) {
             m_errorLog = log;
-            fail(QStringLiteral("A instalação do %1 falhou na etapa %2. Use \"Ver log\" para detalhes.")
+            fail(tr("A instalação do %1 falhou na etapa %2. Use \"Ver log\" para detalhes.")
                      .arg(m_loader).arg(m_processorIndex + 1));
             return;
         }
@@ -912,7 +912,7 @@ void GameRunner::stepAssetsAndJava()
                  assetIndex.value("sha1").toString(), assetIndex.value("size").toInteger(-1)});
     // The runtime catalog has no checksum; it is refreshed only when missing.
     jobs.append({kJavaRuntimes, path("runtimes/all.json"), {}, -1});
-    runBatch(jobs, QStringLiteral("Preparando arquivos"), false, [this] { stepRuntimeManifest(); });
+    runBatch(jobs, tr("Preparando arquivos"), false, [this] { stepRuntimeManifest(); });
 }
 
 void GameRunner::stepRuntimeManifest()
@@ -920,18 +920,18 @@ void GameRunner::stepRuntimeManifest()
     QJsonObject all;
     if (!readJson(path("runtimes/all.json"), all)) {
         QFile::remove(path("runtimes/all.json"));
-        fail(QStringLiteral("O catálogo de Java da Mojang veio inválido. Tente de novo."));
+        fail(tr("O catálogo de Java da Mojang veio inválido. Tente de novo."));
         return;
     }
     const auto candidates = all.value(kRuntimePlatform).toObject().value(m_javaComponent).toArray();
     if (candidates.isEmpty()) {
-        fail(QStringLiteral("A Mojang não oferece o Java \"%1\" para Windows.").arg(m_javaComponent));
+        fail(tr("A Mojang não oferece o Java \"%1\" para Windows.").arg(m_javaComponent));
         return;
     }
     const auto manifest = candidates.first().toObject().value("manifest").toObject();
     runBatch({{QUrl(manifest.value("url").toString()), path("runtimes/" + m_javaComponent + ".manifest.json"),
                manifest.value("sha1").toString(), manifest.value("size").toInteger(-1)}},
-             QStringLiteral("Preparando o Java"), false, [this] { stepCollectFiles(); });
+             tr("Preparando o Java"), false, [this] { stepCollectFiles(); });
 }
 
 void GameRunner::stepCollectFiles()
@@ -991,7 +991,7 @@ void GameRunner::stepCollectFiles()
     QJsonObject assetIndex;
     const auto indexId = m_version.value("assetIndex").toObject().value("id").toString();
     if (!readJson(path("assets/indexes/" + indexId + ".json"), assetIndex)) {
-        fail(QStringLiteral("O índice de recursos do jogo está corrompido."));
+        fail(tr("O índice de recursos do jogo está corrompido."));
         return;
     }
     const auto objects = assetIndex.value("objects").toObject();
@@ -1008,7 +1008,7 @@ void GameRunner::stepCollectFiles()
     // Java runtime
     QJsonObject runtime;
     if (!readJson(path("runtimes/" + m_javaComponent + ".manifest.json"), runtime)) {
-        fail(QStringLiteral("O manifesto do Java está corrompido."));
+        fail(tr("O manifesto do Java está corrompido."));
         return;
     }
     const auto runtimeRoot = "runtimes/" + m_javaComponent + '/';
@@ -1035,17 +1035,17 @@ void GameRunner::stepCollectFiles()
         }
     }
 
-    runBatch(jobs, QStringLiteral("Baixando arquivos do jogo"), true, [this] { stepPrepareAndStart(); });
+    runBatch(jobs, tr("Baixando arquivos do jogo"), true, [this] { stepPrepareAndStart(); });
 }
 
 void GameRunner::stepPrepareAndStart()
 {
     setState(QStringLiteral("starting"));
-    setStage(QStringLiteral("Iniciando o Minecraft"));
+    setStage(tr("Iniciando o Minecraft"));
 
     const auto java = path("runtimes/" + m_javaComponent + "/bin/javaw.exe");
     if (!QFileInfo::exists(java)) {
-        fail(QStringLiteral("O Java baixado está incompleto (javaw.exe não encontrado)."));
+        fail(tr("O Java baixado está incompleto (javaw.exe não encontrado)."));
         return;
     }
     if (m_forgeNeedsProcessors) {
@@ -1071,7 +1071,7 @@ void GameRunner::stepPrepareAndStart()
         }
         const auto tar = QStandardPaths::findExecutable(QStringLiteral("tar"));
         if (tar.isEmpty()) {
-            fail(QStringLiteral("Esta versão precisa extrair bibliotecas nativas, e o tar do Windows não foi encontrado."));
+            fail(tr("Esta versão precisa extrair bibliotecas nativas, e o tar do Windows não foi encontrado."));
             return;
         }
         QStringList arguments{QStringLiteral("-xf"), library.path, QStringLiteral("-C"), nativesDir};
@@ -1080,7 +1080,7 @@ void GameRunner::stepPrepareAndStart()
         QProcess extract;
         extract.start(tar, arguments);
         if (!extract.waitForFinished(30000) || extract.exitCode() != 0) {
-            fail(QStringLiteral("Não foi possível extrair %1.").arg(QFileInfo(library.path).fileName()));
+            fail(tr("Não foi possível extrair %1.").arg(QFileInfo(library.path).fileName()));
             return;
         }
     }
@@ -1185,7 +1185,7 @@ bool GameRunner::startProcess(const QString &java, const QStringList &arguments)
     process.setStandardErrorFile(m_errorLog);
     qint64 pid = 0;
     if (!process.startDetached(&pid)) {
-        fail(QStringLiteral("Não foi possível iniciar o Java: %1").arg(process.errorString()));
+        fail(tr("Não foi possível iniciar o Java: %1").arg(process.errorString()));
         return false;
     }
     m_pid = pid;
@@ -1242,7 +1242,7 @@ void GameRunner::onProcessExited(int exitCode)
             fail(m_diagnosis.value("title").toString() + "\n\n" + m_diagnosis.value("detail").toString());
         } else {
             const auto tail = logTail();
-            fail(QStringLiteral("O Minecraft fechou com erro (código %1).").arg(exitCode)
+            fail(tr("O Minecraft fechou com erro (código %1).").arg(exitCode)
                  + (tail.isEmpty() ? QString() : "\n\n" + tail));
         }
     } else {
@@ -1383,11 +1383,11 @@ QVariantMap GameRunner::diagnose(const QString &gameId, qint64 since) const
             const bool memory = text.contains("OutOfMemoryError");
             QString detail = cause.left(300);
             if (!mods.isEmpty())
-                detail += QStringLiteral("\nMod suspeito: %1. Tente atualizar ou desativar na aba Mods.").arg(mods.join(", "));
+                detail += tr("\nMod suspeito: %1. Tente atualizar ou desativar na aba Mods.").arg(mods.join(", "));
             if (memory)
-                detail += QStringLiteral("\nFaltou memória: aumente a memória do jogo em Ajustes.");
+                detail += tr("\nFaltou memória: aumente a memória do jogo em Ajustes.");
             return {{"gameId", gameId}, {"kind", memory ? "memory" : "crash"},
-                    {"title", QStringLiteral("O Minecraft travou: %1").arg(description.match(text).captured(1).trimmed())},
+                    {"title", tr("O Minecraft travou: %1").arg(description.match(text).captured(1).trimmed())},
                     {"detail", detail}, {"mods", mods.join(", ")}, {"file", reports.first().filePath()}};
         }
     }
@@ -1406,22 +1406,22 @@ QVariantMap GameRunner::diagnose(const QString &gameId, qint64 since) const
                 if (lines.size() >= 5)
                     break;
             }
-            return {{"gameId", gameId}, {"kind", "resolution"}, {"title", QStringLiteral("Mods incompatíveis entre si")},
+            return {{"gameId", gameId}, {"kind", "resolution"}, {"title", tr("Mods incompatíveis entre si")},
                     {"detail", lines.join('\n')}, {"mods", modsOf(lines.join('\n')).join(", ")}, {"file", log.fileName()}};
         }
         static const QRegularExpression brokenTag(QStringLiteral("Couldn't load tag (\\S+) as it is missing following references: (.+?) \\(from ([A-Za-z0-9_\\-]+)\\)"));
         const auto tag = brokenTag.match(text);
         if (tag.hasMatch()) {
             return {{"gameId", gameId}, {"kind", "data"},
-                    {"title", QStringLiteral("Dados quebrados no mod %1").arg(tag.captured(3))},
+                    {"title", tr("Dados quebrados no mod %1").arg(tag.captured(3))},
                     {"detail", QStringLiteral("A tag %1 cita %2, que não existe. Isso costuma travar a criação de mundos "
                                               "(\"Preparing for world creation\"). Atualize ou desative %3.")
                                    .arg(tag.captured(1), tag.captured(2).left(160), tag.captured(3))},
                     {"mods", tag.captured(3)}, {"file", log.fileName()}};
         }
         if (text.contains("OutOfMemoryError"))
-            return {{"gameId", gameId}, {"kind", "memory"}, {"title", QStringLiteral("Faltou memória para o jogo")},
-                    {"detail", QStringLiteral("Aumente a memória deste jogo em Ajustes.")}, {"mods", QString()}, {"file", log.fileName()}};
+            return {{"gameId", gameId}, {"kind", "memory"}, {"title", tr("Faltou memória para o jogo")},
+                    {"detail", tr("Aumente a memória deste jogo em Ajustes.")}, {"mods", QString()}, {"file", log.fileName()}};
     }
     return {};
 }
@@ -1495,8 +1495,8 @@ void GameRunner::backupWorld(const QString &gameId, const QString &folder)
     connect(tar, &QProcess::finished, this, [this, tar, gameId, archive](int code) {
         tar->deleteLater();
         emit worldBackupFinished(gameId, code == 0,
-                                 code == 0 ? QStringLiteral("Backup salvo em backups/%1").arg(QFileInfo(archive).fileName())
-                                           : QStringLiteral("Não foi possível fazer o backup do mundo."));
+                                 code == 0 ? tr("Backup salvo em backups/%1").arg(QFileInfo(archive).fileName())
+                                           : tr("Não foi possível fazer o backup do mundo."));
     });
     tar->start(QStandardPaths::findExecutable(QStringLiteral("tar")), {"-a", "-c", "-f", archive, folder});
 }
