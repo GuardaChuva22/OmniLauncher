@@ -14,6 +14,8 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSaveFile>
+#include <QDateTime>
+#include <QRegularExpression>
 #include <QUrlQuery>
 
 #include <algorithm>
@@ -276,6 +278,35 @@ void ModManager::installPackFiles(const QString &gameId)
 {
     if (m_packState != "waiting" || gameId.isEmpty())
         return;
+    m_packGameId = gameId;
+    const QDir instance(QDir(m_root).filePath("instances/" + gameId));
+    // Updating a pack the player already has: zip the worlds first, like the old launcher did.
+    if (instance.exists(".omni-pack.json") && !QDir(instance.filePath("saves")).isEmpty()) {
+        QDir().mkpath(instance.filePath("backups"));
+        const auto archive = instance.filePath(QStringLiteral("backups/saves-antes-de-%1-%2.zip")
+                                                   .arg(m_packVersion.value("versionNumber").toString().replace(QRegularExpression("[^A-Za-z0-9._-]"), "_"),
+                                                        QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss")));
+        setPackState(QStringLiteral("backing-up"));
+        auto *tar = new QProcess(this);
+        tar->setWorkingDirectory(instance.path());
+        connect(tar, &QProcess::finished, this, [this, tar, gameId](int code) {
+            tar->deleteLater();
+            if (code != 0) {
+                failPack(QStringLiteral("Não foi possível fazer o backup dos mundos antes de atualizar."), gameId);
+                return;
+            }
+            m_packState = QStringLiteral("waiting");
+            m_packGameId.clear();
+            installPackFilesNow(gameId);
+        });
+        tar->start(QStandardPaths::findExecutable(QStringLiteral("tar")), {"-a", "-c", "-f", archive, "saves"});
+        return;
+    }
+    installPackFilesNow(gameId);
+}
+
+void ModManager::installPackFilesNow(const QString &gameId)
+{
     m_packGameId = gameId;
     const QDir instance(QDir(m_root).filePath("instances/" + gameId));
     // Changing versions: files of the previous pack version that are gone or changed are

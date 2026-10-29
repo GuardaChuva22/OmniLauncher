@@ -91,7 +91,7 @@ Item {
             Group {
                 SettingRow {
                     title: "Memória padrão"
-                    description: "Cada jogo pode substituir este valor."
+                    description: "Cada jogo pode substituir este valor. Este PC tem " + Math.round(runner.systemMemoryMb / 1024) + " GB."
                     RowLayout {
                         spacing: 14
                         ValueSlider {
@@ -130,6 +130,31 @@ Item {
                             value: Math.max(0, root.afterLaunchOptions.findIndex(function(option) { return option.value === launcher.preferences.afterLaunch }))
                         }
                         onActivated: function(index) { root.setPreference("afterLaunch", root.afterLaunchOptions[index].value) }
+                    }
+                }
+            }
+
+            SectionTitle { text: "Atualizações" }
+            Group {
+                SettingRow {
+                    title: "OmniLauncher " + Qt.application.version + (updates.currentCommit ? "  ·  " + updates.currentCommit : "")
+                    description: !updates.enabled ? "Versão de desenvolvimento: atualizações automáticas desligadas."
+                        : updates.state === "checking" ? "Verificando…"
+                        : updates.state === "available" ? "Nova versão disponível" + (updates.changes ? ": " + updates.changes : ".")
+                        : updates.state === "downloading" ? "Baixando " + (updates.progress >= 0 ? Math.round(updates.progress * 100) + "%" : "…")
+                        : updates.state === "installing" ? "Instalando e reiniciando…"
+                        : updates.state === "error" ? updates.error
+                        : updates.state === "current" ? "Você está na versão mais recente."
+                        : "As atualizações são verificadas ao abrir."
+                    divider: false
+                    ActionButton {
+                        visible: updates.enabled
+                        text: updates.state === "available" || updates.state === "error" && updates.changes !== "" ? "Atualizar e reiniciar" : "Verificar"
+                        primary: updates.state === "available"
+                        iconName: updates.state === "available" ? "download" : ""
+                        enabled: updates.state !== "checking" && updates.state !== "downloading" && updates.state !== "installing"
+                        reduced: root.reduced
+                        onClicked: updates.state === "available" || updates.state === "error" && updates.changes !== "" ? updates.install() : updates.check()
                     }
                 }
             }

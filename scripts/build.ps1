@@ -4,7 +4,8 @@ param(
     [ValidateSet('Release', 'Debug', 'RelWithDebInfo')]
     [string]$Configuration = 'Release',
     [switch]$Fresh,
-    [switch]$Test
+    [switch]$Test,
+    [string[]]$CMakeArgs = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -81,6 +82,9 @@ if (-not (Test-Path -LiteralPath $ninja)) { $ninja = (Get-Command ninja.exe -Err
 Write-Host "Configuring OmniLauncher ($Configuration)..."
 $configureArguments = @('-S', $projectRoot, '-B', $BuildDir, '-G', 'Ninja', "-DCMAKE_BUILD_TYPE=$Configuration", "-DCMAKE_PREFIX_PATH=$QtRoot", "-DCMAKE_MAKE_PROGRAM=$ninja", '-DCMAKE_CXX_COMPILER=cl.exe')
 if ($Test) { $configureArguments += '-DOMNI_BUILD_TESTS=ON' } else { $configureArguments += '-DOMNI_BUILD_TESTS=OFF' }
+# Auto-update stays off unless a packaging build turns it on.
+$configureArguments += '-DOMNI_AUTO_UPDATE=OFF'
+$configureArguments += $CMakeArgs
 if ($Fresh) { $configureArguments += '--fresh' }
 Invoke-NativeLogged -FilePath $cmake -Arguments $configureArguments
 

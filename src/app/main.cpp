@@ -2,6 +2,7 @@
 #include "AuthManager.h"
 #include "GameRunner.h"
 #include "ModManager.h"
+#include "UpdateManager.h"
 
 #include <QCommandLineParser>
 #include <QDir>
@@ -84,11 +85,14 @@ int main(int argc, char *argv[])
     GameRunner runner(model.dataDirectory());
     ModManager mods(model.dataDirectory());
     AuthManager auth(model.dataDirectory());
+    UpdateManager updates;
+    QObject::connect(&updates, &UpdateManager::quitRequested, &app, &QCoreApplication::quit, Qt::QueuedConnection);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("launcher"), &model);
     engine.rootContext()->setContextProperty(QStringLiteral("runner"), &runner);
     engine.rootContext()->setContextProperty(QStringLiteral("mods"), &mods);
     engine.rootContext()->setContextProperty(QStringLiteral("auth"), &auth);
+    engine.rootContext()->setContextProperty(QStringLiteral("updates"), &updates);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule(QStringLiteral("OmniLauncher"), QStringLiteral("Main"));

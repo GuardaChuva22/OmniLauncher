@@ -177,6 +177,9 @@ ApplicationWindow {
         }
         function onGameExited(gameId, seconds, exitCode) {
             launcher.recordSession(gameId, seconds)
+            // A clean exit can still hide trouble (e.g. data that blocks world creation).
+            if (exitCode === 0 && runner.diagnosis.gameId === gameId)
+                window.notify(runner.diagnosis.title + ". Veja os detalhes no jogo.")
             if (window.visibility === Window.Minimized) window.showNormal()
             window.raise()
             window.requestActivate()
@@ -200,6 +203,17 @@ ApplicationWindow {
         }
     }
     Timer { running: true; interval: 2500; onTriggered: window.checkCustomPacks() }
+    Timer { running: updates.enabled; interval: 4000; onTriggered: updates.check() }
+    property bool updateNotified: false
+    Connections {
+        target: updates
+        function onChanged() {
+            if (updates.state === "available" && !window.updateNotified) {
+                window.updateNotified = true
+                window.notify("Nova versão do OmniLauncher disponível. Atualize em Configurações.")
+            }
+        }
+    }
     Connections {
         target: mods
         function onCustomLatestChanged() {
@@ -786,6 +800,9 @@ ApplicationWindow {
             if (!ok && gameId && !changed) launcher.removeGame(gameId)
             window.notify(ok && !changed ? "Modpack instalado. Ele já está em Jogos." : message)
             if (ok && !changed) {
+                // Size the memory to the pack that was just installed.
+                const game = window.gameById(gameId)
+                if (game) launcher.setGameSetting(gameId, "memoryMb", runner.recommendedMemory(gameId, game.loader))
                 window.selectedGameId = gameId
                 window.page = 0
             }

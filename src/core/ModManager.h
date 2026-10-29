@@ -150,6 +150,7 @@ private:
     QSet<QString> m_installing;
 
     void setPackState(const QString &state, double progress = -1);
+    void installPackFilesNow(const QString &gameId);
     void failPack(const QString &message, const QString &gameId = {});
     QVariantList m_packResults;
     int m_packTotalHits = 0;

@@ -245,7 +245,7 @@ Item {
                 Layout.topMargin: 10
                 text: mods.packState === "downloading"
                     ? "Instalando " + (mods.packProgress >= 0 ? Math.round(mods.packProgress * 100) + "%" : "…")
-                    : "Lendo o manifesto…"
+                    : mods.packState === "backing-up" ? "Fazendo backup dos mundos…" : "Lendo o manifesto…"
                 color: Theme.accentText
                 font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
             }

@@ -20,6 +20,7 @@
 #include <QStandardPaths>
 #include <QSysInfo>
 #include <QTimer>
+#include <QVariantList>
 
 #ifdef Q_OS_WIN
 #  ifndef NOMINMAX
@@ -1094,6 +1095,8 @@ bool GameRunner::startProcess(const QString &java, const QStringList &arguments)
     }
     m_pid = pid;
     m_playClock.start();
+    m_sessionStart = QDateTime::currentMSecsSinceEpoch();
+    clearDiagnosis();
     const bool closeLauncher = m_settings.value("afterLaunch").toString() == "close";
 
 #ifdef Q_OS_WIN
@@ -1134,11 +1137,19 @@ void GameRunner::onProcessExited(int exitCode)
     }
 #endif
     m_pid = 0;
+    // Diagnose before reporting: a crash report or broken data explains more than the exit code.
+    m_diagnosis = diagnose(m_gameId, m_sessionStart - 5000);
+    emit diagnosisChanged();
     emit gameExited(m_gameId, seconds, exitCode);
     if (exitCode != 0) {
-        const auto tail = logTail();
-        fail(QStringLiteral("O Minecraft fechou com erro (código %1).").arg(exitCode)
-             + (tail.isEmpty() ? QString() : "\n\n" + tail));
+        if (!m_diagnosis.isEmpty()) {
+            m_errorLog = m_diagnosis.value("file").toString();
+            fail(m_diagnosis.value("title").toString() + "\n\n" + m_diagnosis.value("detail").toString());
+        } else {
+            const auto tail = logTail();
+            fail(QStringLiteral("O Minecraft fechou com erro (código %1).").arg(exitCode)
+                 + (tail.isEmpty() ? QString() : "\n\n" + tail));
+        }
     } else {
         setState(QStringLiteral("idle"));
     }
@@ -1217,4 +1228,200 @@ bool GameRunner::openLog()
             return QDesktopServices::openUrl(QUrl::fromLocalFile(candidate));
     }
     return false;
+}
+
+// ── Diagnosis ──────────────────────────────────────────────────────────────
+
+void GameRunner::clearDiagnosis()
+{
+    if (m_diagnosis.isEmpty())
+        return;
+    m_diagnosis.clear();
+    emit diagnosisChanged();
+}
+
+bool GameRunner::openFile(const QString &path)
+{
+    return !path.isEmpty() && QFileInfo::exists(path) && QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+QVariantMap GameRunner::diagnose(const QString &gameId, qint64 since) const
+{
+    if (gameId.isEmpty())
+        return {};
+    const QDir instance(path("instances/" + gameId));
+    const auto modsOf = [](const QString &text) {
+        QStringList mods;
+        static const QList<QRegularExpression> patterns{
+            QRegularExpression(QStringLiteral("from mod ([A-Za-z0-9_\\-]+)")),
+            QRegularExpression(QStringLiteral("provided by '([A-Za-z0-9_\\-]+)'")),
+            QRegularExpression(QStringLiteral("Suspected Mods?: ([^\\n\\r]+)")),
+            QRegularExpression(QStringLiteral("\\(from ([A-Za-z0-9_\\-]+)\\)")),
+        };
+        for (const auto &pattern : patterns) {
+            auto it = pattern.globalMatch(text);
+            while (it.hasNext()) {
+                for (const auto &mod : it.next().captured(1).split(',', Qt::SkipEmptyParts)) {
+                    const auto name = mod.trimmed();
+                    if (!name.isEmpty() && name != "minecraft" && name != "None" && !mods.contains(name))
+                        mods << name;
+                }
+            }
+        }
+        return mods.mid(0, 4);
+    };
+
+    // 1) Crash report written during the session.
+    const auto reports = QDir(instance.filePath("crash-reports")).entryInfoList({"crash-*.txt"}, QDir::Files, QDir::Time);
+    if (!reports.isEmpty() && reports.first().lastModified().toMSecsSinceEpoch() >= since) {
+        QFile file(reports.first().filePath());
+        if (file.open(QIODevice::ReadOnly)) {
+            const auto text = QString::fromUtf8(file.read(400000));
+            static const QRegularExpression description(QStringLiteral("^Description: (.+)$"), QRegularExpression::MultilineOption);
+            static const QRegularExpression exception(QStringLiteral("^\\s*(?:Caused by: )?([a-zA-Z0-9_.$]+(?:Exception|Error|Throwable)[^\\n\\r]*)"),
+                                                      QRegularExpression::MultilineOption);
+            QString cause;
+            auto it = exception.globalMatch(text);
+            while (it.hasNext())
+                cause = it.next().captured(1).trimmed(); // the innermost "Caused by" comes last
+            const auto mods = modsOf(text);
+            const bool memory = text.contains("OutOfMemoryError");
+            QString detail = cause.left(300);
+            if (!mods.isEmpty())
+                detail += QStringLiteral("\nMod suspeito: %1. Tente atualizar ou desativar na aba Mods.").arg(mods.join(", "));
+            if (memory)
+                detail += QStringLiteral("\nFaltou memória: aumente a memória do jogo em Ajustes.");
+            return {{"gameId", gameId}, {"kind", memory ? "memory" : "crash"},
+                    {"title", QStringLiteral("O Minecraft travou: %1").arg(description.match(text).captured(1).trimmed())},
+                    {"detail", detail}, {"mods", mods.join(", ")}, {"file", reports.first().filePath()}};
+        }
+    }
+
+    // 2) The game log: mod resolution failures and broken data that silently blocks world loading.
+    QFile log(instance.filePath("logs/latest.log"));
+    if (log.open(QIODevice::ReadOnly) && QFileInfo(log).lastModified().toMSecsSinceEpoch() >= since) {
+        const auto text = QString::fromUtf8(log.readAll());
+        const auto failure = text.indexOf(QRegularExpression(QStringLiteral("Incompatible mods? found|Mod resolution failed")));
+        if (failure >= 0) {
+            QStringList lines;
+            for (const auto &line : text.mid(failure, 4000).split('\n')) {
+                const auto trimmed = line.trimmed();
+                if (trimmed.startsWith("- ") || trimmed.startsWith("\t- "))
+                    lines << trimmed.mid(2);
+                if (lines.size() >= 5)
+                    break;
+            }
+            return {{"gameId", gameId}, {"kind", "resolution"}, {"title", QStringLiteral("Mods incompatíveis entre si")},
+                    {"detail", lines.join('\n')}, {"mods", modsOf(lines.join('\n')).join(", ")}, {"file", log.fileName()}};
+        }
+        static const QRegularExpression brokenTag(QStringLiteral("Couldn't load tag (\\S+) as it is missing following references: (.+?) \\(from ([A-Za-z0-9_\\-]+)\\)"));
+        const auto tag = brokenTag.match(text);
+        if (tag.hasMatch()) {
+            return {{"gameId", gameId}, {"kind", "data"},
+                    {"title", QStringLiteral("Dados quebrados no mod %1").arg(tag.captured(3))},
+                    {"detail", QStringLiteral("A tag %1 cita %2, que não existe. Isso costuma travar a criação de mundos "
+                                              "(\"Preparing for world creation\"). Atualize ou desative %3.")
+                                   .arg(tag.captured(1), tag.captured(2).left(160), tag.captured(3))},
+                    {"mods", tag.captured(3)}, {"file", log.fileName()}};
+        }
+        if (text.contains("OutOfMemoryError"))
+            return {{"gameId", gameId}, {"kind", "memory"}, {"title", QStringLiteral("Faltou memória para o jogo")},
+                    {"detail", QStringLiteral("Aumente a memória deste jogo em Ajustes.")}, {"mods", QString()}, {"file", log.fileName()}};
+    }
+    return {};
+}
+
+// ── Memory ─────────────────────────────────────────────────────────────────
+
+int GameRunner::systemMemoryMb() const
+{
+#ifdef Q_OS_WIN
+    MEMORYSTATUSEX status{};
+    status.dwLength = sizeof(status);
+    if (GlobalMemoryStatusEx(&status))
+        return int(status.ullTotalPhys / (1024 * 1024));
+#endif
+    return 8192;
+}
+
+int GameRunner::recommendedMemory(const QString &gameId, const QString &loader) const
+{
+    const auto mods = QDir(path("instances/" + gameId + "/mods")).entryList({"*.jar"}, QDir::Files).size();
+    int mb = loader == "Vanilla" ? 3072 : 3072 + int(mods) * 28;
+    // Leave room for the system and the launcher; never ask for more than ~60% of this PC.
+    const int ceiling = qMax(2048, int(systemMemoryMb() * 0.6));
+    mb = qBound(2048, mb, qMin(16384, ceiling));
+    return ((mb + 1023) / 1024) * 1024;
+}
+
+// ── Worlds ─────────────────────────────────────────────────────────────────
+
+QVariantList GameRunner::worlds(const QString &gameId) const
+{
+    QVariantList result;
+    if (gameId.isEmpty())
+        return result;
+    const QDir saves(path("instances/" + gameId + "/saves"));
+    for (const auto &info : saves.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time)) {
+        const QDir world(info.filePath());
+        if (!world.exists("level.dat"))
+            continue;
+        qint64 size = 0;
+        QDirIterator it(world.path(), QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            size += it.fileInfo().size();
+        }
+        const QFileInfo level(world.filePath("level.dat"));
+        const QFileInfo icon(world.filePath("icon.png"));
+        result.append(QVariantMap{
+            {"folder", info.fileName()},
+            {"name", info.fileName()},
+            {"lastPlayed", level.lastModified().toString(Qt::ISODate)},
+            {"sizeBytes", size},
+            {"icon", icon.exists() ? QUrl::fromLocalFile(icon.filePath()).toString() + "?v="
+                                         + QString::number(icon.lastModified().toSecsSinceEpoch())
+                                   : QString()},
+        });
+    }
+    return result;
+}
+
+void GameRunner::backupWorld(const QString &gameId, const QString &folder)
+{
+    const QDir instance(path("instances/" + gameId));
+    if (gameId.isEmpty() || folder.isEmpty() || QFileInfo(folder).fileName() != folder || !instance.exists("saves/" + folder))
+        return;
+    QDir().mkpath(instance.filePath("backups"));
+    const auto archive = instance.filePath(QStringLiteral("backups/%1-%2.zip")
+                                               .arg(folder, QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss")));
+    auto *tar = new QProcess(this);
+    tar->setWorkingDirectory(instance.filePath("saves"));
+    connect(tar, &QProcess::finished, this, [this, tar, gameId, archive](int code) {
+        tar->deleteLater();
+        emit worldBackupFinished(gameId, code == 0,
+                                 code == 0 ? QStringLiteral("Backup salvo em backups/%1").arg(QFileInfo(archive).fileName())
+                                           : QStringLiteral("Não foi possível fazer o backup do mundo."));
+    });
+    tar->start(QStandardPaths::findExecutable(QStringLiteral("tar")), {"-a", "-c", "-f", archive, folder});
+}
+
+bool GameRunner::trashWorld(const QString &gameId, const QString &folder)
+{
+    const QDir saves(path("instances/" + gameId + "/saves"));
+    if (gameId.isEmpty() || folder.isEmpty() || QFileInfo(folder).fileName() != folder || !saves.exists(folder))
+        return false;
+    // Recycle Bin, so a mistake can be undone from Windows.
+    const bool ok = QFile::moveToTrash(saves.filePath(folder));
+    emit worldsChanged(gameId);
+    return ok;
+}
+
+bool GameRunner::openWorldsFolder(const QString &gameId, const QString &folder)
+{
+    if (gameId.isEmpty())
+        return false;
+    const auto directory = path("instances/" + gameId + "/saves" + (folder.isEmpty() ? QString() : "/" + folder));
+    QDir().mkpath(directory);
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(directory));
 }

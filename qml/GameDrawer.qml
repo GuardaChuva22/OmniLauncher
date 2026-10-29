@@ -280,13 +280,71 @@ FocusScope {
                     }
                 }
 
+                // What went wrong last time this game ran (crash, incompatible mods, broken data).
+                Rectangle {
+                    readonly property var info: runner.diagnosis
+                    visible: !!info.gameId && info.gameId === root.gameId
+                    Layout.fillWidth: true
+                    Layout.topMargin: 16
+                    implicitHeight: diagnosisColumn.implicitHeight + 28
+                    radius: 14
+                    color: "#1AF0A19A"
+                    border.width: 1; border.color: "#40F0A19A"
+                    ColumnLayout {
+                        id: diagnosisColumn
+                        x: 14; y: 14
+                        width: parent.width - 28
+                        spacing: 6
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            UiIcon { name: "info"; width: 16; height: 16; color: Theme.danger }
+                            Text {
+                                Layout.fillWidth: true
+                                text: runner.diagnosis.title || ""
+                                color: Theme.text
+                                font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: runner.diagnosis.detail || ""
+                            color: Theme.secondary
+                            font.family: Theme.font; font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: 8
+                            elide: Text.ElideRight
+                        }
+                        RowLayout {
+                            spacing: 6
+                            ActionButton {
+                                text: "Ver relatório"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                onClicked: runner.openFile(runner.diagnosis.file)
+                            }
+                            ActionButton {
+                                visible: (runner.diagnosis.kind === "memory")
+                                text: "Ajustar memória"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                onClicked: tabs.currentIndex = 3
+                            }
+                            ActionButton {
+                                text: "Dispensar"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                onClicked: runner.clearDiagnosis()
+                            }
+                        }
+                    }
+                }
+
                 SegmentTabs {
                     id: tabs
                     Layout.fillWidth: true
                     Layout.topMargin: 26
-                    model: ["Visão geral", "Mods", "Ajustes"]
+                    model: ["Visão geral", "Mods", "Mundos", "Ajustes"]
                     reduced: root.reduced
-                    onCurrentIndexChanged: if (currentIndex === 1) root.checkModUpdates(false)
+                    onCurrentIndexChanged: {
+                        if (currentIndex === 1) root.checkModUpdates(false)
+                        if (currentIndex === 2) worldsTab.refresh()
+                    }
                 }
 
                 StackLayout {
@@ -629,6 +687,176 @@ FocusScope {
                         }
                     }
 
+                    // Mundos: the game's saves, with backup, folder and Recycle Bin removal.
+                    ColumnLayout {
+                        id: worldsTab
+                        spacing: 0
+                        property var list: []
+                        property string confirmFolder: ""
+                        function refresh() { list = root.gameId ? runner.worlds(root.gameId) : [] }
+                        function formatSize(bytes) {
+                            if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(1).replace(".", ",") + " GB"
+                            if (bytes >= 1048576) return Math.round(bytes / 1048576) + " MB"
+                            return Math.max(1, Math.round(bytes / 1024)) + " KB"
+                        }
+                        function formatDate(iso) {
+                            const date = new Date(iso)
+                            const days = Math.floor((Date.now() - date.getTime()) / 86400000)
+                            if (days < 1) return "hoje, " + date.toLocaleTimeString(Qt.locale(), "HH:mm")
+                            if (days < 2) return "ontem"
+                            if (days < 30) return days + " dias atrás"
+                            return date.toLocaleDateString(Qt.locale(), "d MMM yyyy")
+                        }
+                        Connections {
+                            target: runner
+                            function onWorldsChanged(gameId) { if (gameId === root.gameId) worldsTab.refresh() }
+                            function onWorldBackupFinished(gameId, ok, message) { root.notify(message) }
+                            function onGameExited(gameId) { if (gameId === root.gameId) worldsTab.refresh() }
+                        }
+                        Connections {
+                            target: root
+                            function onGameIdChanged() { worldsTab.list = []; worldsTab.confirmFolder = "" }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.topMargin: 14
+                            Layout.bottomMargin: 6
+                            spacing: 8
+                            Text {
+                                Layout.fillWidth: true
+                                text: worldsTab.list.length === 0 ? "" : worldsTab.list.length === 1 ? "1 mundo" : worldsTab.list.length + " mundos"
+                                color: Theme.muted
+                                font.family: Theme.font; font.pixelSize: 12
+                            }
+                            ActionButton {
+                                text: "Backups"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                onClicked: runner.openFile(runner.instanceDirectory(root.gameId) + "\\backups") || root.notify("Ainda não há backups deste jogo.")
+                            }
+                            ActionButton {
+                                text: "Pasta"; iconName: "folder"; iconSize: 14; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                onClicked: runner.openWorldsFolder(root.gameId)
+                            }
+                        }
+                        Repeater {
+                            model: worldsTab.list
+                            delegate: Item {
+                                id: worldRow
+                                required property var modelData
+                                readonly property bool confirming: worldsTab.confirmFolder === modelData.folder
+                                Layout.fillWidth: true
+                                implicitHeight: 62
+                                HoverHandler { id: worldHover }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: -8; anchors.rightMargin: -8
+                                    anchors.topMargin: 2; anchors.bottomMargin: 2
+                                    radius: 10
+                                    color: worldHover.hovered ? "#08FFFFFF" : "transparent"
+                                }
+                                RowLayout {
+                                    anchors.fill: parent
+                                    spacing: 12
+                                    Rectangle {
+                                        Layout.preferredWidth: 42; Layout.preferredHeight: 42
+                                        radius: 9; color: Theme.fill; clip: true
+                                        UiIcon { anchors.centerIn: parent; visible: worldIcon.status !== Image.Ready; width: 18; height: 18; name: "cube"; color: Theme.faint }
+                                        Image {
+                                            id: worldIcon
+                                            anchors.fill: parent
+                                            source: worldRow.modelData.icon
+                                            smooth: false
+                                            fillMode: Image.PreserveAspectCrop
+                                            asynchronous: true
+                                        }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: worldRow.modelData.name
+                                            color: Theme.text
+                                            font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            text: "Jogado " + worldsTab.formatDate(worldRow.modelData.lastPlayed) + "  ·  " + worldsTab.formatSize(worldRow.modelData.sizeBytes)
+                                            color: Theme.faint
+                                            font.family: Theme.font; font.pixelSize: 11
+                                        }
+                                    }
+                                    ActionButton {
+                                        visible: !worldRow.confirming
+                                        width: 30; height: 30; round: true; quiet: true
+                                        iconName: "copy"; iconSize: 14; reduced: root.reduced
+                                        Accessible.name: "Fazer backup de " + worldRow.modelData.name
+                                        ToolTip.visible: hovered; ToolTip.text: "Fazer backup"; ToolTip.delay: 400
+                                        onClicked: runner.backupWorld(root.gameId, worldRow.modelData.folder)
+                                    }
+                                    ActionButton {
+                                        visible: !worldRow.confirming
+                                        width: 30; height: 30; round: true; quiet: true
+                                        iconName: "folder"; iconSize: 14; reduced: root.reduced
+                                        Accessible.name: "Abrir pasta de " + worldRow.modelData.name
+                                        ToolTip.visible: hovered; ToolTip.text: "Abrir pasta"; ToolTip.delay: 400
+                                        onClicked: runner.openWorldsFolder(root.gameId, worldRow.modelData.folder)
+                                    }
+                                    ActionButton {
+                                        visible: !worldRow.confirming
+                                        width: 30; height: 30; round: true; quiet: true
+                                        iconName: "trash"; iconSize: 14; reduced: root.reduced
+                                        Accessible.name: "Apagar " + worldRow.modelData.name
+                                        ToolTip.visible: hovered; ToolTip.text: "Mover para a Lixeira"; ToolTip.delay: 400
+                                        onClicked: worldsTab.confirmFolder = worldRow.modelData.folder
+                                    }
+                                    ActionButton {
+                                        visible: worldRow.confirming
+                                        text: "Cancelar"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                        onClicked: worldsTab.confirmFolder = ""
+                                    }
+                                    ActionButton {
+                                        visible: worldRow.confirming
+                                        text: "Mover para a Lixeira"; danger: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                        onClicked: {
+                                            worldsTab.confirmFolder = ""
+                                            if (!runner.trashWorld(root.gameId, worldRow.modelData.folder)) root.notify("Não foi possível mover o mundo para a Lixeira.")
+                                        }
+                                    }
+                                }
+                                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
+                            }
+                        }
+                        ColumnLayout {
+                            visible: worldsTab.list.length === 0
+                            Layout.fillWidth: true
+                            Layout.topMargin: 28
+                            spacing: 8
+                            Rectangle {
+                                Layout.alignment: Qt.AlignHCenter
+                                width: 52; height: 52; radius: 26
+                                color: Theme.fill
+                                border.width: 1; border.color: Theme.line
+                                UiIcon { anchors.centerIn: parent; width: 22; height: 22; name: "cube"; color: Theme.muted }
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                Layout.topMargin: 6
+                                text: "Nenhum mundo ainda"
+                                color: Theme.text
+                                font.family: Theme.font; font.pixelSize: 15; font.weight: Font.DemiBold
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.WordWrap
+                                text: "Mundos criados neste jogo aparecem aqui. Antes de atualizar um modpack, o OmniLauncher faz backup deles."
+                                color: Theme.muted
+                                font.family: Theme.font; font.pixelSize: 13
+                            }
+                        }
+                    }
+
                     // Ajustes, saved per game. Unset values follow the global defaults.
                     ColumnLayout {
                         spacing: 8
@@ -648,6 +876,29 @@ FocusScope {
                             Binding on value { when: !memory.pressed; value: Math.round((root.effective.memoryMb || 4096) / 1024) }
                             onPressedChanged: if (!pressed) root.save("memoryMb", value * 1024)
                             Keys.onReleased: root.save("memoryMb", value * 1024)
+                        }
+                        RowLayout {
+                            readonly property int recommendedGb: root.game ? (mods.installed.length, runner.recommendedMemory(root.gameId, root.game.loader) / 1024) : 4
+                            readonly property int systemGb: Math.round(runner.systemMemoryMb / 1024)
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                Layout.fillWidth: true
+                                text: memory.value > parent.systemGb * 0.75
+                                      ? "Muito alto para este PC (" + parent.systemGb + " GB): o Windows pode ficar lento."
+                                      : memory.value < parent.recommendedGb - 1
+                                        ? "Abaixo do recomendado (" + parent.recommendedGb + " GB) para este jogo: pode travar ou ficar lento."
+                                        : "Recomendado: " + parent.recommendedGb + " GB  ·  Este PC: " + parent.systemGb + " GB"
+                                color: memory.value > parent.systemGb * 0.75 || memory.value < parent.recommendedGb - 1 ? Theme.danger : Theme.faint
+                                font.family: Theme.font; font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
+                            ActionButton {
+                                visible: memory.value !== parent.recommendedGb
+                                text: "Usar " + parent.recommendedGb + " GB"; quiet: true
+                                implicitHeight: 28; font.pixelSize: 12; reduced: root.reduced
+                                onClicked: root.save("memoryMb", parent.recommendedGb * 1024)
+                            }
                         }
 
                         RowLayout {

@@ -23,7 +23,16 @@ qt_add_executable(OmniLauncher WIN32
     src/core/ModManager.cpp
     src/core/AuthManager.h
     src/core/AuthManager.cpp
+    src/core/UpdateManager.h
+    src/core/UpdateManager.cpp
 )
+
+# Packaged builds know their commit and check the GitHub release for a newer one.
+execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                OUTPUT_VARIABLE omni_build_commit OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+option(OMNI_AUTO_UPDATE "Check GitHub releases for launcher updates (packaged builds)" OFF)
+target_compile_definitions(OmniLauncher PRIVATE OMNI_BUILD_COMMIT="${omni_build_commit}"
+                           OMNI_AUTO_UPDATE=$<BOOL:${OMNI_AUTO_UPDATE}>)
 target_include_directories(OmniLauncher PRIVATE src/app src/core)
 
 # Azure app (client) ID for Microsoft sign-in. Public by design; the OMNI_MSA_CLIENT_ID

@@ -40,6 +40,10 @@ class GameRunner final : public QObject
     Q_PROPERTY(QString recommendedLoader READ recommendedLoader NOTIFY loaderVersionsChanged)
     Q_PROPERTY(QString loaderVersionsFor READ loaderVersionsFor NOTIFY loaderVersionsChanged)
     Q_PROPERTY(QString loaderVersionsLoader READ loaderVersionsLoader NOTIFY loaderVersionsChanged)
+    // What went wrong in the last session: gameId, kind ("crash" | "resolution" | "data" | "memory"),
+    // title, detail, mods, file. Empty when nothing was found.
+    Q_PROPERTY(QVariantMap diagnosis READ diagnosis NOTIFY diagnosisChanged)
+    Q_PROPERTY(int systemMemoryMb READ systemMemoryMb CONSTANT)
 
 public:
     explicit GameRunner(const QString &dataDirectory, QObject *parent = nullptr);
@@ -59,6 +63,21 @@ public:
     QString recommendedLoader() const { return m_recommendedLoader; }
     QString loaderVersionsFor() const { return m_loaderVersionsFor; }
     QString loaderVersionsLoader() const { return m_loaderVersionsLoader; }
+    QVariantMap diagnosis() const { return m_diagnosis; }
+    int systemMemoryMb() const;
+
+    // Looks at the newest crash report and the game log of a game (since = epoch ms, 0 = any).
+    Q_INVOKABLE QVariantMap diagnose(const QString &gameId, qint64 since = 0) const;
+    Q_INVOKABLE void clearDiagnosis();
+    Q_INVOKABLE bool openFile(const QString &path);
+    // Suggested heap for a game: grows with its mod count, capped by this PC's memory.
+    Q_INVOKABLE int recommendedMemory(const QString &gameId, const QString &loader) const;
+
+    // Worlds of a game: folder, name, lastPlayed (ISO), sizeBytes, icon (file URL or "").
+    Q_INVOKABLE QVariantList worlds(const QString &gameId) const;
+    Q_INVOKABLE void backupWorld(const QString &gameId, const QString &folder);
+    Q_INVOKABLE bool trashWorld(const QString &gameId, const QString &folder);
+    Q_INVOKABLE bool openWorldsFolder(const QString &gameId, const QString &folder = {});
 
     // `game` is a library entry; `settings` comes from AppModel::launchSettings().
     // `account` (Microsoft): uuid, accessToken, xuid, clientId. Empty means offline.
@@ -81,6 +100,9 @@ signals:
     void stateChanged();
     void progressChanged();
     void loaderVersionsChanged();
+    void diagnosisChanged();
+    void worldsChanged(const QString &gameId);
+    void worldBackupFinished(const QString &gameId, bool ok, const QString &message);
     // `detached`: the launcher is not tracking the process (it may now quit).
     void gameStarted(bool detached);
     void gameExited(const QString &gameId, qint64 seconds, int exitCode);
@@ -154,6 +176,8 @@ private:
     bool m_forgeNeedsProcessors = false;
     int m_processorIndex = 0;
     QPointer<QProcess> m_processor;
+    QVariantMap m_diagnosis;
+    qint64 m_sessionStart = 0;
     QString m_playerName;
     QVariantMap m_settings;
     QVariantMap m_account;

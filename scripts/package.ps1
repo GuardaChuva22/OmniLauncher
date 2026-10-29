@@ -11,7 +11,7 @@ if (-not $QtRoot) { $QtRoot = Join-Path $projectRoot '.tools\Qt\6.8.3\msvc2022_6
 $windeployqt = Join-Path $QtRoot 'bin\windeployqt.exe'
 if (-not (Test-Path -LiteralPath $windeployqt)) { throw 'windeployqt was not found. Run scripts\setup-qt.ps1 first.' }
 
-if (-not $SkipBuild) { & (Join-Path $PSScriptRoot 'build.ps1') -QtRoot $QtRoot -Configuration Release }
+if (-not $SkipBuild) { & (Join-Path $PSScriptRoot 'build.ps1') -QtRoot $QtRoot -Configuration Release -CMakeArgs '-DOMNI_AUTO_UPDATE=ON' }
 $executable = Join-Path $projectRoot 'build\OmniLauncher.exe'
 if (-not (Test-Path -LiteralPath $executable)) { throw 'Build first with scripts\build.ps1.' }
 

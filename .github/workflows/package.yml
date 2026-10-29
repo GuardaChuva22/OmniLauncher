@@ -44,9 +44,10 @@ jobs:
           $zip = "dist/OmniLauncher-$version-win64.zip"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $zip --target $env:GITHUB_SHA --title "OmniLauncher $version" --notes "Baixe o zip, extraia e abra OmniLauncher.exe. Nada precisa ser instalado."
+            gh release create $tag "$zip#$env:GITHUB_SHA" --target $env:GITHUB_SHA --title "OmniLauncher $version" --notes "Baixe o zip, extraia e abra OmniLauncher.exe. Nada precisa ser instalado."
           } else {
+            # The asset label carries the commit: installed launchers compare it with their own.
+            gh release upload $tag "$zip#$env:GITHUB_SHA" --clobber
             gh api -X PATCH "repos/$env:GITHUB_REPOSITORY/git/refs/tags/$tag" -f sha=$env:GITHUB_SHA -F force=true | Out-Null
-            gh release upload $tag $zip --clobber
           }
           if ($LASTEXITCODE -ne 0) { exit 1 }
