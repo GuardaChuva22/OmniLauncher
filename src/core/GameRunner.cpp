@@ -232,6 +232,14 @@ GameRunner::GameRunner(const QString &dataDirectory, QObject *parent)
     QFile cached(path("meta/version_manifest_v2.json"));
     if (cached.open(QIODevice::ReadOnly))
         loadManifest(cached.readAll());
+    QFile defaults(path("minecraft-defaults.txt"));
+    if (defaults.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        for (const auto &line : QString::fromUtf8(defaults.readAll()).split('\n', Qt::SkipEmptyParts)) {
+            const auto colon = line.indexOf(':');
+            if (colon > 0)
+                m_gameDefaults.insert(line.left(colon).trimmed(), line.mid(colon + 1).trimmed());
+        }
+    }
     refreshVersions();
 }
 
@@ -965,6 +973,9 @@ void GameRunner::stepPrepareAndStart()
     const auto nativesDir = path("natives/" + m_versionId);
     QDir().mkpath(gameDir);
     QDir().mkpath(nativesDir);
+    // A game's first start gets the player's Minecraft defaults; after that it is on its own.
+    if (!QFileInfo::exists(QDir(gameDir).filePath("options.txt")) && !m_gameDefaults.isEmpty())
+        writeOptions(QDir(gameDir).filePath("options.txt"));
 
     // Legacy (pre-1.19) native archives are unpacked; newer LWJGL extracts itself.
     QStringList classpath;
@@ -1424,4 +1435,108 @@ bool GameRunner::openWorldsFolder(const QString &gameId, const QString &folder)
     const auto directory = path("instances/" + gameId + "/saves" + (folder.isEmpty() ? QString() : "/" + folder));
     QDir().mkpath(directory);
     return QDesktopServices::openUrl(QUrl::fromLocalFile(directory));
+}
+
+// ── Minecraft defaults ─────────────────────────────────────────────────────
+
+namespace {
+const QStringList kDefaultKeys{
+    "mouseSensitivity", "fov", "renderDistance", "simulationDistance", "enableVsync", "maxFps", "guiScale",
+    "gamma", "lang", "autoJump", "showSubtitles", "onboardAccessibility", "tutorialStep",
+    "skipMultiplayerWarning", "joinedFirstServer", "fullscreen", "graphicsMode", "particles", "entityShadows",
+    "chatScale", "toggleCrouch", "toggleSprint", "bobView", "darkMojangStudiosBackground", "version"};
+
+bool importable(const QString &key)
+{
+    return kDefaultKeys.contains(key) || key.startsWith("key_") || key.startsWith("soundCategory_");
+}
+} // namespace
+
+int GameRunner::defaultKeybindCount() const
+{
+    int count = 0;
+    for (auto it = m_gameDefaults.begin(); it != m_gameDefaults.end(); ++it)
+        count += it.key().startsWith("key_") ? 1 : 0;
+    return count;
+}
+
+void GameRunner::saveGameDefaults()
+{
+    QSaveFile file(path("minecraft-defaults.txt"));
+    QByteArray data;
+    for (auto it = m_gameDefaults.begin(); it != m_gameDefaults.end(); ++it)
+        data += (it.key() + ':' + it.value().toString() + '\n').toUtf8();
+    if (file.open(QIODevice::WriteOnly) && file.write(data) == data.size())
+        file.commit();
+    emit gameDefaultsChanged();
+}
+
+void GameRunner::setGameDefault(const QString &key, const QString &value)
+{
+    if (!importable(key) || key.contains('\n') || value.contains('\n'))
+        return;
+    if (value.isEmpty())
+        m_gameDefaults.remove(key);
+    else
+        m_gameDefaults.insert(key, value);
+    saveGameDefaults();
+}
+
+void GameRunner::resetGameDefaults()
+{
+    m_gameDefaults.clear();
+    saveGameDefaults();
+}
+
+int GameRunner::importGameDefaults(const QString &gameId)
+{
+    QFile file(path("instances/" + gameId + "/options.txt"));
+    if (gameId.isEmpty() || !file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return -1;
+    int count = 0;
+    for (const auto &line : QString::fromUtf8(file.readAll()).split('\n', Qt::SkipEmptyParts)) {
+        const auto colon = line.indexOf(':');
+        const auto key = line.left(colon).trimmed();
+        if (colon <= 0 || !importable(key))
+            continue;
+        m_gameDefaults.insert(key, line.mid(colon + 1).trimmed());
+        ++count;
+    }
+    saveGameDefaults();
+    return count;
+}
+
+bool GameRunner::writeOptions(const QString &file) const
+{
+    // Merge: our keys replace matching lines; every other line of an existing file stays.
+    QStringList lines;
+    QSet<QString> written;
+    QFile current(file);
+    if (current.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        for (const auto &line : QString::fromUtf8(current.readAll()).split('\n', Qt::SkipEmptyParts)) {
+            const auto key = line.left(line.indexOf(':')).trimmed();
+            if (m_gameDefaults.contains(key) && key != "version") {
+                lines << key + ':' + m_gameDefaults.value(key).toString();
+                written.insert(key);
+            } else {
+                lines << line;
+                written.insert(key);
+            }
+        }
+        current.close();
+    }
+    for (auto it = m_gameDefaults.begin(); it != m_gameDefaults.end(); ++it)
+        if (!written.contains(it.key()))
+            lines << it.key() + ':' + it.value().toString();
+    QDir().mkpath(QFileInfo(file).absolutePath());
+    QSaveFile out(file);
+    const auto data = (lines.join('\n') + '\n').toUtf8();
+    return out.open(QIODevice::WriteOnly) && out.write(data) == data.size() && out.commit();
+}
+
+bool GameRunner::applyGameDefaults(const QString &gameId)
+{
+    if (gameId.isEmpty() || m_gameDefaults.isEmpty())
+        return false;
+    return writeOptions(path("instances/" + gameId + "/options.txt"));
 }

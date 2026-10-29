@@ -76,6 +76,8 @@ public:
     // → installPackFiles(gameId).
     Q_INVOKABLE void prepareCustom(const QString &url, const QString &targetGameId = {});
     Q_INVOKABLE void checkCustom(const QString &gameId, const QString &url);
+    // Downloads the Modrinth logo of a pack game; emits packIconReady with a local file URL.
+    Q_INVOKABLE void fetchPackIcon(const QString &gameId, const QString &projectId);
 
     // Empty gameVersion/loader lists every version (used for modpacks).
     Q_INVOKABLE void fetchProjectVersions(const QString &projectId, const QString &gameVersion = {},
@@ -114,6 +116,7 @@ signals:
     void packFinished(const QString &gameId, bool ok, const QString &message, const QVariantMap &pack);
     void versionChoicesChanged();
     void customLatestChanged();
+    void packIconReady(const QString &gameId, const QString &fileUrl);
 
 private:
     struct Install {

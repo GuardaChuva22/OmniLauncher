@@ -1,6 +1,9 @@
 #include "AppModel.h"
 
+#include <QColor>
 #include <QDateTime>
+
+#include <array>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -91,6 +94,14 @@ QVariant cleanGameSetting(const QString &key, const QVariant &value)
         const auto text = value.toString().trimmed();
         return text.size() <= 2000 ? QVariant(text) : QVariant();
     }
+    if (key == "packIcon") {
+        const auto text = value.toString();
+        return text.startsWith("file:") && text.size() <= 2048 ? QVariant(text) : QVariant();
+    }
+    if (key == "packColor") {
+        static const QRegularExpression color(QStringLiteral("^#[0-9a-fA-F]{6}$"));
+        return color.match(value.toString()).hasMatch() ? value : QVariant();
+    }
     if (key == "customPackUrl") {
         const auto text = value.toString().trimmed();
         const bool scheme = text.startsWith("https://") || text.startsWith("http://") || text.startsWith("file:");
@@ -124,6 +135,46 @@ QVariant cleanPreference(const QString &key, const QVariant &value)
         return text == "minimize" || text == "close" || text == "keep" ? QVariant(text) : QVariant();
     }
     return {};
+}
+
+// Background for a logo tile. An opaque, square logo continues into its own edge color;
+// a logo with transparency sits on a darkened version of its dominant color, so it stays visible.
+QString tileColorFor(const QImage &source)
+{
+    const auto image = source.convertToFormat(QImage::Format_ARGB32).scaled(32, 32, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    qint64 edgeR = 0, edgeG = 0, edgeB = 0, edgeCount = 0, edgeOpaque = 0;
+    QHash<int, std::array<double, 4>> buckets; // weight, r, g, b
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor color = QColor::fromRgba(image.pixel(x, y));
+            const bool edge = x == 0 || y == 0 || x == image.width() - 1 || y == image.height() - 1;
+            if (edge) {
+                ++edgeCount;
+                if (color.alpha() > 240) {
+                    ++edgeOpaque;
+                    edgeR += color.red(); edgeG += color.green(); edgeB += color.blue();
+                }
+            }
+            if (color.alpha() < 200 || color.valueF() < 0.1 || (color.saturationF() < 0.08 && color.valueF() > 0.92))
+                continue;
+            const int key = (color.red() >> 5) << 6 | (color.green() >> 5) << 3 | (color.blue() >> 5);
+            auto &bucket = buckets[key];
+            const double weight = 1.0 + 2.0 * color.saturationF();
+            bucket[0] += weight;
+            bucket[1] += color.red() * weight; bucket[2] += color.green() * weight; bucket[3] += color.blue() * weight;
+        }
+    }
+    if (edgeCount > 0 && edgeOpaque == edgeCount)
+        return QColor(int(edgeR / edgeOpaque), int(edgeG / edgeOpaque), int(edgeB / edgeOpaque)).name();
+    std::array<double, 4> best{0, 40, 40, 48};
+    for (const auto &bucket : buckets)
+        if (bucket[0] > best[0])
+            best = bucket;
+    QColor dominant = best[0] > 0 ? QColor(int(best[1] / best[0]), int(best[2] / best[0]), int(best[3] / best[0]))
+                                  : QColor(40, 40, 48);
+    float h, s, v;
+    dominant.getHsvF(&h, &s, &v);
+    return QColor::fromHsvF(h < 0 ? 0 : h, qMin(s, 0.65f), 0.3f).name();
 }
 
 bool validOfflineName(const QString &name)
@@ -674,4 +725,27 @@ void AppModel::setCustomPack(const QString &id, const QString &url, const QStrin
         return;
     }
     emit gameSettingsChanged();
+}
+
+bool AppModel::setPackArt(const QString &id, const QString &iconUrl)
+{
+    if (indexOfId(m_games, id) < 0)
+        return false;
+    const auto imported = importCover(QUrl(iconUrl));
+    if (imported.isEmpty())
+        return false;
+    const QImage logo(QUrl(imported).toLocalFile());
+    if (logo.isNull())
+        return false;
+    const auto previous = m_gameSettings;
+    auto settings = m_gameSettings.value(id).toMap();
+    settings.insert("packIcon", imported);
+    settings.insert("packColor", tileColorFor(logo));
+    m_gameSettings.insert(id, settings);
+    if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
+        m_gameSettings = previous;
+        return false;
+    }
+    emit gameSettingsChanged();
+    return true;
 }

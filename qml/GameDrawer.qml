@@ -863,6 +863,25 @@ FocusScope {
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.topMargin: 16
+                            spacing: 8
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Padrões do Minecraft (sensibilidade, FOV, teclas…)"
+                                color: Theme.secondary
+                                font.family: Theme.font; font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                            }
+                            ActionButton {
+                                text: "Aplicar"; quiet: true; implicitHeight: 30; font.pixelSize: 12; reduced: root.reduced
+                                enabled: Object.keys(runner.gameDefaults).length > 0 && !root.thisRunning
+                                ToolTip.visible: hovered; ToolTip.text: "Grava os padrões de Configurações neste jogo"; ToolTip.delay: 400
+                                onClicked: root.notify(runner.applyGameDefaults(root.gameId) ? "Padrões aplicados a este jogo."
+                                                                                              : "Não foi possível aplicar os padrões.")
+                            }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.topMargin: 16
                             Text { text: "Memória"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
                             Text { text: memory.value + " GB"; color: Theme.text; font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold }
                         }

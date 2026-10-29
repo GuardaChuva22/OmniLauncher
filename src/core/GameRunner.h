@@ -44,6 +44,10 @@ class GameRunner final : public QObject
     // title, detail, mods, file. Empty when nothing was found.
     Q_PROPERTY(QVariantMap diagnosis READ diagnosis NOTIFY diagnosisChanged)
     Q_PROPERTY(int systemMemoryMb READ systemMemoryMb CONSTANT)
+    // Minecraft options (options.txt keys → values) written into every new game before
+    // its first start. Keys absent here keep the game's own defaults.
+    Q_PROPERTY(QVariantMap gameDefaults READ gameDefaults NOTIFY gameDefaultsChanged)
+    Q_PROPERTY(int defaultKeybindCount READ defaultKeybindCount NOTIFY gameDefaultsChanged)
 
 public:
     explicit GameRunner(const QString &dataDirectory, QObject *parent = nullptr);
@@ -65,6 +69,15 @@ public:
     QString loaderVersionsLoader() const { return m_loaderVersionsLoader; }
     QVariantMap diagnosis() const { return m_diagnosis; }
     int systemMemoryMb() const;
+    QVariantMap gameDefaults() const { return m_gameDefaults; }
+    int defaultKeybindCount() const;
+    Q_INVOKABLE void setGameDefault(const QString &key, const QString &value);
+    Q_INVOKABLE void resetGameDefaults();
+    // Copies the known options, all sound levels and all keybinds from a game's options.txt.
+    // Returns how many values were taken, or -1 when the game has none yet.
+    Q_INVOKABLE int importGameDefaults(const QString &gameId);
+    // Writes the defaults into an existing game's options.txt (other lines are kept).
+    Q_INVOKABLE bool applyGameDefaults(const QString &gameId);
 
     // Looks at the newest crash report and the game log of a game (since = epoch ms, 0 = any).
     Q_INVOKABLE QVariantMap diagnose(const QString &gameId, qint64 since = 0) const;
@@ -101,6 +114,7 @@ signals:
     void progressChanged();
     void loaderVersionsChanged();
     void diagnosisChanged();
+    void gameDefaultsChanged();
     void worldsChanged(const QString &gameId);
     void worldBackupFinished(const QString &gameId, bool ok, const QString &message);
     // `detached`: the launcher is not tracking the process (it may now quit).
@@ -177,6 +191,9 @@ private:
     int m_processorIndex = 0;
     QPointer<QProcess> m_processor;
     QVariantMap m_diagnosis;
+    QVariantMap m_gameDefaults;
+    void saveGameDefaults();
+    bool writeOptions(const QString &file) const;
     qint64 m_sessionStart = 0;
     QString m_playerName;
     QVariantMap m_settings;

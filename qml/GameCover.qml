@@ -102,6 +102,42 @@ FocusScope {
             Behavior on opacity { NumberAnimation { duration: root.reduced ? 0 : Theme.normal } }
             Behavior on brightness { NumberAnimation { duration: root.reduced ? 0 : Theme.normal } }
         }
+        // Modpacks show their logo on a color taken from it; the cover art stays for the
+        // drawer and the hover background.
+        Item {
+            id: logoTile
+            readonly property var saved: launcher.gameSettings[root.game.id] || ({})
+            anchors.fill: parent
+            visible: !!saved.packIcon && logoImage.status !== Image.Error
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusLg
+                color: logoTile.saved.packColor || "#2A2530"
+            }
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusLg
+                gradient: Gradient {
+                    GradientStop { position: 0; color: "#1AFFFFFF" }
+                    GradientStop { position: 0.5; color: "#00FFFFFF" }
+                    GradientStop { position: 1; color: "#40000000" }
+                }
+            }
+            Image {
+                id: logoImage
+                anchors.centerIn: parent
+                width: Math.round(parent.width * 0.62); height: width
+                source: logoTile.saved.packIcon || ""
+                sourceSize: Qt.size(256, 256)
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                smooth: true
+                mipmap: true
+                scale: root.highlighted && !root.reduced ? 1.05 : 1
+                Behavior on scale { NumberAnimation { duration: root.reduced ? 0 : Theme.normal; easing.type: Easing.OutCubic } }
+            }
+        }
+
         // Bottom shade so the quick-play control stays legible on bright art.
         Rectangle {
             anchors.fill: parent

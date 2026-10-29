@@ -202,7 +202,21 @@ ApplicationWindow {
             if (saved.customPackUrl) mods.checkCustom(game.id, saved.customPackUrl)
         }
     }
-    Timer { running: true; interval: 2500; onTriggered: window.checkCustomPacks() }
+    Timer {
+        running: true; interval: 2500
+        onTriggered: {
+            window.checkCustomPacks()
+            // Packs installed before logos existed get theirs now.
+            for (const game of launcher.games) {
+                const saved = launcher.gameSettings[game.id] || {}
+                if (saved.packProjectId && !saved.packIcon) mods.fetchPackIcon(game.id, saved.packProjectId)
+            }
+        }
+    }
+    Connections {
+        target: mods
+        function onPackIconReady(gameId, fileUrl) { launcher.setPackArt(gameId, fileUrl) }
+    }
     Timer { running: updates.enabled; interval: 4000; onTriggered: updates.check() }
     property bool updateNotified: false
     Connections {
@@ -799,6 +813,7 @@ ApplicationWindow {
             else if (ok && pack.projectId) launcher.setPackSource(gameId, pack.projectId, pack.versionId, pack.versionNumber)
             if (!ok && gameId && !changed) launcher.removeGame(gameId)
             window.notify(ok && !changed ? "Modpack instalado. Ele já está em Jogos." : message)
+            if (ok && !changed && pack.projectId) mods.fetchPackIcon(gameId, pack.projectId)
             if (ok && !changed) {
                 // Size the memory to the pack that was just installed.
                 const game = window.gameById(gameId)

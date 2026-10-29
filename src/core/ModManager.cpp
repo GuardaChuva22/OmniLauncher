@@ -1062,3 +1062,28 @@ void ModManager::checkCustom(const QString &gameId, const QString &url)
         emit customLatestChanged();
     });
 }
+
+void ModManager::fetchPackIcon(const QString &gameId, const QString &projectId)
+{
+    if (gameId.isEmpty() || projectId.isEmpty())
+        return;
+    auto *reply = get(kApi + "project/" + projectId);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, gameId, projectId] {
+        reply->deleteLater();
+        const auto iconUrl = QJsonDocument::fromJson(reply->readAll()).object().value("icon_url").toString();
+        if (reply->error() != QNetworkReply::NoError || iconUrl.isEmpty())
+            return;
+        auto *icon = get(iconUrl);
+        connect(icon, &QNetworkReply::finished, this, [this, icon, gameId, projectId] {
+            icon->deleteLater();
+            const auto data = icon->readAll();
+            if (icon->error() != QNetworkReply::NoError || data.isEmpty())
+                return;
+            const auto path = QDir(m_root).filePath("cache/icons/" + projectId);
+            QDir().mkpath(QFileInfo(path).absolutePath());
+            QSaveFile file(path);
+            if (file.open(QIODevice::WriteOnly) && file.write(data) == data.size() && file.commit())
+                emit packIconReady(gameId, QUrl::fromLocalFile(path).toString());
+        });
+    });
+}
