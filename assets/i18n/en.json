@@ -842,5 +842,6 @@
  "Desligar": "Turn off",
  "Modo desenvolvedor desligado.": "Developer mode off.",
  "Modo desenvolvedor ligado: a seção Depuração apareceu.": "Developer mode on: the Debug section is now showing.",
- "Faltam %1 cliques para o modo desenvolvedor.": "%1 more clicks to developer mode."
+ "Faltam %1 cliques para o modo desenvolvedor.": "%1 more clicks to developer mode.",
+ "Ligado: perfis offline e a conexão pela Steam (aba Conexão dos servidores) ficam disponíveis. Desligar esconde esta seção.": "On: offline profiles and the Steam connection (servers' Connection tab) are available. Turning it off hides this section."
 }

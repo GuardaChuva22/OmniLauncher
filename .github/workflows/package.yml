@@ -35,6 +35,23 @@ jobs:
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
 
+      # Steamworks SDK for the Steam connection, from a private repository: Valve's SDK can't be
+      # public. It holds public/steam/ and redistributable_bin/win64/ at its root (repository
+      # variable STEAMWORKS_REPO, default <owner>/OmniLauncher-steamworks). Without the
+      # STEAMWORKS_TOKEN secret the build leaves the feature out.
+      - name: Check for the Steamworks SDK
+        id: steamworks
+        shell: bash
+        run: echo "enabled=${{ secrets.STEAMWORKS_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the Steamworks SDK
+        if: steps.steamworks.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.STEAMWORKS_REPO || format('{0}/OmniLauncher-steamworks', github.repository_owner) }}
+          token: ${{ secrets.STEAMWORKS_TOKEN }}
+          path: .tools/steamworks
+
       - name: Build and package
         shell: powershell
         run: ./scripts/package.ps1 -QtRoot "$env:QT_ROOT_DIR"

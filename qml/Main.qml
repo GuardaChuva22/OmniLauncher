@@ -227,6 +227,8 @@ ApplicationWindow {
     }
 
     // ── Steam friends ──────────────────────────────────────────────────────
+    // On in development builds; in released ones (App ID 480 is for testing) only in developer mode.
+    Binding { target: steam; property: "enabled"; value: !updates.enabled || launcher.preferences.developerMode === true }
     // Sharing: the first running server with sharing on goes to Steam friends.
     function syncSteamShare() {
         if (!steam.ready) return

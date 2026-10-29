@@ -314,17 +314,38 @@ SteamTunnel::SteamTunnel(QObject *parent)
     m_pump->setInterval(100);
     connect(m_pump, &QTimer::timeout, this, &SteamTunnel::pump);
     m_pump->start();
+    // Steam opened after the launcher: try again now and then while enabled.
     auto *retry = new QTimer(this);
     retry->setInterval(15000);
-    connect(retry, &QTimer::timeout, this, [this, retry] {
-        if (m_ready)
-            retry->stop();
-        else
+    connect(retry, &QTimer::timeout, this, [this] {
+        if (m_enabled && !m_ready)
             tryInit();
     });
     retry->start();
-    tryInit();
 #endif
+}
+
+void SteamTunnel::setEnabled(bool enabled)
+{
+    if (enabled == m_enabled)
+        return;
+    m_enabled = enabled;
+#ifdef OMNI_STEAM
+    if (enabled) {
+        tryInit();
+    } else if (d) {
+        leave();
+        stopHosting();
+        d.reset();
+        SteamAPI_Shutdown();
+        m_ready = false;
+        m_personaName.clear();
+        m_friends.clear();
+        emit friendsChanged();
+        emit readyChanged();
+    }
+#endif
+    emit enabledChanged();
 }
 
 SteamTunnel::~SteamTunnel()
@@ -356,7 +377,7 @@ bool SteamTunnel::available() const
 void SteamTunnel::tryInit()
 {
 #ifdef OMNI_STEAM
-    if (m_ready || !available())
+    if (m_ready || !m_enabled || !available())
         return;
     // The App ID through the environment, so no steam_appid.txt is needed beside the exe.
     qputenv("SteamAppId", QByteArray::number(OMNI_STEAM_APP_ID));

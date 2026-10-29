@@ -455,7 +455,9 @@ Item {
                 SettingRow {
                     visible: updates.enabled
                     title: qsTr("Modo desenvolvedor")
-                    description: qsTr("Esconde esta seção e desliga as opções de depuração.")
+                    description: steam.available
+                        ? qsTr("Ligado: perfis offline e a conexão pela Steam (aba Conexão dos servidores) ficam disponíveis. Desligar esconde esta seção.")
+                        : qsTr("Esconde esta seção e desliga as opções de depuração.")
                     divider: false
                     ActionButton {
                         text: qsTr("Desligar"); quiet: true; reduced: root.reduced

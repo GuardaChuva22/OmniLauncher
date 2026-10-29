@@ -928,10 +928,10 @@ Item {
                     id: connectionColumn
                     width: connectionFlick.width - 14
                     spacing: 0
-                    // Builds without Steamworks (the released one, for now) leave the section out.
-                    SectionTitle { visible: steam.available; text: qsTr("Amigos da Steam"); Layout.topMargin: 0 }
+                    // Only with Steamworks in the build and the connection turned on (developer mode in releases).
+                    SectionTitle { visible: steam.available && steam.enabled; text: qsTr("Amigos da Steam"); Layout.topMargin: 0 }
                     Group {
-                        visible: steam.available
+                        visible: steam.available && steam.enabled
                         SettingRow {
                             title: qsTr("Compartilhar com amigos da Steam")
                             description: {
@@ -988,7 +988,7 @@ Item {
                         }
                     }
                     Text {
-                        visible: steam.available
+                        visible: steam.available && steam.enabled
                         Layout.fillWidth: true
                         Layout.topMargin: 10
                         Layout.leftMargin: 4
@@ -997,7 +997,7 @@ Item {
                         color: Theme.faint; font.family: Theme.font; font.pixelSize: 12
                     }
 
-                    SectionTitle { text: qsTr("Conector"); Layout.topMargin: steam.available ? 24 : 0 }
+                    SectionTitle { text: qsTr("Conector"); Layout.topMargin: steam.available && steam.enabled ? 24 : 0 }
                     Group {
                         SettingRow {
                             title: qsTr("Endereço público sem configurar o roteador")

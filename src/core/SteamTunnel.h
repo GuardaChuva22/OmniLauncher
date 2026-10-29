@@ -23,6 +23,9 @@ class SteamTunnel final : public QObject
     Q_OBJECT
     // Built with Steamworks and its DLL found.
     Q_PROPERTY(bool available READ available CONSTANT)
+    // Off until turned on: only then does the launcher sign in to Steam (and show up there as
+    // playing the App ID's game). Development builds turn it on; released ones in developer mode.
+    Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
     // Steam is open and signed in.
     Q_PROPERTY(bool ready READ ready NOTIFY readyChanged)
     Q_PROPERTY(QString personaName READ personaName NOTIFY readyChanged)
@@ -42,6 +45,8 @@ public:
     ~SteamTunnel() override;
 
     bool available() const;
+    bool enabled() const { return m_enabled; }
+    void setEnabled(bool enabled);
     bool ready() const { return m_ready; }
     QString personaName() const { return m_personaName; }
     QVariantMap hosting() const { return m_hosting; }
@@ -64,6 +69,7 @@ public:
 
 signals:
     void readyChanged();
+    void enabledChanged();
     void sharingChanged();
     void hostingChanged();
     void friendsChanged();
@@ -85,6 +91,7 @@ private:
     QTimer *m_pump = nullptr;
     bool m_friendsDirty = false;
     bool m_ready = false;
+    bool m_enabled = false;
     QString m_personaName;
     QVariantMap m_hosting;
     QVariantList m_friends;
