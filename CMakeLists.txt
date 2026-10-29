@@ -46,10 +46,14 @@ if(omni_discord_client_id STREQUAL "")
 endif()
 target_compile_definitions(OmniLauncher PRIVATE OMNI_DISCORD_CLIENT_ID="${omni_discord_client_id}")
 
-# OmniLauncher Cloud (cloud/worker.js) for shared modpacks. Empty until it is deployed;
-# OMNI_CLOUD_URL in the environment overrides it at runtime (e.g. a local `wrangler dev`).
-set(OMNI_CLOUD_URL "" CACHE STRING "Base URL of the OmniLauncher Cloud worker")
-target_compile_definitions(OmniLauncher PRIVATE OMNI_CLOUD_URL="${OMNI_CLOUD_URL}")
+# OmniLauncher Cloud (cloud/worker.js) for shared modpacks. OMNI_CLOUD_URL in the
+# environment overrides it at runtime (e.g. a local `wrangler dev`).
+set(OMNI_CLOUD_URL "" CACHE STRING "Base URL of the OmniLauncher Cloud worker (empty: OmniLauncher's own)")
+set(omni_cloud_url "${OMNI_CLOUD_URL}")
+if(omni_cloud_url STREQUAL "")
+    set(omni_cloud_url "https://cloud.omnilauncher.workers.dev")
+endif()
+target_compile_definitions(OmniLauncher PRIVATE OMNI_CLOUD_URL="${omni_cloud_url}")
 
 # Packaged builds know their commit and check the GitHub release for a newer one.
 execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

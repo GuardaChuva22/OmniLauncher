@@ -1,4 +1,4 @@
-name = "omnilauncher-cloud"
+name = "cloud"
 main = "worker.js"
 compatibility_date = "2026-06-01"
 
@@ -6,4 +6,4 @@ compatibility_date = "2026-06-01"
 # and paste the id it prints here.
 [[kv_namespaces]]
 binding = "PACKS"
-id = "00000000000000000000000000000000"
+id = "6e6d68655d7d45139adffd11de729a53"

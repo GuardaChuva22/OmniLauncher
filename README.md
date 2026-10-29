@@ -90,7 +90,7 @@ npx wrangler kv namespace create PACKS   # cole o id em wrangler.toml
 npx wrangler deploy                      # imprime a URL do Worker
 ```
 
-A URL vai em `OMNI_CLOUD_URL` no CMake (ou na variável de ambiente de mesmo nome, para testar com `npx wrangler dev`). Sem ela, a aba mostra que a nuvem ainda não está no ar.
+O servidor oficial está em `https://cloud.omnilauncher.workers.dev`, o padrão de `OMNI_CLOUD_URL` no CMake. A variável de ambiente de mesmo nome aponta um build para outro servidor (por exemplo `npx wrangler dev`).
 
 ## Nomenclatura — decisão confirmada
 
