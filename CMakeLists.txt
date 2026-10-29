@@ -75,7 +75,7 @@ if(omni_msa_client_id STREQUAL "")
 endif()
 target_compile_definitions(OmniLauncher PRIVATE OMNI_MSA_CLIENT_ID="${omni_msa_client_id}")
 if(WIN32)
-    target_link_libraries(OmniLauncher PRIVATE advapi32 winmm)
+    target_link_libraries(OmniLauncher PRIVATE advapi32 winmm dwmapi)
 endif()
 
 # The prototype's QML/assets are authored alongside the native shell. CONFIGURE_DEPENDS

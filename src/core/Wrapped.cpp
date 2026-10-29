@@ -1,10 +1,11 @@
-﻿#include "Wrapped.h"
+#include "Wrapped.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QUrl>
@@ -54,6 +55,18 @@ qint64 sum(const Counts &counts)
         total += value;
     return total;
 }
+
+// Pulls members out of a client jar (a zip) into `into`; members it lacks only make tar complain.
+void extract(const QString &jar, const QString &into, const QStringList &members)
+{
+    if (members.isEmpty() || !QFileInfo::exists(jar))
+        return;
+    QDir(into).mkpath(".");
+    QProcess tar;
+    tar.start(QStandardPaths::findExecutable(QStringLiteral("tar")),
+              QStringList{"-xf", QDir::toNativeSeparators(jar), "-C", QDir::toNativeSeparators(into)} + members);
+    tar.waitForFinished(20000);
+}
 } // namespace
 
 Wrapped::Wrapped(const QString &dataDirectory, QObject *parent)
@@ -62,30 +75,51 @@ Wrapped::Wrapped(const QString &dataDirectory, QObject *parent)
 {
 }
 
-const QHash<QString, QString> &Wrapped::language()
+QString Wrapped::jar(const QString &version) const
 {
-    if (m_languageLoaded)
+    return QDir(m_root).filePath(QStringLiteral("versions/%1/%1.jar").arg(version));
+}
+
+// Minecraft's own names in the interface language (the QLocale default Language sets).
+// pt_br.json is an asset object already downloaded; en_us.json only ships inside the jar.
+const QHash<QString, QString> &Wrapped::language(const QStringList &versions)
+{
+    const auto code = QLocale().language() == QLocale::Portuguese ? QStringLiteral("pt_br") : QStringLiteral("en_us");
+    if (m_languageCode == code && !m_language.isEmpty())
         return m_language;
-    m_languageLoaded = true;
-    // The newest asset index that knows pt_br.json; the object is already downloaded.
+    m_languageCode = code;
+    m_language.clear();
+    const auto load = [this](const QString &path) {
+        const auto strings = readJson(path);
+        for (auto it = strings.begin(); it != strings.end(); ++it)
+            m_language.insert(it.key(), it.value().toString());
+        return !m_language.isEmpty();
+    };
+    if (code == "en_us") {
+        const auto member = QStringLiteral("assets/minecraft/lang/en_us.json");
+        for (const auto &version : versions) {
+            const auto dir = QDir(m_root).filePath("cache/wrapped/" + version);
+            if (!QFileInfo::exists(QDir(dir).filePath(member)))
+                extract(jar(version), dir, {member});
+            if (load(QDir(dir).filePath(member)))
+                break;
+        }
+        return m_language;
+    }
+    // The newest asset index that knows pt_br.json.
     const QDir indexes(QDir(m_root).filePath("assets/indexes"));
     for (const auto &index : indexes.entryInfoList({"*.json"}, QDir::Files, QDir::Time)) {
         const auto hash = readJson(index.absoluteFilePath()).value("objects").toObject()
                               .value("minecraft/lang/pt_br.json").toObject().value("hash").toString();
-        if (hash.size() < 2)
-            continue;
-        const auto strings = readJson(QDir(m_root).filePath("assets/objects/" + hash.left(2) + '/' + hash));
-        for (auto it = strings.begin(); it != strings.end(); ++it)
-            m_language.insert(it.key(), it.value().toString());
-        if (!m_language.isEmpty())
+        if (hash.size() >= 2 && load(QDir(m_root).filePath("assets/objects/" + hash.left(2) + '/' + hash)))
             break;
     }
     return m_language;
 }
 
-QString Wrapped::name(const QString &id, const QString &kind)
+QString Wrapped::name(const QString &id, const QString &kind, const QStringList &versions)
 {
-    const auto &strings = language();
+    const auto &strings = language(versions);
     const auto key = bare(id).replace(':', '.');
     const QStringList order = kind == "entity" ? QStringList{"entity"} : kind == "item" ? QStringList{"item", "block"}
                                                                                        : QStringList{"block", "item"};
@@ -109,7 +143,8 @@ QVariantMap Wrapped::build(const QVariantList &games, const QVariantMap &gameSet
     QHash<QString, Counts> stats;
     int worldCount = 0, gameCount = 0;
     qint64 launcherSeconds = 0, bestGameSeconds = -1;
-    QString title, bestGameTitle, iconVersion;
+    QString title, bestGameTitle;
+    QList<QPair<qint64, QString>> played; // (seconds, version) of the games covered
     QVariantMap topWorld;
     qint64 bestWorldTicks = -1;
 
@@ -124,8 +159,8 @@ QVariantMap Wrapped::build(const QVariantList &games, const QVariantMap &gameSet
         if (seconds > bestGameSeconds) {
             bestGameSeconds = seconds;
             bestGameTitle = game.value("title").toString();
-            iconVersion = game.value("version").toString();
         }
+        played.append({seconds, game.value("version").toString()});
         if (!gameId.isEmpty())
             title = game.value("title").toString();
 
@@ -185,9 +220,19 @@ QVariantMap Wrapped::build(const QVariantList &games, const QVariantMap &gameSet
     auto topCrafted = top(stats["crafted"], 3);
     auto topUsed = top(stats["used"], 3);
 
-    // Icons: textures pulled from the client jar of the most played version, once.
-    const auto jar = QDir(m_root).filePath(QStringLiteral("versions/%1/%1.jar").arg(iconVersion));
-    const QDir iconDir(QDir(m_root).filePath("cache/wrapped/" + iconVersion));
+    // Versions to take names and icons from: the games covered, most played first, then
+    // every other installed version. A very old one (alpha, beta) has neither the
+    // textures nor the names in today's layout, so later versions fill the gaps.
+    std::stable_sort(played.begin(), played.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+    QStringList versions;
+    for (const auto &entry : played)
+        versions.append(entry.second);
+    for (const auto &info : QDir(QDir(m_root).filePath("versions")).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time))
+        versions.append(info.fileName());
+    versions.removeDuplicates();
+    versions.removeIf([this](const QString &version) { return !QFileInfo::exists(jar(version)); });
+
+    // Icons: textures pulled from the client jars into cache/wrapped/<version>/, once.
     const auto candidates = [](const QString &id, const QString &kind) {
         const auto n = bare(id);
         if (n.contains(':'))
@@ -200,34 +245,42 @@ QVariantMap Wrapped::build(const QVariantList &games, const QVariantMap &gameSet
         list.move(1, 0);
         return list;
     };
+    const auto findIcon = [&](const QString &id, const QString &kind) {
+        for (const auto &version : versions)
+            for (const auto &candidate : candidates(id, kind)) {
+                const auto file = QDir(m_root).filePath("cache/wrapped/" + version + "/assets/minecraft/textures/" + candidate + ".png");
+                if (QFileInfo::exists(file))
+                    return file;
+            }
+        return QString();
+    };
     QList<QPair<QVariantList *, QString>> lists{{&topMined, "block"}, {&topKilled, "entity"}, {&topKilledBy, "entity"},
                                                 {&topCrafted, "item"}, {&topUsed, "item"}};
-    QStringList missing;
+    // Only entries with no icon in any cache yet send tar into the jars, newest guess first.
+    QList<QPair<QString, QString>> unresolved;
     for (const auto &[list, kind] : lists)
         for (const auto &entry : *list)
-            for (const auto &candidate : candidates(entry.toMap().value("id").toString(), kind))
-                if (!iconDir.exists("assets/minecraft/textures/" + candidate + ".png"))
-                    missing.append("assets/minecraft/textures/" + candidate + ".png");
-    missing.removeDuplicates();
-    if (!missing.isEmpty() && QFileInfo::exists(jar)) {
-        iconDir.mkpath(".");
-        QProcess tar;
-        tar.start(QStandardPaths::findExecutable(QStringLiteral("tar")),
-                  QStringList{"-xf", QDir::toNativeSeparators(jar), "-C", QDir::toNativeSeparators(iconDir.absolutePath())} + missing);
-        tar.waitForFinished(20000); // missing members only make tar complain
+            if (findIcon(entry.toMap().value("id").toString(), kind).isEmpty())
+                unresolved.append({entry.toMap().value("id").toString(), kind});
+    for (const auto &version : versions) {
+        if (unresolved.isEmpty())
+            break;
+        QStringList members;
+        for (const auto &[id, kind] : unresolved)
+            for (const auto &candidate : candidates(id, kind))
+                members.append("assets/minecraft/textures/" + candidate + ".png");
+        members.removeDuplicates();
+        extract(jar(version), QDir(m_root).filePath("cache/wrapped/" + version), members);
+        unresolved.removeIf([&](const auto &entry) { return !findIcon(entry.first, entry.second).isEmpty(); });
     }
     for (const auto &[list, kind] : lists) {
         for (auto &entry : *list) {
             auto item = entry.toMap();
             const auto id = item.value("id").toString();
-            item.insert("name", name(id, kind));
-            for (const auto &candidate : candidates(id, kind)) {
-                const auto file = iconDir.filePath("assets/minecraft/textures/" + candidate + ".png");
-                if (QFileInfo::exists(file)) {
-                    item.insert("icon", QUrl::fromLocalFile(file).toString());
-                    break;
-                }
-            }
+            item.insert("name", name(id, kind, versions));
+            const auto icon = findIcon(id, kind);
+            if (!icon.isEmpty())
+                item.insert("icon", QUrl::fromLocalFile(icon).toString());
             entry = item;
         }
     }

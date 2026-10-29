@@ -137,7 +137,7 @@ ApplicationWindow {
         : previewGame ? previewGame.coverId : "meadow"
     readonly property var filteredGames: launcher.games.filter(function(game) {
         const query = home.searchText.trim().toLocaleLowerCase()
-        return (home.loaderFilter === "Todos" || game.loader === home.loaderFilter)
+        return (home.loaderFilter === "" || game.loader === home.loaderFilter)
             && game.title.toLocaleLowerCase().indexOf(query) !== -1
     })
     readonly property bool modalOpen: gameEditor.shown || profileEditor.shown || removal.shown || modCatalog.shown

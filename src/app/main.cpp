@@ -31,6 +31,11 @@
 #include <QUrl>
 #include <QTimer>
 
+#ifdef Q_OS_WIN
+#  include <windows.h>
+#  include <dwmapi.h>
+#endif
+
 // %APPDATA%\OmniLauncher. Earlier builds used %APPDATA%\OmniLauncher\OmniLauncher
 // (organization + application name); that folder is moved up once, keeping downloads.
 static QString defaultDataDirectory()
@@ -55,6 +60,26 @@ static QString defaultDataDirectory()
     }
     QDir().rmdir(legacy); // Only succeeds when everything moved.
     return target;
+}
+
+// The window is frameless (QML draws its own title bar), which also drops what Windows
+// gives a normal window: Windows 11 rounds the corners again on request, and a
+// one-pixel frame extended into the client area brings back the drop shadow.
+static void decorateWindow(QWindow *window)
+{
+#ifdef Q_OS_WIN
+    if (!window)
+        return;
+    const auto hwnd = reinterpret_cast<HWND>(window->winId());
+    const DWORD round = 2; // DWMWCP_ROUND; DWMWA_WINDOW_CORNER_PREFERENCE (33) is ignored before Windows 11
+    DwmSetWindowAttribute(hwnd, 33, &round, sizeof(round));
+    const DWMNCRENDERINGPOLICY policy = DWMNCRP_ENABLED;
+    DwmSetWindowAttribute(hwnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof(policy));
+    const MARGINS margins{1, 1, 1, 1};
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
+#else
+    Q_UNUSED(window)
+#endif
 }
 
 int main(int argc, char *argv[])
@@ -133,6 +158,8 @@ int main(int argc, char *argv[])
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
                      &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule(QStringLiteral("OmniLauncher"), QStringLiteral("Main"));
+    if (!engine.rootObjects().isEmpty())
+        decorateWindow(qobject_cast<QWindow *>(engine.rootObjects().first()));
 
     if (parser.isSet(QStringLiteral("window-size"))) {
         const auto match = QRegularExpression(QStringLiteral("^(\\d{3,4})x(\\d{3,4})$")).match(parser.value(QStringLiteral("window-size")));

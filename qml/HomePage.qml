@@ -7,7 +7,8 @@ FocusScope {
     property var games: []
     property var allGames: []
     property string selectedId: ""
-    property string loaderFilter: "Todos"
+    // "" means every loader; the chip label is translated, the key is not
+    property string loaderFilter: ""
     property bool reduced: false
     property alias searchText: search.text
     signal openRequested(var game)
@@ -22,13 +23,13 @@ FocusScope {
     readonly property real available: width - gutter * 2
     readonly property int columns: Math.max(2, Math.floor((available + gap) / (160 + gap)))
     readonly property real tileWidth: Math.min(210, Math.floor((available - gap * (columns - 1)) / columns))
-    readonly property bool filtering: search.text !== "" || loaderFilter !== "Todos"
+    readonly property bool filtering: search.text !== "" || loaderFilter !== ""
     readonly property var gridModel: filtering ? games : games.concat([{ id: "__create", isCreate: true }])
 
     function focusSearch() { search.forceActiveFocus(); search.selectAll() }
-    function clearFilters() { search.text = ""; loaderFilter = qsTr("Todos") }
+    function clearFilters() { search.text = ""; loaderFilter = "" }
     function countFor(loader) {
-        if (loader === "Todos") return allGames.length
+        if (loader === "") return allGames.length
         return allGames.filter(function(game) { return game.loader === loader }).length
     }
     function moveSelection(delta) {
@@ -101,7 +102,7 @@ FocusScope {
         x: root.gutter; y: header.y + header.height + 18
         spacing: 6
         Repeater {
-            model: [qsTr("Todos")].concat(Theme.loaders)
+            model: [""].concat(Theme.loaders)
             delegate: AbstractButton {
                 id: chip
                 required property string modelData
@@ -110,7 +111,7 @@ FocusScope {
                 height: 32
                 implicitWidth: chipRow.implicitWidth + 24
                 hoverEnabled: true
-                Accessible.name: modelData
+                Accessible.name: modelData || qsTr("Todos")
                 onClicked: root.loaderFilter = modelData
                 background: Rectangle {
                     radius: Theme.radiusSm
@@ -130,7 +131,7 @@ FocusScope {
                         spacing: 6
                         Text {
                             id: chipLabel
-                            text: chip.modelData
+                            text: chip.modelData || qsTr("Todos")
                             color: chip.active ? Theme.accentText : chip.hovered ? Theme.secondary : Theme.muted
                             font.family: Theme.font; font.pixelSize: 13
                             font.weight: chip.active ? Font.DemiBold : Font.Medium
