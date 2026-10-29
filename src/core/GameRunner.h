@@ -15,6 +15,7 @@
 
 class QNetworkAccessManager;
 class QProcess;
+class QTimer;
 class QWinEventNotifier;
 
 // Installs and starts Vanilla Minecraft for a game. One session at a time:
@@ -47,6 +48,8 @@ class GameRunner final : public QObject
     // title, detail, mods, file. Empty when nothing was found.
     Q_PROPERTY(QVariantMap diagnosis READ diagnosis NOTIFY diagnosisChanged)
     Q_PROPERTY(int systemMemoryMb READ systemMemoryMb CONSTANT)
+    // Seconds played in the session that is running now (0 when no game runs); ticks every 30 s.
+    Q_PROPERTY(int sessionSeconds READ sessionSeconds NOTIFY sessionTick)
     // Minecraft options (options.txt keys → values) written into every new game before
     // its first start. Keys absent here keep the game's own defaults.
     Q_PROPERTY(QVariantMap gameDefaults READ gameDefaults NOTIFY gameDefaultsChanged)
@@ -77,6 +80,7 @@ public:
     Q_INVOKABLE QString versionType(const QString &version) const { return m_versionTypes.value(version, QStringLiteral("release")); }
     QVariantMap diagnosis() const { return m_diagnosis; }
     int systemMemoryMb() const;
+    int sessionSeconds() const { return running() ? int(m_playClock.elapsed() / 1000) : 0; }
     QVariantMap gameDefaults() const { return m_gameDefaults; }
     int defaultKeybindCount() const;
     Q_INVOKABLE void setGameDefault(const QString &key, const QString &value);
@@ -123,6 +127,7 @@ signals:
     void loaderVersionsChanged();
     void loaderSupportChanged();
     void diagnosisChanged();
+    void sessionTick();
     void gameDefaultsChanged();
     void worldsChanged(const QString &gameId);
     void worldBackupFinished(const QString &gameId, bool ok, const QString &message);
@@ -207,6 +212,7 @@ private:
     void saveGameDefaults();
     bool writeOptions(const QString &file) const;
     qint64 m_sessionStart = 0;
+    QTimer *m_sessionTimer = nullptr;
     QString m_playerName;
     QVariantMap m_settings;
     QVariantMap m_account;

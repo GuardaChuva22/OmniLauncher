@@ -157,6 +157,32 @@ FocusScope {
             border.color: root.highlighted ? "#33FFFFFF" : "#14FFFFFF"
         }
 
+        // Time played, bottom-left on the art.
+        Rectangle {
+            readonly property int seconds: ((launcher.gameSettings[root.game.id] || {}).playSeconds || 0)
+                + (runner.running && runner.gameId === root.game.id ? runner.sessionSeconds : 0)
+            visible: seconds >= 60
+            anchors.left: parent.left; anchors.bottom: parent.bottom
+            anchors.margins: 10
+            height: 24
+            width: playtimeRow.implicitWidth + 16
+            radius: 12
+            color: "#A6120F13"
+            border.width: 1; border.color: "#1FFFFFFF"
+            Row {
+                id: playtimeRow
+                anchors.centerIn: parent
+                spacing: 5
+                UiIcon { anchors.verticalCenter: parent.verticalCenter; name: "clock"; width: 12; height: 12; stroke: 1.6; color: Theme.secondary }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Theme.playtime(parent.parent.seconds)
+                    color: Theme.text
+                    font.family: Theme.font; font.pixelSize: 11; font.weight: Font.DemiBold
+                }
+            }
+        }
+
         AbstractButton {
             id: quickPlay
             anchors.right: parent.right; anchors.bottom: parent.bottom

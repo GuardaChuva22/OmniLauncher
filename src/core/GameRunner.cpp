@@ -252,6 +252,15 @@ GameRunner::GameRunner(const QString &dataDirectory, QObject *parent)
     , m_downloader(new Downloader(m_network, this))
 {
     connect(m_downloader, &Downloader::finished, this, &GameRunner::onBatchFinished);
+    m_sessionTimer = new QTimer(this);
+    m_sessionTimer->setInterval(30000);
+    connect(m_sessionTimer, &QTimer::timeout, this, &GameRunner::sessionTick);
+    connect(this, &GameRunner::stateChanged, this, [this] {
+        if (running() != m_sessionTimer->isActive()) {
+            running() ? m_sessionTimer->start() : m_sessionTimer->stop();
+            emit sessionTick();
+        }
+    });
     connect(m_downloader, &Downloader::progress, this, &GameRunner::onBatchProgress);
     QFile cached(path("meta/version_manifest_v2.json"));
     if (cached.open(QIODevice::ReadOnly))

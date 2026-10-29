@@ -74,6 +74,17 @@ QtObject {
         return Qt.resolvedUrl("../assets/avatars/" + name + ".png")
     }
 
+    // "12 min", "2 h 15 min", "34 h"; "" when never played.
+    function playtime(seconds) {
+        const minutes = Math.floor((seconds || 0) / 60)
+        if (seconds > 0 && minutes < 1) return "menos de 1 min"
+        if (minutes < 1) return ""
+        if (minutes < 60) return minutes + " min"
+        const hours = Math.floor(minutes / 60)
+        const rest = minutes % 60
+        return hours < 10 && rest > 0 ? hours + " h " + rest + " min" : hours + " h"
+    }
+
     function brandSource(name) { return Qt.resolvedUrl("../assets/brand/" + name + ".png") }
     function coverSource(id) {
         if (!id) return Qt.resolvedUrl("../assets/covers/meadow.png")

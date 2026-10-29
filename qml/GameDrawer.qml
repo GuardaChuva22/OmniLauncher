@@ -51,12 +51,9 @@ FocusScope {
         if (days < 7) return days + " dias atrás"
         return date.toLocaleDateString(Qt.locale(), "d 'de' MMM yyyy")
     }
+    readonly property int playSeconds: (saved.playSeconds || 0) + (thisRunning ? runner.sessionSeconds : 0)
     function playTimeText() {
-        const seconds = saved.playSeconds || 0
-        if (seconds < 60) return seconds > 0 ? "Menos de 1 min" : "—"
-        const hours = Math.floor(seconds / 3600)
-        const minutes = Math.floor((seconds % 3600) / 60)
-        return hours > 0 ? hours + " h " + minutes + " min" : minutes + " min"
+        return Theme.playtime(playSeconds) || "Nunca jogado"
     }
     function save(key, value) {
         if (game && !launcher.setGameSetting(game.id, key, value)) notify(launcher.lastError)
@@ -232,7 +229,8 @@ FocusScope {
                             lineHeight: 0.95
                         }
                         Text {
-                            text: root.game ? "Minecraft " + root.game.version : ""
+                            text: root.game ? "Minecraft " + root.game.version
+                                + (root.playSeconds >= 60 ? "  ·  " + Theme.playtime(root.playSeconds) + " jogadas" : "") : ""
                             color: Theme.muted
                             font.family: Theme.font; font.pixelSize: 13
                         }
