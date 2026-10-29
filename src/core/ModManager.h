@@ -24,6 +24,8 @@ class ModManager final : public QObject
     Q_PROPERTY(bool searching READ searching NOTIFY resultsChanged)
     Q_PROPERTY(QString searchError READ searchError NOTIFY resultsChanged)
     Q_PROPERTY(QString gameId READ gameId NOTIFY installedChanged)
+    // Which content the installed list shows: "mod" | "shader" | "resourcepack".
+    Q_PROPERTY(QString kind READ kind NOTIFY installedChanged)
     Q_PROPERTY(QVariantList installed READ installed NOTIFY installedChanged)
     Q_PROPERTY(QStringList installedProjects READ installedProjects NOTIFY installedChanged)
     Q_PROPERTY(QStringList installing READ installing NOTIFY installingChanged)
@@ -55,6 +57,9 @@ public:
     bool searching() const { return m_searching; }
     QString searchError() const { return m_searchError; }
     QString gameId() const { return m_gameId; }
+    QString kind() const { return m_kind; }
+    // True when a jar starting with one of the prefixes sits in the game's mods folder.
+    Q_INVOKABLE bool hasModFile(const QString &gameId, const QStringList &prefixes) const;
     QVariantList installed() const { return m_installed; }
     QStringList installedProjects() const;
     QStringList installing() const { return QStringList(m_installing.begin(), m_installing.end()); }
@@ -85,7 +90,8 @@ public:
     Q_INVOKABLE void checkUpdates(const QString &gameId, const QString &gameVersion, const QString &loader);
     // Installs a specific version of a project (update or change), replacing its current file.
     Q_INVOKABLE void installVersionOf(const QString &projectId, const QString &versionId, const QString &gameId,
-                                      const QString &gameVersion, const QString &loader);
+                                      const QString &gameVersion, const QString &loader,
+                                      const QString &kind = QStringLiteral("mod"));
     Q_INVOKABLE void updateAll(const QString &gameId, const QString &gameVersion, const QString &loader);
 
     Q_INVOKABLE void searchPacks(const QString &query, int offset = 0);
@@ -95,11 +101,14 @@ public:
     Q_INVOKABLE void installPackFiles(const QString &gameId);
     Q_INVOKABLE void cancelPack();
 
-    // `loader` is the game's loader name ("Fabric"); offset > 0 appends a page.
-    Q_INVOKABLE void search(const QString &query, const QString &gameVersion, const QString &loader, int offset = 0);
-    Q_INVOKABLE void loadInstalled(const QString &gameId);
+    // `loader`: the game's loader for mods; for shaders/resource packs, the Modrinth loaders
+    // of that content ("iris,optifine" / "minecraft"), comma-separated. offset > 0 appends a page.
+    Q_INVOKABLE void search(const QString &query, const QString &gameVersion, const QString &loader, int offset = 0,
+                            const QString &kind = QStringLiteral("mod"));
+    // kind empty keeps the current one.
+    Q_INVOKABLE void loadInstalled(const QString &gameId, const QString &kind = {});
     Q_INVOKABLE void install(const QString &projectId, const QString &gameId, const QString &gameVersion,
-                             const QString &loader);
+                             const QString &loader, const QString &kind = QStringLiteral("mod"));
     Q_INVOKABLE bool setEnabled(const QString &gameId, const QString &file, bool enabled);
     Q_INVOKABLE bool remove(const QString &gameId, const QString &file);
 
@@ -128,18 +137,20 @@ private:
         int pending = 0;
         int added = 0;
         QString error;
+        QString kind = QStringLiteral("mod");
     };
 
     QNetworkReply *get(const QString &url);
     QNetworkReply *post(const QString &url, const QJsonObject &body);
-    void fillTitles(const QString &gameId, std::function<void()> done);
+    void fillTitles(const QString &gameId, const QString &kind, std::function<void()> done);
     void resolveProject(Install *job, const QString &projectId, const QString &title);
     void resolveVersion(Install *job, const QString &versionId);
     void installVersion(Install *job, const QJsonObject &version, const QString &title);
     void step(Install *job, int delta);
-    QString modsDirectory(const QString &gameId) const;
-    QJsonObject readMetadata(const QString &gameId) const;
-    bool writeMetadata(const QString &gameId, const QJsonObject &metadata) const;
+    // Folder of a content kind (empty: the current one).
+    QString modsDirectory(const QString &gameId, const QString &kind = {}) const;
+    QJsonObject readMetadata(const QString &gameId, const QString &kind = {}) const;
+    bool writeMetadata(const QString &gameId, const QJsonObject &metadata, const QString &kind = {}) const;
 
     QString m_root;
     QNetworkAccessManager *m_network;
@@ -150,6 +161,7 @@ private:
     quint64 m_searchSerial = 0;
     QString m_gameId;
     QVariantList m_installed;
+    QString m_kind = QStringLiteral("mod");
     QSet<QString> m_installing;
 
     void setPackState(const QString &state, double progress = -1);

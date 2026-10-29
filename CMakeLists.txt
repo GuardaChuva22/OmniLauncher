@@ -25,7 +25,14 @@ qt_add_executable(OmniLauncher WIN32
     src/core/AuthManager.cpp
     src/core/UpdateManager.h
     src/core/UpdateManager.cpp
+    src/core/DiscordPresence.h
+    src/core/DiscordPresence.cpp
 )
+
+# Discord application (client) ID for Rich Presence. Public; OMNI_DISCORD_CLIENT_ID in the
+# environment overrides it at runtime. Empty disables Rich Presence.
+set(OMNI_DISCORD_CLIENT_ID "" CACHE STRING "Discord application ID for Rich Presence")
+target_compile_definitions(OmniLauncher PRIVATE OMNI_DISCORD_CLIENT_ID="${OMNI_DISCORD_CLIENT_ID}")
 
 # Packaged builds know their commit and check the GitHub release for a newer one.
 execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"

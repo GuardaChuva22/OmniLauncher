@@ -6,6 +6,8 @@ Item {
     id: root
     property bool reduced: false
     signal manageProfiles()
+    property bool discordEnabled: true
+    signal discordToggled(bool enabled)
     signal notify(string message)
     readonly property real gutter: width < 900 ? 32 : 48
     // options.txt helpers: the stored value, or the game's own default when unset.
@@ -328,6 +330,23 @@ Item {
                         text: "Restaurar"; quiet: true; reduced: root.reduced
                         enabled: Object.keys(runner.gameDefaults).length > 0
                         onClicked: runner.resetGameDefaults()
+                    }
+                }
+            }
+
+            SectionTitle { text: "Discord" }
+            Group {
+                SettingRow {
+                    title: "Mostrar o que estou jogando"
+                    description: discord.configured
+                        ? (discord.connected ? "Conectado ao Discord." : "O Discord precisa estar aberto.") + " Mostra o jogo e o tempo de sessão no seu perfil."
+                        : "Indisponível neste build (falta o ID do app do Discord)."
+                    divider: false
+                    ToggleSwitch {
+                        enabled: discord.configured
+                        checked: root.discordEnabled
+                        reduced: root.reduced
+                        onToggled: root.discordToggled(checked)
                     }
                 }
             }

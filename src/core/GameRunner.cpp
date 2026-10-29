@@ -1,6 +1,9 @@
 #include "GameRunner.h"
 
+#include <QClipboard>
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QImage>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -1620,4 +1623,44 @@ bool GameRunner::applyGameDefaults(const QString &gameId)
     if (gameId.isEmpty() || m_gameDefaults.isEmpty())
         return false;
     return writeOptions(path("instances/" + gameId + "/options.txt"));
+}
+
+// ── Screenshots ────────────────────────────────────────────────────────────
+
+QVariantList GameRunner::screenshots() const
+{
+    QList<QFileInfo> files;
+    QHash<QString, QString> gameOf;
+    const QDir instances(path("instances"));
+    for (const auto &game : instances.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QDir shots(instances.filePath(game + "/screenshots"));
+        for (const auto &info : shots.entryInfoList({"*.png", "*.jpg", "*.jpeg"}, QDir::Files)) {
+            files << info;
+            gameOf.insert(info.filePath(), game);
+        }
+    }
+    std::sort(files.begin(), files.end(), [](const QFileInfo &a, const QFileInfo &b) { return a.lastModified() > b.lastModified(); });
+    QVariantList result;
+    for (const auto &info : files)
+        result.append(QVariantMap{{"url", QUrl::fromLocalFile(info.filePath()).toString()}, {"path", info.filePath()},
+                                  {"gameId", gameOf.value(info.filePath())}, {"name", info.fileName()},
+                                  {"takenAt", info.lastModified().toString(Qt::ISODate)}});
+    return result;
+}
+
+bool GameRunner::copyImage(const QString &file)
+{
+    const QImage image(file);
+    if (image.isNull())
+        return false;
+    QGuiApplication::clipboard()->setImage(image);
+    return true;
+}
+
+bool GameRunner::trashFile(const QString &file)
+{
+    // Only files inside the launcher's instances may be removed this way.
+    const auto root = QDir(path("instances")).canonicalPath();
+    const auto target = QFileInfo(file).canonicalFilePath();
+    return !target.isEmpty() && target.startsWith(root + '/') && QFile::moveToTrash(target);
 }

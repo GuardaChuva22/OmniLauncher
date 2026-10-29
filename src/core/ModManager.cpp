@@ -26,7 +26,29 @@ const QString kMetadataFile = QStringLiteral(".omni-mods.json");
 
 QString jsonList(const QString &value)
 {
-    return QString::fromUtf8(QJsonDocument(QJsonArray{value}).toJson(QJsonDocument::Compact));
+    // Comma-separated input becomes several entries: "iris,optifine" → ["iris","optifine"].
+    QJsonArray array;
+    for (const auto &part : value.split(',', Qt::SkipEmptyParts))
+        array.append(part.trimmed());
+    return QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
+}
+
+QJsonArray loaderArray(const QString &value)
+{
+    QJsonArray array;
+    for (const auto &part : value.split(',', Qt::SkipEmptyParts))
+        array.append(part.trimmed().toLower());
+    return array;
+}
+
+QString folderFor(const QString &kind)
+{
+    return kind == "shader" ? QStringLiteral("shaderpacks") : kind == "resourcepack" ? QStringLiteral("resourcepacks") : QStringLiteral("mods");
+}
+
+QString extensionFor(const QString &kind)
+{
+    return kind == "mod" ? QStringLiteral(".jar") : QStringLiteral(".zip");
 }
 } // namespace
 
@@ -370,23 +392,32 @@ QNetworkReply *ModManager::get(const QString &url)
     return m_network->get(request);
 }
 
-QString ModManager::modsDirectory(const QString &gameId) const
+QString ModManager::modsDirectory(const QString &gameId, const QString &kind) const
 {
-    return QDir(m_root).filePath("instances/" + gameId + "/mods");
+    return QDir(m_root).filePath("instances/" + gameId + "/" + folderFor(kind.isEmpty() ? m_kind : kind));
 }
 
-QJsonObject ModManager::readMetadata(const QString &gameId) const
+bool ModManager::hasModFile(const QString &gameId, const QStringList &prefixes) const
 {
-    QFile file(QDir(modsDirectory(gameId)).filePath(kMetadataFile));
+    for (const auto &file : QDir(modsDirectory(gameId, QStringLiteral("mod"))).entryList({"*.jar"}, QDir::Files))
+        for (const auto &prefix : prefixes)
+            if (file.startsWith(prefix, Qt::CaseInsensitive))
+                return true;
+    return false;
+}
+
+QJsonObject ModManager::readMetadata(const QString &gameId, const QString &kind) const
+{
+    QFile file(QDir(modsDirectory(gameId, kind)).filePath(kMetadataFile));
     if (!file.open(QIODevice::ReadOnly))
         return {};
     return QJsonDocument::fromJson(file.readAll()).object();
 }
 
-bool ModManager::writeMetadata(const QString &gameId, const QJsonObject &metadata) const
+bool ModManager::writeMetadata(const QString &gameId, const QJsonObject &metadata, const QString &kind) const
 {
-    QDir().mkpath(modsDirectory(gameId));
-    QSaveFile file(QDir(modsDirectory(gameId)).filePath(kMetadataFile));
+    QDir().mkpath(modsDirectory(gameId, kind));
+    QSaveFile file(QDir(modsDirectory(gameId, kind)).filePath(kMetadataFile));
     const auto data = QJsonDocument(metadata).toJson(QJsonDocument::Indented);
     return file.open(QIODevice::WriteOnly) && file.write(data) == data.size() && file.commit();
 }
@@ -404,7 +435,8 @@ QStringList ModManager::installedProjects() const
 
 // ── Catalog ────────────────────────────────────────────────────────────────
 
-void ModManager::search(const QString &query, const QString &gameVersion, const QString &loader, int offset)
+void ModManager::search(const QString &query, const QString &gameVersion, const QString &loader, int offset,
+                        const QString &kind)
 {
     const auto serial = ++m_searchSerial;
     QUrlQuery params;
@@ -412,8 +444,12 @@ void ModManager::search(const QString &query, const QString &gameVersion, const 
     params.addQueryItem("limit", "20");
     params.addQueryItem("offset", QString::number(qMax(0, offset)));
     params.addQueryItem("index", query.trimmed().isEmpty() ? "downloads" : "relevance");
-    const QJsonArray facets{QJsonArray{"project_type:mod"}, QJsonArray{"categories:" + loader.toLower()},
-                            QJsonArray{"versions:" + gameVersion}};
+    QJsonArray loaders;
+    for (const auto &value : loaderArray(loader))
+        loaders.append("categories:" + value.toString());
+    QJsonArray facets{QJsonArray{"project_type:" + kind}, QJsonArray{"versions:" + gameVersion}};
+    if (kind != "resourcepack")
+        facets.append(loaders);
     params.addQueryItem("facets", QString::fromUtf8(QJsonDocument(facets).toJson(QJsonDocument::Compact)));
     QUrl url(kApi + "search");
     url.setQuery(params);
@@ -457,13 +493,14 @@ void ModManager::search(const QString &query, const QString &gameVersion, const 
 // ── Installation ───────────────────────────────────────────────────────────
 
 void ModManager::install(const QString &projectId, const QString &gameId, const QString &gameVersion,
-                         const QString &loader)
+                         const QString &loader, const QString &kind)
 {
     if (projectId.isEmpty() || gameId.isEmpty() || m_installing.contains(projectId))
         return;
     m_installing.insert(projectId);
     emit installingChanged();
     auto *job = new Install{projectId, gameId, gameVersion, loader.toLower(), {}, 0, 0, {}};
+    job->kind = kind;
     step(job, +1); // Held until the root project is resolved.
     resolveProject(job, projectId, {});
     step(job, -1);
@@ -476,7 +513,7 @@ void ModManager::resolveProject(Install *job, const QString &projectId, const QS
     job->seenProjects.insert(projectId);
     // Dependencies already present in this game are left as they are.
     if (projectId != job->rootProject) {
-        const auto metadata = readMetadata(job->gameId);
+        const auto metadata = readMetadata(job->gameId, job->kind);
         for (auto it = metadata.begin(); it != metadata.end(); ++it) {
             if (it.value().toObject().value("projectId").toString() == projectId)
                 return;
@@ -524,7 +561,8 @@ void ModManager::resolveVersion(Install *job, const QString &versionId)
 
 void ModManager::installVersion(Install *job, const QJsonObject &version, const QString &)
 {
-    for (const auto &value : version.value("dependencies").toArray()) {
+    // Only mods declare dependencies worth resolving; shaders and resource packs stand alone.
+    for (const auto &value : job->kind == "mod" ? version.value("dependencies").toArray() : QJsonArray{}) {
         const auto dependency = value.toObject();
         if (dependency.value("dependency_type").toString() != "required")
             continue;
@@ -547,8 +585,8 @@ void ModManager::installVersion(Install *job, const QJsonObject &version, const 
     if (file.isEmpty() && !files.isEmpty())
         file = files.first().toObject();
     const auto fileName = QFileInfo(file.value("filename").toString()).fileName();
-    if (fileName.isEmpty() || !fileName.endsWith(".jar", Qt::CaseInsensitive)) {
-        job->error = QStringLiteral("O Modrinth não forneceu um arquivo .jar para esse mod.");
+    if (fileName.isEmpty() || !fileName.endsWith(extensionFor(job->kind), Qt::CaseInsensitive)) {
+        job->error = QStringLiteral("O Modrinth não forneceu um arquivo %1 para esse conteúdo.").arg(extensionFor(job->kind));
         return;
     }
     const auto expectedSha1 = file.value("hashes").toObject().value("sha1").toString();
@@ -568,7 +606,7 @@ void ModManager::installVersion(Install *job, const QJsonObject &version, const 
             step(job, -1);
             return;
         }
-        const QDir mods(modsDirectory(job->gameId));
+        const QDir mods(modsDirectory(job->gameId, job->kind));
         QDir().mkpath(mods.path());
         QSaveFile out(mods.filePath(fileName));
         if (!out.open(QIODevice::WriteOnly) || out.write(data) != data.size() || !out.commit()) {
@@ -577,7 +615,7 @@ void ModManager::installVersion(Install *job, const QJsonObject &version, const 
             return;
         }
         // Replace an older file of the same project (an update), keeping its title/icon.
-        auto metadata = readMetadata(job->gameId);
+        auto metadata = readMetadata(job->gameId, job->kind);
         auto updated = entry;
         for (const auto &key : metadata.keys()) {
             const auto old = metadata.value(key).toObject();
@@ -590,7 +628,7 @@ void ModManager::installVersion(Install *job, const QJsonObject &version, const 
             }
         }
         metadata.insert(fileName, updated);
-        writeMetadata(job->gameId, metadata);
+        writeMetadata(job->gameId, metadata, job->kind);
         ++job->added;
         step(job, -1);
     });
@@ -603,7 +641,7 @@ void ModManager::step(Install *job, int delta)
         return;
 
     // Done: fill in titles and icons for new entries, then report.
-    auto metadata = readMetadata(job->gameId);
+    auto metadata = readMetadata(job->gameId, job->kind);
     QStringList missing;
     for (auto it = metadata.begin(); it != metadata.end(); ++it) {
         const auto entry = it.value().toObject();
@@ -613,12 +651,12 @@ void ModManager::step(Install *job, int delta)
     const auto finish = [this, job] {
         m_installing.remove(job->rootProject);
         emit installingChanged();
-        if (job->gameId == m_gameId)
+        if (job->gameId == m_gameId && job->kind == m_kind)
             loadInstalled(m_gameId);
         const bool ok = job->error.isEmpty();
         emit installFinished(job->rootProject, ok,
-                             ok ? (job->added > 1 ? QStringLiteral("Mod instalado com %1 dependência(s).").arg(job->added - 1)
-                                                  : QStringLiteral("Mod instalado."))
+                             ok ? (job->added > 1 ? QStringLiteral("Instalado com %1 dependência(s).").arg(job->added - 1)
+                                                  : QStringLiteral("Instalado."))
                                 : job->error);
         delete job;
     };
@@ -637,7 +675,7 @@ void ModManager::step(Install *job, int delta)
             QHash<QString, QJsonObject> projects;
             for (const auto &value : QJsonDocument::fromJson(reply->readAll()).array())
                 projects.insert(value.toObject().value("id").toString(), value.toObject());
-            auto metadata = readMetadata(job->gameId);
+            auto metadata = readMetadata(job->gameId, job->kind);
             for (const auto &key : metadata.keys()) {
                 auto entry = metadata.value(key).toObject();
                 const auto project = projects.value(entry.value("projectId").toString());
@@ -647,7 +685,7 @@ void ModManager::step(Install *job, int delta)
                     metadata.insert(key, entry);
                 }
             }
-            writeMetadata(job->gameId, metadata);
+            writeMetadata(job->gameId, metadata, job->kind);
         }
         finish();
     });
@@ -655,15 +693,18 @@ void ModManager::step(Install *job, int delta)
 
 // ── Installed mods ─────────────────────────────────────────────────────────
 
-void ModManager::loadInstalled(const QString &gameId)
+void ModManager::loadInstalled(const QString &gameId, const QString &kind)
 {
+    if (!kind.isEmpty())
+        m_kind = kind;
     m_gameId = gameId;
     m_installed.clear();
     if (!gameId.isEmpty()) {
         const auto metadata = readMetadata(gameId);
         const QDir mods(modsDirectory(gameId));
-        for (const auto &file : mods.entryList({"*.jar", "*.jar.disabled"}, QDir::Files, QDir::Name)) {
-            const bool enabled = file.endsWith(".jar", Qt::CaseInsensitive);
+        const auto extension = extensionFor(m_kind);
+        for (const auto &file : mods.entryList({"*" + extension, "*" + extension + ".disabled"}, QDir::Files, QDir::Name)) {
+            const bool enabled = file.endsWith(extension, Qt::CaseInsensitive);
             const auto base = enabled ? file : file.chopped(int(QStringLiteral(".disabled").size()));
             const auto entry = metadata.value(base).toObject();
             auto title = entry.value("title").toString();
@@ -687,7 +728,7 @@ void ModManager::loadInstalled(const QString &gameId)
 bool ModManager::setEnabled(const QString &gameId, const QString &file, bool enabled)
 {
     const QDir mods(modsDirectory(gameId));
-    const bool isEnabled = file.endsWith(".jar", Qt::CaseInsensitive);
+    const bool isEnabled = file.endsWith(extensionFor(m_kind), Qt::CaseInsensitive);
     if (QFileInfo(file).fileName() != file || isEnabled == enabled)
         return isEnabled == enabled;
     const auto target = enabled ? file.chopped(int(QStringLiteral(".disabled").size())) : file + ".disabled";
@@ -773,9 +814,9 @@ void ModManager::fetchProjectVersions(const QString &projectId, const QString &g
     });
 }
 
-void ModManager::fillTitles(const QString &gameId, std::function<void()> done)
+void ModManager::fillTitles(const QString &gameId, const QString &kind, std::function<void()> done)
 {
-    const auto metadata = readMetadata(gameId);
+    const auto metadata = readMetadata(gameId, kind);
     QJsonArray missing;
     for (auto it = metadata.begin(); it != metadata.end(); ++it) {
         const auto entry = it.value().toObject();
@@ -788,13 +829,13 @@ void ModManager::fillTitles(const QString &gameId, std::function<void()> done)
     }
     auto *reply = get(kApi + "projects?ids="
                       + QString::fromUtf8(QUrl::toPercentEncoding(QString::fromUtf8(QJsonDocument(missing).toJson(QJsonDocument::Compact)))));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, gameId, done] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, gameId, kind, done] {
         reply->deleteLater();
         if (reply->error() == QNetworkReply::NoError) {
             QHash<QString, QJsonObject> projects;
             for (const auto &value : QJsonDocument::fromJson(reply->readAll()).array())
                 projects.insert(value.toObject().value("id").toString(), value.toObject());
-            auto metadata = readMetadata(gameId);
+            auto metadata = readMetadata(gameId, kind);
             for (const auto &key : metadata.keys()) {
                 auto entry = metadata.value(key).toObject();
                 const auto project = projects.value(entry.value("projectId").toString());
@@ -804,7 +845,7 @@ void ModManager::fillTitles(const QString &gameId, std::function<void()> done)
                     metadata.insert(key, entry);
                 }
             }
-            writeMetadata(gameId, metadata);
+            writeMetadata(gameId, metadata, kind);
         }
         done();
     });
@@ -818,7 +859,8 @@ void ModManager::checkUpdates(const QString &gameId, const QString &gameVersion,
     const QDir mods(modsDirectory(gameId));
     QHash<QString, QString> fileByHash;
     QJsonArray hashes;
-    for (const auto &file : mods.entryList({"*.jar", "*.jar.disabled"}, QDir::Files)) {
+    const auto extension = extensionFor(m_kind);
+    for (const auto &file : mods.entryList({"*" + extension, "*" + extension + ".disabled"}, QDir::Files)) {
         QFile jar(mods.filePath(file));
         if (!jar.open(QIODevice::ReadOnly))
             continue;
@@ -860,7 +902,7 @@ void ModManager::checkUpdates(const QString &gameId, const QString &gameVersion,
         }
         writeMetadata(gameId, metadata);
         const QJsonObject request{{"hashes", hashes}, {"algorithm", "sha1"},
-                                  {"loaders", QJsonArray{loader.toLower()}}, {"game_versions", QJsonArray{gameVersion}}};
+                                  {"loaders", loaderArray(loader)}, {"game_versions", QJsonArray{gameVersion}}};
         auto *latest = post(kApi + "version_files/update", request);
         connect(latest, &QNetworkReply::finished, this, [this, latest, gameId, fileByHash, finish] {
             latest->deleteLater();
@@ -883,19 +925,20 @@ void ModManager::checkUpdates(const QString &gameId, const QString &gameVersion,
                 }
                 writeMetadata(gameId, metadata);
             }
-            fillTitles(gameId, finish);
+            fillTitles(gameId, m_kind, finish);
         });
     });
 }
 
 void ModManager::installVersionOf(const QString &projectId, const QString &versionId, const QString &gameId,
-                                  const QString &gameVersion, const QString &loader)
+                                  const QString &gameVersion, const QString &loader, const QString &kind)
 {
     if (projectId.isEmpty() || versionId.isEmpty() || gameId.isEmpty() || m_installing.contains(projectId))
         return;
     m_installing.insert(projectId);
     emit installingChanged();
     auto *job = new Install{projectId, gameId, gameVersion, loader.toLower(), {projectId}, 0, 0, {}};
+    job->kind = kind;
     step(job, +1);
     auto *reply = get(kApi + "version/" + versionId);
     connect(reply, &QNetworkReply::finished, this, [this, reply, job] {
@@ -914,7 +957,7 @@ void ModManager::updateAll(const QString &gameId, const QString &gameVersion, co
     for (const auto &value : m_installed) {
         const auto mod = value.toMap();
         if (!mod.value("updateVersionId").toString().isEmpty())
-            installVersionOf(mod.value("projectId").toString(), mod.value("updateVersionId").toString(), gameId, gameVersion, loader);
+            installVersionOf(mod.value("projectId").toString(), mod.value("updateVersionId").toString(), gameId, gameVersion, loader, m_kind);
     }
 }
 

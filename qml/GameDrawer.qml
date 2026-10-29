@@ -19,11 +19,22 @@ FocusScope {
     signal modsRequested()
     signal modVersionRequested(var mod)
     signal packVersionsRequested()
+    // Content shown in the Conteúdo tab and the Modrinth loaders it is filtered by.
+    property string contentKind: "mod"
+    readonly property string contentLoader: contentKind === "shader" ? "iris,optifine"
+        : contentKind === "resourcepack" ? "minecraft" : (game ? game.loader : "")
+    readonly property bool contentAvailable: !(vanilla && contentKind !== "resourcepack")
     property string updatesCheckedFor: ""
+    function showContent(kind) {
+        contentKind = kind
+        updatesCheckedFor = ""
+        if (gameId) mods.loadInstalled(gameId, kind)
+        checkModUpdates(false)
+    }
     function checkModUpdates(force) {
-        if (!game || vanilla || (!force && updatesCheckedFor === gameId)) return
-        updatesCheckedFor = gameId
-        mods.checkUpdates(gameId, game.version, game.loader)
+        if (!game || !contentAvailable || (!force && updatesCheckedFor === gameId + contentKind)) return
+        updatesCheckedFor = gameId + contentKind
+        mods.checkUpdates(gameId, game.version, contentLoader)
     }
     signal notify(string message)
 
@@ -60,7 +71,7 @@ FocusScope {
     }
 
     visible: scrim.opacity > 0.001 || panel.x < width
-    onGameIdChanged: { tabs.currentIndex = 0; flick.contentY = 0; if (gameId) mods.loadInstalled(gameId) }
+    onGameIdChanged: { tabs.currentIndex = 0; flick.contentY = 0; contentKind = "mod"; if (gameId) mods.loadInstalled(gameId, "mod") }
     onOpenChanged: if (open) playButton.forceActiveFocus()
 
 
@@ -337,7 +348,7 @@ FocusScope {
                     id: tabs
                     Layout.fillWidth: true
                     Layout.topMargin: 26
-                    model: ["Visão geral", "Mods", "Mundos", "Ajustes"]
+                    model: ["Visão geral", "Conteúdo", "Mundos", "Ajustes"]
                     reduced: root.reduced
                     onCurrentIndexChanged: {
                         if (currentIndex === 1) root.checkModUpdates(false)
@@ -399,7 +410,8 @@ FocusScope {
                         InfoRow {
                             label: "Mods"; iconName: "puzzle"
                             value: root.vanilla ? "Não se aplica"
-                                : mods.gameId !== root.gameId || mods.installed.length === 0 ? "Nenhum"
+                                : mods.gameId !== root.gameId || mods.kind !== "mod" ? "—"
+                                : mods.installed.length === 0 ? "Nenhum"
                                 : mods.installed.length === 1 ? "1 mod" : mods.installed.length + " mods"
                         }
                         InfoRow { label: "Última sessão"; iconName: "calendar"; value: root.lastPlayedText() }
@@ -432,16 +444,82 @@ FocusScope {
                             return query === "" || mod.title.toLowerCase().indexOf(query) !== -1 || mod.file.toLowerCase().indexOf(query) !== -1
                         })
                         readonly property int disabledCount: list.filter(function(mod) { return !mod.enabled }).length
+                        readonly property bool needsShaderMod: root.contentKind === "shader" && root.contentAvailable
+                            && !(mods.installing.length, mods.installed.length, mods.hasModFile(root.gameId, ["iris", "oculus"]))
+
+                        Row {
+                            Layout.topMargin: 14
+                            spacing: 6
+                            Repeater {
+                                model: [{ kind: "mod", label: "Mods" }, { kind: "shader", label: "Shaders" },
+                                        { kind: "resourcepack", label: "Resource packs" }]
+                                delegate: AbstractButton {
+                                    id: kindChip
+                                    required property var modelData
+                                    readonly property bool active: root.contentKind === modelData.kind
+                                    height: 30
+                                    implicitWidth: kindLabel.implicitWidth + 22
+                                    hoverEnabled: true
+                                    onClicked: root.showContent(modelData.kind)
+                                    background: Rectangle {
+                                        radius: Theme.radiusSm
+                                        color: kindChip.active ? Theme.accentSoft : kindChip.hovered ? "#0AFFFFFF" : "transparent"
+                                    }
+                                    contentItem: Text {
+                                        id: kindLabel
+                                        text: kindChip.modelData.label
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                        color: kindChip.active ? Theme.accentText : Theme.muted
+                                        font.family: Theme.font; font.pixelSize: 13
+                                        font.weight: kindChip.active ? Font.DemiBold : Font.Medium
+                                    }
+                                }
+                            }
+                        }
+
+                        // Shaders need Iris (Fabric/NeoForge) or Oculus (Forge).
+                        Rectangle {
+                            visible: modsTab.needsShaderMod
+                            Layout.fillWidth: true
+                            Layout.topMargin: 12
+                            implicitHeight: shaderNotice.implicitHeight + 24
+                            radius: 12
+                            color: Theme.accentSoft
+                            RowLayout {
+                                id: shaderNotice
+                                x: 12; y: 12
+                                width: parent.width - 24
+                                spacing: 10
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: root.game && root.game.loader === "Forge"
+                                        ? "Shaders precisam do Oculus neste jogo."
+                                        : "Shaders precisam do Iris neste jogo."
+                                    color: Theme.text
+                                    font.family: Theme.font; font.pixelSize: 13
+                                    wrapMode: Text.WordWrap
+                                }
+                                ActionButton {
+                                    readonly property string project: root.game && root.game.loader === "Forge" ? "oculus" : "iris"
+                                    text: mods.installing.indexOf(project) !== -1 ? "Instalando…" : "Instalar " + (project === "iris" ? "Iris" : "Oculus")
+                                    primary: true; implicitHeight: 32; font.pixelSize: 12; reduced: root.reduced
+                                    enabled: mods.installing.indexOf(project) === -1
+                                    onClicked: mods.install(project, root.gameId, root.game.version, root.game.loader, "mod")
+                                }
+                            }
+                        }
 
                         RowLayout {
-                            visible: !root.vanilla
+                            visible: root.contentAvailable
                             Layout.fillWidth: true
-                            Layout.topMargin: 14
+                            Layout.topMargin: 12
                             spacing: 8
                             InputField {
                                 Layout.fillWidth: true
                                 iconName: "search"; clearable: true
-                                placeholderText: "Buscar nos mods"
+                                placeholderText: root.contentKind === "shader" ? "Buscar nos shaders"
+                                    : root.contentKind === "resourcepack" ? "Buscar nos resource packs" : "Buscar nos mods"
                                 onTextChanged: modsTab.filter = text
                             }
                             ActionButton {
@@ -451,21 +529,23 @@ FocusScope {
                             ActionButton {
                                 Layout.preferredWidth: 40
                                 iconName: "folder"; reduced: root.reduced
-                                Accessible.name: "Pasta de mods"
-                                ToolTip.visible: hovered; ToolTip.text: "Pasta de mods"; ToolTip.delay: 500
-                                onClicked: runner.openModsFolder(root.gameId)
+                                Accessible.name: "Abrir pasta"
+                                ToolTip.visible: hovered; ToolTip.text: "Abrir pasta"; ToolTip.delay: 500
+                                onClicked: runner.openFile(runner.instanceDirectory(root.gameId) + (root.contentKind === "shader" ? "\\shaderpacks"
+                                    : root.contentKind === "resourcepack" ? "\\resourcepacks" : "\\mods")) || runner.openModsFolder(root.gameId)
                             }
                         }
 
                         RowLayout {
-                            visible: !root.vanilla && modsTab.list.length > 0
+                            visible: root.contentAvailable && modsTab.list.length > 0
                             Layout.fillWidth: true
                             Layout.topMargin: 14
                             Layout.bottomMargin: 6
                             spacing: 8
                             Text {
                                 Layout.fillWidth: true
-                                text: (modsTab.list.length === 1 ? "1 mod" : modsTab.list.length + " mods")
+                                readonly property string noun: root.contentKind === "shader" ? "shader" : root.contentKind === "resourcepack" ? "resource pack" : "mod"
+                                text: modsTab.list.length + " " + noun + (modsTab.list.length === 1 ? "" : "s")
                                     + (modsTab.disabledCount > 0 ? "  ·  " + modsTab.disabledCount + " desativado" + (modsTab.disabledCount > 1 ? "s" : "") : "")
                                 color: Theme.muted
                                 font.family: Theme.font; font.pixelSize: 12
@@ -479,11 +559,11 @@ FocusScope {
                             ActionButton {
                                 visible: !mods.checkingUpdates && mods.updateCount > 0
                                 implicitHeight: 30
-                                text: "Atualizar " + (mods.updateCount === 1 ? "1 mod" : mods.updateCount + " mods")
+                                text: "Atualizar " + mods.updateCount
                                 iconName: "download"; iconSize: 14
                                 primary: true; reduced: root.reduced
                                 font.pixelSize: 12
-                                onClicked: mods.updateAll(root.gameId, root.game.version, root.game.loader)
+                                onClicked: mods.updateAll(root.gameId, root.game.version, root.contentLoader)
                             }
                             ActionButton {
                                 visible: !mods.checkingUpdates && mods.updateCount === 0
@@ -585,7 +665,7 @@ FocusScope {
                                         Accessible.name: "Atualizar " + modRow.modelData.title
                                         ToolTip.visible: hovered; ToolTip.text: "Atualizar para " + modRow.modelData.updateVersionNumber; ToolTip.delay: 400
                                         onClicked: mods.installVersionOf(modRow.modelData.projectId, modRow.modelData.updateVersionId,
-                                                                         root.gameId, root.game.version, root.game.loader)
+                                                                         root.gameId, root.game.version, root.contentLoader, root.contentKind)
                                     }
                                     ToggleSwitch {
                                         checked: modRow.modelData.enabled
@@ -648,7 +728,7 @@ FocusScope {
                             font.family: Theme.font; font.pixelSize: 13
                         }
                         ColumnLayout {
-                            visible: root.vanilla || modsTab.list.length === 0
+                            visible: !root.contentAvailable || modsTab.list.length === 0
                             Layout.fillWidth: true
                             Layout.topMargin: 28
                             spacing: 8
@@ -662,7 +742,9 @@ FocusScope {
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 Layout.topMargin: 6
-                                text: root.vanilla ? "Vanilla não usa mods" : "Nenhum mod instalado"
+                                text: !root.contentAvailable ? (root.contentKind === "shader" ? "Shaders precisam de um loader" : "Vanilla não usa mods")
+                                    : root.contentKind === "shader" ? "Nenhum shader instalado"
+                                    : root.contentKind === "resourcepack" ? "Nenhum resource pack instalado" : "Nenhum mod instalado"
                                 color: Theme.text
                                 font.family: Theme.font; font.pixelSize: 15; font.weight: Font.DemiBold
                             }
@@ -670,13 +752,14 @@ FocusScope {
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
-                                text: root.vanilla ? "Mude o tipo de instalação para Fabric, Forge ou NeoForge para adicionar mods."
-                                    : "Busque no Modrinth ou coloque arquivos .jar na pasta de mods."
+                                text: !root.contentAvailable ? "Mude o tipo de instalação para Fabric, Forge ou NeoForge."
+                                    : root.contentKind === "mod" ? "Busque no Modrinth ou coloque arquivos .jar na pasta de mods."
+                                    : "Busque no Modrinth em Adicionar. Depois, ative em Opções do jogo."
                                 color: Theme.muted
                                 font.family: Theme.font; font.pixelSize: 13
                             }
                             ActionButton {
-                                visible: root.vanilla
+                                visible: !root.contentAvailable
                                 Layout.alignment: Qt.AlignHCenter
                                 Layout.topMargin: 8
                                 text: "Mudar tipo de instalação"; reduced: root.reduced

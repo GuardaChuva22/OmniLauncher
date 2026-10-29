@@ -104,6 +104,11 @@ public:
     Q_INVOKABLE bool trashWorld(const QString &gameId, const QString &folder);
     Q_INVOKABLE bool openWorldsFolder(const QString &gameId, const QString &folder = {});
 
+    // Screenshots of every game, newest first: url, path, gameId, takenAt (ISO), name.
+    Q_INVOKABLE QVariantList screenshots() const;
+    Q_INVOKABLE bool copyImage(const QString &path);
+    Q_INVOKABLE bool trashFile(const QString &path);
+
     // `game` is a library entry; `settings` comes from AppModel::launchSettings().
     // `account` (Microsoft): uuid, accessToken, xuid, clientId. Empty means offline.
     Q_INVOKABLE bool launch(const QVariantMap &game, const QString &playerName, const QVariantMap &settings,

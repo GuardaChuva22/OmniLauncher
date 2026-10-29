@@ -10,6 +10,8 @@ Item {
     property bool profileMenuOpen: false
     property alias profileButton: profileButton
     signal pageRequested(int index)
+    property var activeDownloads: []
+    property real downloadsProgress: -1
     signal profileClicked()
 
     readonly property bool hasProfile: launcher.activeProfileId !== ""
@@ -42,7 +44,8 @@ Item {
         width: root.width - root.inset * 2
         spacing: 4
         Repeater {
-            model: [{ label: "Jogos", icon: "grid" }, { label: "Modpacks", icon: "packs" }]
+            model: [{ label: "Jogos", icon: "grid", page: 0 }, { label: "Modpacks", icon: "packs", page: 1 },
+                    { label: "Capturas", icon: "image", page: 3 }]
             delegate: NavItem {
                 required property var modelData
                 required property int index
@@ -51,8 +54,8 @@ Item {
                 iconName: modelData.icon
                 compact: root.compact
                 reduced: root.reduced
-                active: root.page === index
-                onClicked: root.pageRequested(index)
+                active: root.page === modelData.page
+                onClicked: root.pageRequested(modelData.page)
             }
         }
     }
@@ -63,6 +66,75 @@ Item {
         anchors.bottom: parent.bottom; anchors.bottomMargin: 16
         spacing: 10
 
+        NavItem {
+            id: downloadsItem
+            Layout.fillWidth: true
+            text: "Downloads"
+            iconName: "download"
+            compact: root.compact
+            reduced: root.reduced
+            active: root.page === 4
+            badge: root.activeDownloads.length === 0 ? ""
+                : root.downloadsProgress >= 0 ? Math.round(root.downloadsProgress * 100) + "%"
+                : String(root.activeDownloads.length)
+            ToolTip.visible: false
+            onClicked: root.pageRequested(4)
+
+            // Hover: a compact list of what is downloading right now.
+            Popup {
+                x: downloadsItem.width + 14
+                y: downloadsItem.height - height
+                width: 300
+                padding: 14
+                visible: downloadsItem.hovered && root.activeDownloads.length > 0
+                closePolicy: Popup.NoAutoClose
+                background: Rectangle { color: Theme.popup; radius: 14; border.width: 1; border.color: Theme.lineStrong }
+                contentItem: ColumnLayout {
+                    spacing: 10
+                    Text {
+                        text: "Baixando agora"
+                        color: Theme.muted
+                        font.family: Theme.font; font.pixelSize: 12; font.weight: Font.DemiBold
+                    }
+                    Repeater {
+                        model: root.activeDownloads.slice(0, 4)
+                        delegate: ColumnLayout {
+                            id: summary
+                            required property var modelData
+                            Layout.fillWidth: true
+                            spacing: 5
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: summary.modelData.title
+                                    color: Theme.text
+                                    font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    visible: summary.modelData.progress >= 0
+                                    text: Math.round(summary.modelData.progress * 100) + "%"
+                                    color: Theme.accentText
+                                    font.family: Theme.font; font.pixelSize: 12; font.weight: Font.DemiBold
+                                }
+                            }
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 3; radius: 1.5
+                                color: "#1FFFFFFF"
+                                Rectangle {
+                                    width: parent.width * Math.max(0.08, summary.modelData.progress)
+                                    height: parent.height; radius: 1.5
+                                    color: Theme.accent
+                                    opacity: summary.modelData.progress >= 0 ? 1 : 0.5
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         NavItem {
             Layout.fillWidth: true
             text: "Configurações"

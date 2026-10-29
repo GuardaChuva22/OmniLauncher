@@ -27,6 +27,96 @@ ApplicationWindow {
     property string pendingLaunchGameId: ""
     // What the version picker is choosing for: a pack (new install or version change) or a mod.
     property var pickerTarget: ({})
+
+    // ── Download center: live entries from game files, mods, packs and launcher updates ──
+    Settings { id: downloadPrefs; category: "Downloads"; property string history: "[]" }
+    Settings { id: presencePrefs; category: "Discord"; property bool enabled: true }
+    property var downloads: []
+    property var downloadKeys: ({})     // source key → entry id while active
+    property var knownInstalling: []
+    readonly property var activeDownloads: downloads.filter(function(d) { return d.state === "active" })
+    readonly property real downloadsProgress: {
+        const known = activeDownloads.filter(function(d) { return d.progress >= 0 })
+        return known.length ? known.reduce(function(sum, d) { return sum + d.progress }, 0) / known.length : -1
+    }
+    function startDownload(key, fields) {
+        const id = key + ":" + Date.now()
+        const keys = Object.assign({}, downloadKeys); keys[key] = id; downloadKeys = keys
+        downloads = [Object.assign({ id: id, title: "", detail: "", progress: -1, state: "active", kind: "",
+                                     started: Date.now(), finished: 0 }, fields)].concat(downloads)
+    }
+    function updateDownload(key, fields) {
+        const id = downloadKeys[key]
+        if (!id) return
+        downloads = downloads.map(function(d) { return d.id === id ? Object.assign({}, d, fields) : d })
+    }
+    function finishDownload(key, state, detail) {
+        if (!downloadKeys[key]) return
+        updateDownload(key, { state: state, finished: Date.now(), progress: state === "done" ? 1 : -1,
+                              detail: detail !== undefined ? detail : "" })
+        const keys = Object.assign({}, downloadKeys); delete keys[key]; downloadKeys = keys
+        downloadPrefs.history = JSON.stringify(downloads.filter(function(d) { return d.state !== "active" }).slice(0, 60))
+    }
+    function clearDownloadHistory() {
+        downloads = activeDownloads
+        downloadPrefs.history = "[]"
+    }
+    function contentTitle(projectId) {
+        const hit = mods.results.find(function(r) { return r.id === projectId })
+            || mods.installed.find(function(m) { return m.projectId === projectId })
+        return hit ? hit.title : projectId === "iris" ? "Iris Shaders" : projectId === "oculus" ? "Oculus" : "Conteúdo do Modrinth"
+    }
+    function packTitle(projectId) {
+        if (projectId.indexOf("custom:") === 0) return "Modpack customizado"
+        const hit = mods.packResults.find(function(r) { return r.id === projectId })
+        return hit ? hit.title : "Modpack"
+    }
+    Connections {
+        target: runner
+        function onProgressChanged() {
+            if (runner.state !== "downloading" || runner.detail === "") return
+            const key = "game:" + runner.gameId
+            if (!window.downloadKeys[key]) window.startDownload(key, { title: window.launchedTitle + " — arquivos do jogo", kind: "game" })
+            window.updateDownload(key, { progress: runner.progress, detail: runner.detail })
+        }
+        function onStateChanged() {
+            const key = "game:" + runner.gameId
+            if (!window.downloadKeys[key] || runner.state === "downloading") return
+            window.finishDownload(key, runner.state === "failed" ? "failed" : runner.state === "idle" ? "cancelled" : "done",
+                                  runner.state === "failed" ? runner.error.split("\n")[0] : "")
+        }
+    }
+    Connections {
+        target: mods
+        function onInstallingChanged() {
+            for (const id of mods.installing)
+                if (window.knownInstalling.indexOf(id) === -1)
+                    window.startDownload("mod:" + id, { title: window.contentTitle(id), kind: "mod", detail: "Baixando do Modrinth" })
+            window.knownInstalling = mods.installing.slice()
+        }
+        function onInstallFinished(projectId, ok, message) { window.finishDownload("mod:" + projectId, ok ? "done" : "failed", message) }
+        function onPackChanged() {
+            if (mods.packState !== "" && mods.packProjectId !== "" && !window.downloadKeys["pack"])
+                window.startDownload("pack", { title: window.packTitle(mods.packProjectId), kind: "pack" })
+            window.updateDownload("pack", {
+                progress: mods.packState === "downloading" ? mods.packProgress : -1,
+                detail: mods.packState === "downloading" ? "Baixando arquivos do modpack"
+                      : mods.packState === "backing-up" ? "Fazendo backup dos mundos" : "Preparando"
+            })
+        }
+        function onPackFinished(gameId, ok, message) { window.finishDownload("pack", ok ? "done" : "failed", ok ? "" : message) }
+    }
+    Connections {
+        target: updates
+        function onChanged() {
+            if (updates.state === "downloading") {
+                if (!window.downloadKeys["update"]) window.startDownload("update", { title: "Atualização do OmniLauncher", kind: "update" })
+                window.updateDownload("update", { progress: updates.progress, detail: updates.changes })
+            } else if (window.downloadKeys["update"]) {
+                window.finishDownload("update", updates.state === "error" ? "failed" : "done", updates.state === "error" ? updates.error : "")
+            }
+        }
+    }
     property string packChangeGameId: ""
     property string launchedCover: "meadow"
     // The launch screen covers the app while files are prepared, and stays on a
@@ -151,11 +241,11 @@ ApplicationWindow {
         versionPicker.open()
     }
     function pickModVersion(game, mod) {
-        pickerTarget = { kind: "mod", projectId: mod.projectId, game: game }
+        pickerTarget = { kind: "mod", projectId: mod.projectId, game: game, content: drawer.contentKind, loader: drawer.contentLoader }
         versionPicker.title = "Versões de " + mod.title
         versionPicker.currentId = mod.versionId || ""
         versionPicker.actionText = "Usar esta versão"
-        mods.fetchProjectVersions(mod.projectId, game.version, game.loader)
+        mods.fetchProjectVersions(mod.projectId, game.version, drawer.contentLoader)
         versionPicker.open()
     }
     function bringToFront() {
@@ -171,11 +261,16 @@ ApplicationWindow {
     Connections {
         target: runner
         function onGameStarted(detached) {
+            const started = window.gameById(runner.gameId)
+            if (started && discord.configured && presencePrefs.enabled)
+                discord.setActivity(started.title, "Minecraft " + started.version + (started.loader !== "Vanilla" ? " · " + started.loader : ""),
+                                    Math.floor(Date.now() / 1000))
             const after = launcher.preferences.afterLaunch
             if (detached && after === "close") Qt.quit()
             else if (after === "minimize") window.showMinimized()
         }
         function onGameExited(gameId, seconds, exitCode) {
+            discord.clearActivity()
             launcher.recordSession(gameId, seconds)
             // A clean exit can still hide trouble (e.g. data that blocks world creation).
             if (exitCode === 0 && runner.diagnosis.gameId === gameId)
@@ -243,6 +338,7 @@ ApplicationWindow {
         }
     }
     Component.onCompleted: {
+        try { downloads = JSON.parse(downloadPrefs.history) } catch (error) { downloads = [] }
         if (!gameById(selectedGameId) && launcher.games.length) selectedGameId = launcher.games[0].id
     }
 
@@ -363,6 +459,8 @@ ApplicationWindow {
                 compact: window.compactSidebar
                 reduced: window.reduced
                 profileMenuOpen: profileMenu.visible
+                activeDownloads: window.activeDownloads
+                downloadsProgress: window.downloadsProgress
                 opacity: window.launching ? 0 : 1
                 enabled: !window.launching
                 Behavior on opacity { NumberAnimation { duration: window.reduced ? 0 : Theme.normal } }
@@ -411,8 +509,23 @@ ApplicationWindow {
                     anchors.fill: parent
                     visible: window.page === 2
                     reduced: window.reduced
+                    discordEnabled: presencePrefs.enabled
+                    onDiscordToggled: function(enabled) { presencePrefs.enabled = enabled; if (!enabled) discord.clearActivity() }
                     onManageProfiles: profileMenu.open()
                     onNotify: function(message) { window.notify(message) }
+                }
+                ScreenshotsPage {
+                    anchors.fill: parent
+                    visible: window.page === 3
+                    reduced: window.reduced
+                    onNotify: function(message) { window.notify(message) }
+                }
+                DownloadsPage {
+                    anchors.fill: parent
+                    visible: window.page === 4
+                    reduced: window.reduced
+                    downloads: window.downloads
+                    onClearHistory: window.clearDownloadHistory()
                 }
             }
         }
@@ -430,7 +543,7 @@ ApplicationWindow {
             onDuplicateRequested: window.duplicateGame(window.drawerGame)
             onRemoveRequested: window.confirmRemoval(window.drawerGameId, window.drawerGame ? window.drawerGame.title : "", false)
             onProfileRequested: profileMenu.open()
-            onModsRequested: modCatalog.openFor(window.drawerGame)
+            onModsRequested: modCatalog.openFor(window.drawerGame, drawer.contentKind, drawer.contentLoader)
             onModVersionRequested: function(mod) { window.pickModVersion(window.drawerGame, mod) }
             onPackVersionsRequested: {
                 const saved = launcher.gameSettings[window.drawerGameId] || {}
@@ -776,7 +889,7 @@ ApplicationWindow {
         onPicked: function(versionId) {
             const target = window.pickerTarget
             if (target.kind === "pack") mods.preparePack(target.projectId, target.imageUrl, versionId, target.gameId)
-            else if (target.kind === "mod") mods.installVersionOf(target.projectId, versionId, target.game.id, target.game.version, target.game.loader)
+            else if (target.kind === "mod") mods.installVersionOf(target.projectId, versionId, target.game.id, target.game.version, target.loader, target.content)
         }
     }
     ModCatalog {
