@@ -22,6 +22,8 @@
 #include <QTimer>
 #include <QVariantList>
 
+#include <algorithm>
+
 #ifdef Q_OS_WIN
 #  ifndef NOMINMAX
 #    define NOMINMAX
@@ -112,13 +114,35 @@ QString mavenPath(const QString &coordinate)
     return QString(parts[0]).replace('.', '/') + '/' + parts[1] + '/' + parts[2] + '/' + file + '.' + extension;
 }
 
-// NeoForge builds are numbered after the Minecraft version: 1.21.1 → 21.1.x, 1.20.4 → 20.4.x.
+// NeoForge builds are numbered after the Minecraft version: 1.21.1 → 21.1.x, 1.20.4 → 20.4.x,
+// and with the year-based scheme 26.3 → 26.3.0.x, 26.3.1 → 26.3.1.x.
 QString neoforgePrefix(const QString &gameVersion)
 {
     const auto parts = gameVersion.split('.');
-    if (parts.size() < 2 || parts[0] != "1")
+    if (parts.size() < 2)
         return {};
-    return parts[1] + '.' + parts.value(2, QStringLiteral("0")) + '.';
+    if (parts[0] == "1")
+        return parts[1] + '.' + parts.value(2, QStringLiteral("0")) + '.';
+    return parts[0] + '.' + parts[1] + '.' + parts.value(2, QStringLiteral("0")) + '.';
+}
+
+// Newest first by numeric components ("62.0.10" after "62.0.9"; suffixes like -beta sort lower).
+void sortVersionsDescending(QStringList &versions)
+{
+    std::sort(versions.begin(), versions.end(), [](const QString &a, const QString &b) {
+        static const QRegularExpression number(QStringLiteral("\\d+"));
+        auto ia = number.globalMatch(a);
+        auto ib = number.globalMatch(b);
+        while (ia.hasNext() && ib.hasNext()) {
+            const auto na = ia.next().captured(0).toLongLong();
+            const auto nb = ib.next().captured(0).toLongLong();
+            if (na != nb)
+                return na > nb;
+        }
+        if (ia.hasNext() != ib.hasNext())
+            return ia.hasNext();
+        return a > b;
+    });
 }
 
 bool copyTree(const QString &from, const QString &to)
@@ -375,7 +399,8 @@ void GameRunner::loadForgeList(const QString &loader, const QString &gameVersion
             if (reply->error() == QNetworkReply::NoError && !prefix.isEmpty()) {
                 for (const auto &value : QJsonDocument::fromJson(reply->readAll()).object().value("versions").toArray())
                     if (value.toString().startsWith(prefix))
-                        versions.prepend(value.toString());
+                        versions << value.toString();
+                sortVersionsDescending(versions);
                 for (const auto &version : versions)
                     if (!version.contains("beta") && recommended.isEmpty())
                         recommended = version;
@@ -397,8 +422,9 @@ void GameRunner::loadForgeList(const QString &loader, const QString &gameVersion
             while (it.hasNext()) {
                 const auto full = it.next().captured(1);
                 if (full.startsWith(prefix))
-                    versions << full.mid(prefix.size()); // maven-metadata lists newest first
+                    versions << full.mid(prefix.size());
             }
+            sortVersionsDescending(versions); // maven-metadata order is not reliable
         }
         if (versions.isEmpty()) {
             finish({}, {});
@@ -416,6 +442,47 @@ void GameRunner::loadForgeList(const QString &loader, const QString &gameVersion
     });
 }
 
+void GameRunner::checkLoaderSupport(const QString &gameVersion)
+{
+    m_loaderSupport = {{"version", gameVersion}};
+    emit loaderSupportChanged();
+    if (gameVersion.isEmpty())
+        return;
+    const auto record = [this, gameVersion](const QString &loader, bool available) {
+        if (m_loaderSupport.value("version").toString() != gameVersion)
+            return; // another version was chosen meanwhile
+        m_loaderSupport.insert(loader, available);
+        emit loaderSupportChanged();
+    };
+    // Old versions have no loaders at all; skip the requests.
+    if (versionType(gameVersion).startsWith("old_")) {
+        for (const auto &loader : {QStringLiteral("Fabric"), QStringLiteral("Forge"), QStringLiteral("NeoForge")})
+            record(loader, false);
+        return;
+    }
+    QNetworkRequest request(QUrl(kFabricMeta + gameVersion));
+    request.setTransferTimeout(15000);
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("OmniLauncher/0.1"));
+    auto *reply = m_network->get(request);
+    connect(reply, &QNetworkReply::finished, this, [reply, record] {
+        reply->deleteLater();
+        record(QStringLiteral("Fabric"), reply->error() == QNetworkReply::NoError
+                                             && !QJsonDocument::fromJson(reply->readAll()).array().isEmpty());
+    });
+    // Forge before 1.13 uses an installer format the launcher does not support.
+    const auto parts = gameVersion.split('.');
+    const bool legacyForge = parts.value(0) == "1" && parts.value(1).toInt() < 13;
+    if (legacyForge)
+        record(QStringLiteral("Forge"), false);
+    for (const auto &loader : {QStringLiteral("Forge"), QStringLiteral("NeoForge")}) {
+        if (loader == "Forge" && legacyForge)
+            continue;
+        loadForgeList(loader, gameVersion, [record, loader](const QStringList &versions, const QString &) {
+            record(loader, !versions.isEmpty());
+        });
+    }
+}
+
 bool GameRunner::loadManifest(const QByteArray &data)
 {
     const auto root = QJsonDocument::fromJson(data).object();
@@ -424,11 +491,16 @@ bool GameRunner::loadManifest(const QByteArray &data)
         return false;
     QStringList releases;
     QHash<QString, QPair<QUrl, QString>> index;
+    m_versionsByType.clear();
+    m_versionTypes.clear();
     for (const auto &value : entries) {
         const auto entry = value.toObject();
         const auto id = entry.value("id").toString();
+        const auto type = entry.value("type").toString();
         index.insert(id, {QUrl(entry.value("url").toString()), entry.value("sha1").toString()});
-        if (entry.value("type").toString() == "release")
+        m_versionsByType[type] << id;
+        m_versionTypes.insert(id, type);
+        if (type == "release")
             releases << id;
     }
     m_versionIndex = index;

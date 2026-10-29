@@ -866,6 +866,32 @@ ApplicationWindow {
         property string chosenCover: "meadow"
         property string chosenLoader: "Vanilla"
         property string chosenLoaderVersion: ""
+        property string versionType: "release"
+        readonly property bool supportKnown: runner.loaderSupport.version === versionChoice.currentText
+        function loaderAvailable(name) {
+            return name === "Vanilla" || !supportKnown || runner.loaderSupport[name] !== false
+        }
+        function showVersions(type, keep) {
+            versionType = type
+            const list = runner.versionsOfType(type).slice()
+            if (keep && list.indexOf(keep) === -1) list.unshift(keep)
+            versionChoice.model = list.length ? list : window.versionsFor(keep || "")
+            versionChoice.currentIndex = Math.max(0, versionChoice.model.indexOf(keep || versionChoice.model[0]))
+            versionChanged()
+        }
+        function versionChanged() {
+            chosenLoaderVersion = ""
+            runner.checkLoaderSupport(versionChoice.currentText)
+            if (chosenLoader !== "Vanilla") runner.fetchLoaderVersions(versionChoice.currentText, chosenLoader)
+        }
+        // A loader that does not exist for the chosen version falls back to Vanilla.
+        Connections {
+            target: runner
+            function onLoaderSupportChanged() {
+                if (gameEditor.supportKnown && runner.loaderSupport[gameEditor.chosenLoader] === false)
+                    gameEditor.chosenLoader = "Vanilla"
+            }
+        }
         // The loader build list follows the chosen Minecraft version.
         readonly property bool loaderListReady: runner.loaderVersionsFor === versionChoice.currentText
             && runner.loaderVersionsLoader === chosenLoader && runner.loaderVersions.length > 0
@@ -885,9 +911,7 @@ ApplicationWindow {
             chosenLoaderVersion = game && game.loaderVersion ? game.loaderVersion : ""
             gameName.text = game ? game.title : ""
             const version = game ? game.version : (runner.latestRelease || window.versionsFor("")[0])
-            versionChoice.model = window.versionsFor(version)
-            versionChoice.currentIndex = Math.max(0, versionChoice.model.indexOf(version))
-            runner.fetchLoaderVersions(version, chosenLoader)
+            showVersions(game ? runner.versionType(version) : "release", version)
             open()
             gameName.forceActiveFocus()
         }
@@ -972,12 +996,43 @@ ApplicationWindow {
                     spacing: 0
                     Text { text: "Nome"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.bottomMargin: 8 }
                     InputField { id: gameName; objectName: "gameName"; Layout.fillWidth: true; placeholderText: "Como vai chamar seu jogo?"; maximumLength: 72 }
-                    Text { text: "Versão do Minecraft"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 20; Layout.bottomMargin: 8 }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 20; Layout.bottomMargin: 8
+                        spacing: 4
+                        Text { text: "Versão do Minecraft"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.fillWidth: true }
+                        Repeater {
+                            model: [{ type: "release", label: "Lançamentos" }, { type: "snapshot", label: "Snapshots" },
+                                    { type: "old_beta", label: "Beta" }, { type: "old_alpha", label: "Alpha" }]
+                            delegate: AbstractButton {
+                                id: typeChip
+                                required property var modelData
+                                readonly property bool active: gameEditor.versionType === modelData.type
+                                implicitWidth: typeLabel.implicitWidth + 16
+                                implicitHeight: 26
+                                hoverEnabled: true
+                                onClicked: gameEditor.showVersions(modelData.type, "")
+                                background: Rectangle {
+                                    radius: 7
+                                    color: typeChip.active ? Theme.accentSoft : typeChip.hovered ? "#0AFFFFFF" : "transparent"
+                                }
+                                contentItem: Text {
+                                    id: typeLabel
+                                    text: typeChip.modelData.label
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    color: typeChip.active ? Theme.accentText : Theme.muted
+                                    font.family: Theme.font; font.pixelSize: 12
+                                    font.weight: typeChip.active ? Font.DemiBold : Font.Normal
+                                }
+                            }
+                        }
+                    }
                     ChoiceField {
                         id: versionChoice
                         Layout.fillWidth: true
                         model: Theme.versions
-                        onActivated: { gameEditor.chosenLoaderVersion = ""; runner.fetchLoaderVersions(currentText, gameEditor.chosenLoader) }
+                        onActivated: gameEditor.versionChanged()
                     }
                     Text { text: "Tipo de instalação"; color: Theme.secondary; font.family: Theme.font; font.pixelSize: 13; Layout.topMargin: 20; Layout.bottomMargin: 8 }
                     GridLayout {
@@ -995,6 +1050,9 @@ ApplicationWindow {
                                 id: loaderOption
                                 required property var modelData
                                 readonly property bool chosen: gameEditor.chosenLoader === modelData.name
+                                readonly property bool available: gameEditor.loaderAvailable(modelData.name)
+                                enabled: available
+                                opacity: available ? 1 : 0.4
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 60
                                 hoverEnabled: true
@@ -1019,7 +1077,11 @@ ApplicationWindow {
                                         width: parent.width - 44
                                         spacing: 2
                                         Text { text: loaderOption.modelData.name; color: Theme.text; font.family: Theme.font; font.pixelSize: 14; font.weight: Font.DemiBold }
-                                        Text { width: parent.width; text: loaderOption.modelData.hint; color: Theme.muted; font.family: Theme.font; font.pixelSize: 12; elide: Text.ElideRight }
+                                        Text {
+                                            width: parent.width
+                                            text: loaderOption.available ? loaderOption.modelData.hint : "Não existe para " + versionChoice.currentText
+                                            color: Theme.muted; font.family: Theme.font; font.pixelSize: 12; elide: Text.ElideRight
+                                        }
                                     }
                                     Rectangle {
                                         anchors.right: parent.right; anchors.rightMargin: 14

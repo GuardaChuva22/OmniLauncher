@@ -40,6 +40,9 @@ class GameRunner final : public QObject
     Q_PROPERTY(QString recommendedLoader READ recommendedLoader NOTIFY loaderVersionsChanged)
     Q_PROPERTY(QString loaderVersionsFor READ loaderVersionsFor NOTIFY loaderVersionsChanged)
     Q_PROPERTY(QString loaderVersionsLoader READ loaderVersionsLoader NOTIFY loaderVersionsChanged)
+    // Which loaders exist for one Minecraft version: {version, Fabric, Forge, NeoForge} (true/false;
+    // a loader still being checked is absent).
+    Q_PROPERTY(QVariantMap loaderSupport READ loaderSupport NOTIFY loaderSupportChanged)
     // What went wrong in the last session: gameId, kind ("crash" | "resolution" | "data" | "memory"),
     // title, detail, mods, file. Empty when nothing was found.
     Q_PROPERTY(QVariantMap diagnosis READ diagnosis NOTIFY diagnosisChanged)
@@ -67,6 +70,11 @@ public:
     QString recommendedLoader() const { return m_recommendedLoader; }
     QString loaderVersionsFor() const { return m_loaderVersionsFor; }
     QString loaderVersionsLoader() const { return m_loaderVersionsLoader; }
+    QVariantMap loaderSupport() const { return m_loaderSupport; }
+    Q_INVOKABLE void checkLoaderSupport(const QString &gameVersion);
+    // Mojang version types: "release", "snapshot", "old_beta", "old_alpha".
+    Q_INVOKABLE QStringList versionsOfType(const QString &type) const { return m_versionsByType.value(type); }
+    Q_INVOKABLE QString versionType(const QString &version) const { return m_versionTypes.value(version, QStringLiteral("release")); }
     QVariantMap diagnosis() const { return m_diagnosis; }
     int systemMemoryMb() const;
     QVariantMap gameDefaults() const { return m_gameDefaults; }
@@ -113,6 +121,7 @@ signals:
     void stateChanged();
     void progressChanged();
     void loaderVersionsChanged();
+    void loaderSupportChanged();
     void diagnosisChanged();
     void gameDefaultsChanged();
     void worldsChanged(const QString &gameId);
@@ -182,6 +191,9 @@ private:
     QString m_recommendedLoader;
     QString m_loaderVersionsFor;
     QString m_loaderVersionsLoader;
+    QVariantMap m_loaderSupport;
+    QHash<QString, QStringList> m_versionsByType;
+    QHash<QString, QString> m_versionTypes;
     // Forge/NeoForge installer state for the current session.
     QJsonObject m_forgeProfile;
     QString m_forgeInstallId;
