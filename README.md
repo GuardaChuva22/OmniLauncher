@@ -74,7 +74,7 @@ OmniLauncher signs in with **Microsoft accounts**, the official way to play Mine
   - OmniLauncher Cloud, only when you share or follow a modpack. It stores mod lists and config archives, nothing personal.
   - Two optional features talk to their own services: Discord Rich Presence goes through your local Discord app, and the server connector uses [e4mc](https://e4mc.link).
 
-**Offline profiles** are local player names for single-player and LAN play. They do not authenticate with Minecraft services and cannot join servers that require a Minecraft account.
+**Offline profiles** are local player names for single-player and LAN play. They become available only after a Microsoft account that owns Minecraft: Java Edition has been added to the launcher. They do not authenticate with Minecraft services and cannot join servers that require a Minecraft account.
 
 > NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.
 

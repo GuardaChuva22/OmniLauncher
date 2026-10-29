@@ -12,6 +12,9 @@ class AppModel final : public QObject
     Q_PROPERTY(QVariantList profiles READ profiles NOTIFY profilesChanged)
     Q_PROPERTY(QString activeProfileId READ activeProfileId NOTIFY activeProfileChanged)
     Q_PROPERTY(QVariantMap activeProfile READ activeProfile NOTIFY activeProfileChanged)
+    // New offline profiles need a Microsoft profile in the library first: those are only added
+    // for accounts that own Minecraft. Offline profiles created before keep working.
+    Q_PROPERTY(bool offlineAllowed READ offlineAllowed NOTIFY profilesChanged)
     Q_PROPERTY(bool reducedMotion READ reducedMotion WRITE setReducedMotion NOTIFY reducedMotionChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
     // Per-game launch settings and play stats, keyed by game id.
@@ -41,6 +44,7 @@ public:
                                 const QString &coverId, const QString &loaderVersion = {});
     Q_INVOKABLE bool removeGame(const QString &id);
     Q_INVOKABLE QString importCover(const QUrl &source);
+    bool offlineAllowed() const;
     Q_INVOKABLE bool addOfflineProfile(const QString &username);
     // Adds (or renames) the profile of a signed-in Microsoft account and selects it.
     Q_INVOKABLE bool addMicrosoftProfile(const QString &uuid, const QString &name);

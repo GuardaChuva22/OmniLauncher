@@ -972,7 +972,17 @@ ApplicationWindow {
                 Layout.fillWidth: true; centered: false; quiet: true
                 text: "Criar perfil offline"; iconName: "plus"
                 font.weight: Font.Medium
+                enabled: launcher.offlineAllowed
                 onClicked: { profileMenu.close(); launcher.clearError(); profileName.text = ""; profileEditor.open(); profileName.forceActiveFocus() }
+            }
+            Text {
+                visible: !launcher.offlineAllowed
+                Layout.fillWidth: true
+                Layout.leftMargin: 12; Layout.rightMargin: 8; Layout.bottomMargin: 6
+                text: "Perfis offline ficam disponíveis depois que você conecta uma conta Microsoft com o Minecraft: Java Edition."
+                color: Theme.faint
+                font.family: Theme.font; font.pixelSize: 12
+                wrapMode: Text.WordWrap
             }
         }
     }

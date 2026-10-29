@@ -74,7 +74,7 @@ O OmniLauncher entra com **contas Microsoft**, o jeito oficial de jogar Minecraf
   - a OmniLauncher Cloud, só quando você compartilha ou segue um modpack. Ela guarda listas de mods e arquivos de config, nada pessoal.
   - Dois recursos opcionais falam com serviços próprios: o Discord Rich Presence passa pelo app do Discord no seu PC, e o conector de servidor usa o [e4mc](https://e4mc.link).
 
-**Perfis offline** são nomes de jogador locais para jogar sozinho e em LAN. Eles não se autenticam nos serviços do Minecraft e não entram em servidores que exigem conta do Minecraft.
+**Perfis offline** são nomes de jogador locais para jogar sozinho e em LAN. Eles só ficam disponíveis depois que uma conta Microsoft com o Minecraft: Java Edition é adicionada ao launcher. Não se autenticam nos serviços do Minecraft e não entram em servidores que exigem conta do Minecraft.
 
 > NÃO É UM PRODUTO OFICIAL DO MINECRAFT. NÃO É APROVADO PELA MOJANG OU PELA MICROSOFT NEM ASSOCIADO A ELAS.
 

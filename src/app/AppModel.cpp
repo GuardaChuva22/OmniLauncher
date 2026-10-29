@@ -503,9 +503,24 @@ QString AppModel::importCover(const QUrl &source)
     return QUrl::fromLocalFile(destination).toString();
 }
 
+bool AppModel::offlineAllowed() const
+{
+    // OMNI_ALLOW_OFFLINE=1 is for development builds tested without a Microsoft account.
+    if (qEnvironmentVariable("OMNI_ALLOW_OFFLINE") == QLatin1String("1"))
+        return true;
+    for (const auto &value : m_profiles)
+        if (value.toMap().value("type").toString() == "microsoft")
+            return true;
+    return false;
+}
+
 bool AppModel::addOfflineProfile(const QString &username)
 {
     clearError();
+    if (!offlineAllowed()) {
+        setError(QStringLiteral("Conecte antes uma conta Microsoft que tenha o Minecraft: Java Edition."));
+        return false;
+    }
     const auto name = username.trimmed();
     if (!validOfflineName(name)) {
         setError(QStringLiteral("Use de 3 a 16 caracteres: letras, números ou sublinhado (_)."));
