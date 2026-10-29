@@ -10,6 +10,7 @@
 #  include <QCoreApplication>
 #  include <QDir>
 #  include <QElapsedTimer>
+#  include <QFileInfo>
 #  include <QHostAddress>
 #  include <QImage>
 #  include <QTcpServer>
@@ -288,7 +289,9 @@ void SteamTunnel::Impl::onJoinRequested(GameRichPresenceJoinRequested_t *event)
 
 void SteamTunnel::Impl::onRichPresence(FriendRichPresenceUpdate_t *event)
 {
-    q->refreshFriends();
+    // Only marks the list: rebuilding it here with new presence requests made Steam answer with
+    // another update, forever, as soon as a friend had the launcher open (the launcher froze).
+    q->m_friendsDirty = true;
     const auto id = QString::number(event->m_steamIDFriend.ConvertToUint64());
     if (q->m_joined.value("hostId") == id)
         q->updateJoined({});
@@ -363,11 +366,9 @@ SteamTunnel::~SteamTunnel()
 bool SteamTunnel::available() const
 {
 #ifdef OMNI_STEAM
-    static const bool found = [] {
-        // Delay-loaded: without the DLL beside the exe, calling Steam would crash.
-        const auto dll = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("steam_api64.dll"));
-        return LoadLibraryW(reinterpret_cast<const wchar_t *>(QDir::toNativeSeparators(dll).utf16())) != nullptr;
-    }();
+    // Delay-loaded: without the DLL beside the exe, calling Steam would crash. Only checked
+    // here; the DLL is loaded once the connection is turned on (tryInit).
+    static const bool found = QFileInfo::exists(QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("steam_api64.dll")));
     return found;
 #else
     return false;
@@ -378,6 +379,9 @@ void SteamTunnel::tryInit()
 {
 #ifdef OMNI_STEAM
     if (m_ready || !m_enabled || !available())
+        return;
+    const auto dll = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("steam_api64.dll"));
+    if (!LoadLibraryW(reinterpret_cast<const wchar_t *>(QDir::toNativeSeparators(dll).utf16())))
         return;
     // The App ID through the environment, so no steam_appid.txt is needed beside the exe.
     qputenv("SteamAppId", QByteArray::number(OMNI_STEAM_APP_ID));
@@ -426,9 +430,11 @@ void SteamTunnel::pump()
                 && status.m_nPing != m_joined.value("ping").toInt())
                 updateJoined({{"ping", status.m_nPing}});
         }
-        if (m_friendsDirty || d->sinceFriends.elapsed() > 30000) {
+        if (d->sinceFriends.elapsed() > 30000) {
             d->sinceFriends.restart();
-            refreshFriends();
+            refreshFriends(); // asks Steam for fresh presence too
+        } else if (m_friendsDirty) {
+            rebuildFriends(false);
         }
     }
 #endif
@@ -486,7 +492,7 @@ void SteamTunnel::host(const QVariantMap &server, const QVariantMap &game)
     friends->SetRichPresence("omni_game", game.value("title").toString().left(120).toUtf8().constData());
     friends->SetRichPresence("omni_pack", game.value("pack").toString().toUtf8().constData());
     emit hostingChanged();
-    refreshFriends();
+    rebuildFriends(false);
 #else
     Q_UNUSED(server)
     Q_UNUSED(game)
@@ -509,7 +515,7 @@ void SteamTunnel::stopHosting()
     m_hosting.clear();
     SteamFriends()->ClearRichPresence();
     emit hostingChanged();
-    refreshFriends();
+    rebuildFriends(false);
 #endif
 }
 
@@ -640,6 +646,13 @@ void SteamTunnel::updateJoined(const QVariantMap &changes)
 
 void SteamTunnel::refreshFriends()
 {
+    rebuildFriends(true);
+}
+
+// The list from what Steam already knows; `requestPresence` also asks it for the rich presence
+// of friends in the launcher, which arrives later through onRichPresence.
+void SteamTunnel::rebuildFriends(bool requestPresence)
+{
 #ifdef OMNI_STEAM
     if (!d)
         return;
@@ -655,7 +668,8 @@ void SteamTunnel::refreshFriends()
         const bool inLauncher = friends->GetFriendGamePlayed(id, &game) && game.m_gameID.AppID() == AppId_t(OMNI_STEAM_APP_ID);
         QVariantMap hosting;
         if (inLauncher) {
-            friends->RequestFriendRichPresence(id); // answered by onRichPresence
+            if (requestPresence)
+                friends->RequestFriendRichPresence(id); // answered by onRichPresence
             const auto server = steamText(friends->GetFriendRichPresence(id, "omni_server"));
             if (!server.isEmpty())
                 hosting = {{"server", server}, {"version", steamText(friends->GetFriendRichPresence(id, "omni_version"))},
@@ -701,5 +715,7 @@ void SteamTunnel::refreshFriends()
         m_friends = list;
         emit friendsChanged();
     }
+#else
+    Q_UNUSED(requestPresence)
 #endif
 }

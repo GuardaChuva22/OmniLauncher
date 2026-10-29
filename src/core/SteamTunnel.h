@@ -86,6 +86,7 @@ private:
     void pump();
     void updateJoined(const QVariantMap &changes);
     void updatePlayers();
+    void rebuildFriends(bool requestPresence);
 
     std::unique_ptr<Impl> d;
     QTimer *m_pump = nullptr;
