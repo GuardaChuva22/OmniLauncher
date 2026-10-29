@@ -1,6 +1,7 @@
 import QtCore
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
 
 // Retrospectiva: the player's Minecraft in story-like slides (time, favourite
@@ -517,12 +518,28 @@ Item {
                     width: card.width * card.scale; height: card.height * card.scale
                     // The card is laid out at 540×675 and saved at 2×.
                     Rectangle {
+                        id: cardMask
+                        width: card.width; height: card.height
+                        radius: card.radius
+                        visible: false
+                        layer.enabled: true
+                        layer.smooth: true
+                    }
+                    Rectangle {
                         id: card
                         width: 540; height: 675
                         scale: Math.min(1, (root.height - 260) / 675)
                         transformOrigin: Item.TopLeft
                         radius: 28
-                        clip: true
+                        // Rounded clip: the glows inside must not spill past the corners.
+                        layer.enabled: true
+                        layer.smooth: true
+                        layer.effect: MultiEffect {
+                            maskEnabled: true
+                            maskSource: cardMask
+                            maskThresholdMin: 0.5
+                            maskSpreadAtMin: 1
+                        }
                         gradient: Gradient {
                             GradientStop { position: 0; color: "#2A1620" }
                             GradientStop { position: 0.55; color: "#17111A" }
@@ -542,20 +559,20 @@ Item {
                                 fillMode: Image.PreserveAspectFit
                                 smooth: true; mipmap: true
                             }
-                            Item { width: 1; height: 44 }
+                            Item { width: 1; height: 30 }
                             Text { text: "RETROSPECTIVA"; color: Theme.accentText; font.family: Theme.font; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 2.4 }
                             Item { width: 1; height: 8 }
                             Text { width: parent.width; text: root.info.title || ""; color: Theme.text; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; font.family: Theme.fontDisplay; font.pixelSize: 34; font.weight: Font.Bold; font.letterSpacing: -0.8 }
-                            Item { width: 1; height: 26 }
+                            Item { width: 1; height: 18 }
                             Row {
                                 spacing: 10
-                                Text { id: cardHours; text: root.timeText(root.seconds(root.info)); color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: 84; font.weight: Font.Bold; font.letterSpacing: -2.4 }
+                                Text { id: cardHours; text: root.timeText(root.seconds(root.info)); color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: 76; font.weight: Font.Bold; font.letterSpacing: -2.2 }
                                 Text { anchors.baseline: cardHours.baseline; text: root.timeUnit(root.seconds(root.info)) + " jogad" + (root.timeUnit(root.seconds(root.info)) === "horas" ? "as" : "os"); color: Theme.secondary; font.family: Theme.font; font.pixelSize: 18; font.weight: Font.DemiBold }
                             }
-                            Item { width: 1; height: 26 }
+                            Item { width: 1; height: 20 }
                             Grid {
                                 columns: 2
-                                columnSpacing: 16; rowSpacing: 16
+                                columnSpacing: 12; rowSpacing: 12
                                 Repeater {
                                     model: [{ v: Number(root.km(root.info.distanceCm || 0)).toLocaleString(Qt.locale("pt_BR"), "f", 1), l: "km percorridos" },
                                             { v: root.fmt(root.info.mined), l: "blocos minerados" },
@@ -565,7 +582,7 @@ Item {
                                             { v: root.fmt((root.info.extras || {}).jumps), l: "pulos" }]
                                     delegate: Rectangle {
                                         required property var modelData
-                                        width: (card.width - 80 - 16) / 2; height: 78
+                                        width: (card.width - 80 - 12) / 2; height: 70
                                         radius: 16
                                         color: "#10FFFFFF"
                                         border.width: 1; border.color: "#14FFFFFF"
@@ -581,13 +598,13 @@ Item {
                         }
                         RowLayout {
                             x: 40; width: card.width - 80
-                            anchors.bottom: parent.bottom; anchors.bottomMargin: 30
-                            spacing: 10
+                            anchors.bottom: parent.bottom; anchors.bottomMargin: 34
+                            spacing: 12
                             Glyph {
                                 visible: (root.info.topMined || []).length > 0
                                 source: (root.info.topMined || []).length ? (root.info.topMined[0].icon || "") : ""
                                 label: (root.info.topMined || []).length ? root.info.topMined[0].name : ""
-                                size: 34
+                                size: 36
                             }
                             Text {
                                 Layout.fillWidth: true
