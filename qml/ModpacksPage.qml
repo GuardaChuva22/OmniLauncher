@@ -9,6 +9,14 @@ Item {
     signal notify(string message)
     signal installRequested(var pack)
     signal versionsRequested(var pack, string gameId)
+    signal openGameRequested(string gameId)
+    readonly property var customGames: {
+        const settings = launcher.gameSettings
+        return launcher.games.filter(function(game) { return !!(settings[game.id] || {}).customPackUrl })
+    }
+    function checkCustomPacks() {
+        for (const game of customGames) mods.checkCustom(game.id, launcher.gameSettings[game.id].customPackUrl)
+    }
     // Game that came from this Modrinth pack, if any (one install per pack; duplicate the game for more).
     function installedGame(projectId) {
         const settings = launcher.gameSettings
@@ -53,9 +61,12 @@ Item {
         id: sources
         x: root.gutter; y: header.y + header.height + 14
         width: root.width - root.gutter * 2
-        model: ["Modrinth", "CurseForge"]
+        model: ["Modrinth", "Customizado", "CurseForge"]
         currentIndex: root.source
-        onCurrentIndexChanged: root.source = currentIndex
+        onCurrentIndexChanged: {
+            root.source = currentIndex
+            if (currentIndex === 1) root.checkCustomPacks()
+        }
         reduced: root.reduced
     }
 
@@ -185,8 +196,139 @@ Item {
         }
     }
 
-    ColumnLayout {
+    // Customizado: packs published by link (yours or a friend's); new versions show as updates.
+    Flickable {
+        id: custom
         visible: root.source === 1
+        x: root.gutter
+        y: sources.y + sources.height + 20
+        width: root.width - root.gutter * 2
+        height: root.height - y
+        contentHeight: customColumn.implicitHeight + 40
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        ScrollBar.vertical: ThinScrollBar {}
+
+        ColumnLayout {
+            id: customColumn
+            width: custom.width
+            spacing: 0
+            Text {
+                Layout.fillWidth: true
+                text: "Modpacks publicados por você ou por amigos. Cole o link do manifesto (.json) para instalar; quando uma nova versão for publicada, ela aparece aqui como atualização."
+                color: Theme.muted
+                font.family: Theme.font; font.pixelSize: 13
+                wrapMode: Text.WordWrap
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 14
+                spacing: 8
+                InputField {
+                    id: customLink
+                    Layout.fillWidth: true
+                    iconName: "external"; clearable: true
+                    placeholderText: "https://… manifest.json"
+                    onAccepted: addCustom.clicked()
+                }
+                ActionButton {
+                    id: addCustom
+                    text: "Adicionar"; iconName: "plus"; primary: true
+                    enabled: customLink.text.trim() !== "" && mods.packState === ""
+                    reduced: root.reduced
+                    onClicked: mods.prepareCustom(customLink.text)
+                }
+            }
+            Text {
+                readonly property bool active: mods.packState !== "" && mods.packProjectId.indexOf("custom:") === 0
+                visible: active
+                Layout.topMargin: 10
+                text: mods.packState === "downloading"
+                    ? "Instalando " + (mods.packProgress >= 0 ? Math.round(mods.packProgress * 100) + "%" : "…")
+                    : "Lendo o manifesto…"
+                color: Theme.accentText
+                font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
+            }
+            Text {
+                visible: root.customGames.length > 0
+                Layout.topMargin: 28; Layout.bottomMargin: 8
+                text: "ASSINADOS"
+                color: Theme.muted
+                font.family: Theme.font; font.pixelSize: 12; font.weight: Font.DemiBold
+                font.letterSpacing: 0.6
+            }
+            Repeater {
+                model: root.customGames
+                delegate: Item {
+                    id: customRow
+                    required property var modelData
+                    readonly property var saved: launcher.gameSettings[modelData.id] || ({})
+                    readonly property var latest: mods.customLatest[modelData.id]
+                    readonly property bool hasUpdate: !!latest && latest.version !== saved.customPackVersion
+                    readonly property bool busy: mods.packState !== "" && mods.packProjectId === "custom:" + saved.customPackUrl
+                    Layout.fillWidth: true
+                    implicitHeight: 86
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 16
+                        Rectangle {
+                            Layout.preferredWidth: 48; Layout.preferredHeight: 72
+                            radius: 8; color: Theme.fill; clip: true
+                            Image {
+                                anchors.fill: parent
+                                source: Theme.coverSource(customRow.modelData.coverId)
+                                sourceSize: Qt.size(96, 144)
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Text {
+                                Layout.fillWidth: true
+                                text: customRow.modelData.title
+                                color: Theme.text
+                                font.family: Theme.font; font.pixelSize: 15; font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: "Versão " + (customRow.saved.customPackVersion || "?") + "  ·  Minecraft " + customRow.modelData.version
+                                    + "  ·  " + customRow.modelData.loader
+                                color: Theme.muted
+                                font.family: Theme.font; font.pixelSize: 12
+                            }
+                            Text {
+                                text: customRow.busy ? "Atualizando…"
+                                    : customRow.hasUpdate ? "Nova versão: " + customRow.latest.version
+                                      + (customRow.latest.minecraft !== customRow.modelData.version ? " (Minecraft " + customRow.latest.minecraft + ")" : "")
+                                    : customRow.latest ? "Atualizado" : "Verificando…"
+                                color: customRow.hasUpdate || customRow.busy ? Theme.accentText : Theme.faint
+                                font.family: Theme.font; font.pixelSize: 12
+                                font.weight: customRow.hasUpdate ? Font.DemiBold : Font.Normal
+                            }
+                        }
+                        ActionButton {
+                            visible: customRow.hasUpdate
+                            text: "Atualizar"; iconName: "download"; primary: true
+                            enabled: mods.packState === ""
+                            reduced: root.reduced
+                            onClicked: mods.prepareCustom(customRow.saved.customPackUrl, customRow.modelData.id)
+                        }
+                        ActionButton {
+                            text: "Abrir"; quiet: true
+                            reduced: root.reduced
+                            onClicked: root.openGameRequested(customRow.modelData.id)
+                        }
+                    }
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        visible: root.source === 2
         anchors.horizontalCenter: parent.horizontalCenter
         y: sources.y + (root.height - sources.y) * 0.32
         width: Math.min(420, root.width - root.gutter * 2)

@@ -137,6 +137,10 @@ void Downloader::onReplyFinished(QNetworkReply *reply)
             problem = QStringLiteral("tamanho inesperado");
         else if (!job.sha1.isEmpty() && sha1Of(data).compare(job.sha1, Qt::CaseInsensitive) != 0)
             problem = QStringLiteral("arquivo corrompido (SHA-1 não confere)");
+        else if (!job.sha256.isEmpty()
+                 && QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex())
+                            .compare(job.sha256, Qt::CaseInsensitive) != 0)
+            problem = QStringLiteral("arquivo corrompido (SHA-256 não confere)");
     }
     if (!problem.isEmpty()) {
         if (active.attempt + 1 < kAttempts) {

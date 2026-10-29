@@ -59,8 +59,11 @@ ModManager::ModManager(const QString &dataDirectory, QObject *parent)
         }
         // Remember which files belong to this pack version (for a later version change).
         QJsonArray owned;
-        for (const auto &value : m_packIndex.value("files").toArray())
-            owned.append(QDir::cleanPath(value.toObject().value("path").toString()));
+        for (const auto &value : m_packIndex.value("files").toArray()) {
+            const auto hashes = value.toObject().value("hashes").toObject();
+            owned.append(QJsonObject{{"path", QDir::cleanPath(value.toObject().value("path").toString())},
+                                     {"hash", hashes.value("sha256").toString(hashes.value("sha1").toString())}});
+        }
         for (const auto &folder : {QStringLiteral("overrides"), QStringLiteral("client-overrides")}) {
             const QDir source(QDir(m_packDirectory).filePath(folder));
             QDirIterator it(source.path(), QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
@@ -70,6 +73,8 @@ ModManager::ModManager(const QString &dataDirectory, QObject *parent)
         QSaveFile record(instance.filePath(".omni-pack.json"));
         const auto recordData = QJsonDocument(QJsonObject{{"projectId", m_packVersion.value("projectId").toString()},
                                                           {"versionId", m_packVersion.value("versionId").toString()},
+                                                          {"customUrl", m_packVersion.value("url").toString()},
+                                                          {"version", m_packVersion.value("versionNumber").toString()},
                                                           {"files", owned}}).toJson();
         if (record.open(QIODevice::WriteOnly) && record.write(recordData) == recordData.size())
             record.commit();
@@ -80,7 +85,11 @@ ModManager::ModManager(const QString &dataDirectory, QObject *parent)
         m_packGameId.clear();
         m_packTargetGame.clear();
         setPackState({});
-        emit packFinished(gameId, true, changed ? QStringLiteral("Versão do modpack alterada.") : QStringLiteral("Modpack instalado."), pack);
+        emit packFinished(gameId, true,
+                          changed ? (pack.value("kind") == "custom" ? QStringLiteral("Modpack atualizado para %1.").arg(pack.value("versionNumber").toString())
+                                                                    : QStringLiteral("Versão do modpack alterada."))
+                                  : QStringLiteral("Modpack instalado."),
+                          pack);
     });
 }
 
@@ -269,13 +278,23 @@ void ModManager::installPackFiles(const QString &gameId)
         return;
     m_packGameId = gameId;
     const QDir instance(QDir(m_root).filePath("instances/" + gameId));
-    // Changing versions: files of the previous pack version go; worlds and the
-    // player's own additions stay.
+    // Changing versions: files of the previous pack version that are gone or changed are
+    // removed; identical ones stay (no re-download). Worlds and the player's own additions stay.
+    QHash<QString, QString> wanted; // path → hash
+    for (const auto &value : m_packIndex.value("files").toArray()) {
+        const auto hashes = value.toObject().value("hashes").toObject();
+        wanted.insert(QDir::cleanPath(value.toObject().value("path").toString()),
+                      hashes.value("sha256").toString(hashes.value("sha1").toString()));
+    }
     QFile previous(instance.filePath(".omni-pack.json"));
     if (previous.open(QIODevice::ReadOnly)) {
         for (const auto &value : QJsonDocument::fromJson(previous.readAll()).object().value("files").toArray()) {
-            const auto relative = QDir::cleanPath(value.toString());
+            const auto object = value.toObject();
+            const auto relative = QDir::cleanPath(value.isString() ? value.toString() : object.value("path").toString());
+            const auto hash = object.value("hash").toString();
             if (relative.isEmpty() || QDir::isAbsolutePath(relative) || relative.startsWith("..") || relative.contains(':'))
+                continue;
+            if (!hash.isEmpty() && wanted.value(relative) == hash)
                 continue;
             QFile::remove(instance.filePath(relative));
             QFile::remove(instance.filePath(relative + ".disabled"));
@@ -294,8 +313,9 @@ void ModManager::installPackFiles(const QString &gameId)
         const auto downloads = file.value("downloads").toArray();
         if (downloads.isEmpty())
             continue;
-        jobs.append({QUrl(downloads.first().toString()), instance.filePath(relative),
-                     file.value("hashes").toObject().value("sha1").toString(), file.value("fileSize").toInteger(-1)});
+        const auto hashes = file.value("hashes").toObject();
+        jobs.append({QUrl(downloads.first().toString()), instance.filePath(relative), hashes.value("sha1").toString(),
+                     file.value("fileSize").toInteger(-1), hashes.value("sha256").toString()});
     }
     setPackState(QStringLiteral("downloading"), 0);
     m_packDownloader->start(jobs);
@@ -865,4 +885,149 @@ void ModManager::updateAll(const QString &gameId, const QString &gameVersion, co
         if (!mod.value("updateVersionId").toString().isEmpty())
             installVersionOf(mod.value("projectId").toString(), mod.value("updateVersionId").toString(), gameId, gameVersion, loader);
     }
+}
+
+// ── Custom packs (manifest by link) ────────────────────────────────────────
+// Manifest v1 (the format of the old Vanilla Ultra Enhanced launcher):
+// { "pack": {"name", "version", "id"?}, "minecraft": "26.2", "fabric": {"loader": "0.19.3"},
+//   "files": [{"path", "url", "size", "sha256"|"sha1"}],
+//   "overrides": {"url", "sha256"?} }   ← optional zip (config/, defaultconfigs/…) applied on top
+
+namespace {
+struct CustomManifest {
+    QString name;
+    QString version;
+    QString minecraft;
+    QString loader;
+    QString loaderVersion;
+    QJsonArray files; // in .mrpack index shape
+    QString overridesUrl;
+    QString overridesSha256;
+    QString error;
+};
+
+CustomManifest parseCustomManifest(const QByteArray &data)
+{
+    CustomManifest result;
+    const auto root = QJsonDocument::fromJson(data).object();
+    const auto pack = root.value("pack").toObject();
+    result.name = pack.value("name").toString(root.value("name").toString()).trimmed();
+    result.version = pack.value("version").toString(root.value("version").toString()).trimmed();
+    result.minecraft = root.value("minecraft").toString().trimmed();
+    for (const auto &[key, name] : {std::pair{"fabric", "Fabric"}, std::pair{"neoforge", "NeoForge"}, std::pair{"forge", "Forge"}}) {
+        if (root.value(key).isObject()) {
+            result.loader = name;
+            result.loaderVersion = root.value(key).toObject().value("loader").toString(root.value(key).toObject().value("version").toString());
+            break;
+        }
+    }
+    if (result.name.isEmpty() || result.version.isEmpty() || result.minecraft.isEmpty() || result.loader.isEmpty()) {
+        result.error = QStringLiteral("Esse link não é um manifesto de modpack válido (faltam nome, versão, Minecraft ou loader).");
+        return result;
+    }
+    for (const auto &value : root.value("files").toArray()) {
+        const auto file = value.toObject();
+        const auto url = file.value("url").toString();
+        if (file.value("path").toString().isEmpty() || !(url.startsWith("https://") || url.startsWith("http://")))
+            continue;
+        QJsonObject hashes;
+        if (file.contains("sha256"))
+            hashes.insert("sha256", file.value("sha256").toString().toLower());
+        if (file.contains("sha1"))
+            hashes.insert("sha1", file.value("sha1").toString().toLower());
+        result.files.append(QJsonObject{{"path", file.value("path").toString()}, {"downloads", QJsonArray{url}},
+                                        {"hashes", hashes}, {"fileSize", file.value("size")}});
+    }
+    const auto overrides = root.value("overrides").toObject();
+    result.overridesUrl = overrides.value("url").toString();
+    result.overridesSha256 = overrides.value("sha256").toString().toLower();
+    if (result.files.isEmpty())
+        result.error = QStringLiteral("O manifesto não lista nenhum arquivo para baixar.");
+    return result;
+}
+} // namespace
+
+void ModManager::prepareCustom(const QString &url, const QString &targetGameId)
+{
+    const auto link = url.trimmed();
+    if (!m_packState.isEmpty() || link.isEmpty())
+        return;
+    if (!(link.startsWith("https://") || link.startsWith("http://") || link.startsWith("file:"))) {
+        emit packFinished({}, false, QStringLiteral("Cole um link http(s) para o manifesto do modpack."), {});
+        return;
+    }
+    m_packProjectId = "custom:" + link;
+    m_packTargetGame = targetGameId;
+    setPackState(QStringLiteral("preparing"));
+    auto *reply = get(link);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, link] {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            failPack(QStringLiteral("Não foi possível baixar o manifesto do modpack."));
+            return;
+        }
+        const auto manifest = parseCustomManifest(reply->readAll());
+        if (!manifest.error.isEmpty()) {
+            failPack(manifest.error);
+            return;
+        }
+        const auto dependencyKey = manifest.loader == "Fabric" ? QStringLiteral("fabric-loader") : manifest.loader.toLower();
+        m_packIndex = QJsonObject{{"name", manifest.name}, {"files", manifest.files},
+                                  {"dependencies", QJsonObject{{"minecraft", manifest.minecraft}, {dependencyKey, manifest.loaderVersion}}}};
+        m_packVersion = {{"kind", "custom"}, {"url", link}, {"versionNumber", manifest.version}};
+        m_packDirectory = QDir(m_root).filePath("cache/packs/custom");
+        QDir(m_packDirectory).removeRecursively();
+        const QVariantMap info{{"title", manifest.name}, {"version", manifest.minecraft}, {"loader", manifest.loader},
+                               {"loaderVersion", manifest.loaderVersion}, {"coverPath", QString()},
+                               {"gameId", m_packTargetGame}, {"kind", "custom"}};
+        if (manifest.overridesUrl.isEmpty()) {
+            setPackState(QStringLiteral("waiting"));
+            emit packPrepared(info);
+            return;
+        }
+        // Overrides zip → <pack dir>/overrides, copied over the game after the files download.
+        auto *zipReply = get(manifest.overridesUrl);
+        connect(zipReply, &QNetworkReply::finished, this, [this, zipReply, info, expected = manifest.overridesSha256] {
+            zipReply->deleteLater();
+            const auto data = zipReply->readAll();
+            const auto sha256 = QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+            const auto archive = QDir(m_root).filePath("cache/packs/custom-overrides.zip");
+            const auto target = QDir(m_packDirectory).filePath("overrides");
+            QDir().mkpath(target);
+            QSaveFile out(archive);
+            if (zipReply->error() != QNetworkReply::NoError || data.isEmpty() || (!expected.isEmpty() && sha256 != expected)
+                || !out.open(QIODevice::WriteOnly) || out.write(data) != data.size() || !out.commit()) {
+                failPack(QStringLiteral("Não foi possível baixar as configurações do modpack."));
+                return;
+            }
+            QProcess tar;
+            tar.start(QStandardPaths::findExecutable("tar"), {"-xf", archive, "-C", target});
+            const bool ok = tar.waitForFinished(120000) && tar.exitCode() == 0;
+            QFile::remove(archive);
+            if (!ok) {
+                failPack(QStringLiteral("O arquivo de configurações do modpack está corrompido."));
+                return;
+            }
+            setPackState(QStringLiteral("waiting"));
+            emit packPrepared(info);
+        });
+    });
+}
+
+void ModManager::checkCustom(const QString &gameId, const QString &url)
+{
+    if (gameId.isEmpty() || url.isEmpty())
+        return;
+    auto *reply = get(url);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, gameId] {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError)
+            return;
+        const auto manifest = parseCustomManifest(reply->readAll());
+        if (!manifest.error.isEmpty())
+            return;
+        m_customLatest.insert(gameId, QVariantMap{{"version", manifest.version}, {"minecraft", manifest.minecraft},
+                                                  {"files", manifest.files.size()}});
+        emit customLatestChanged();
+    });
 }

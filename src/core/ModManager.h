@@ -44,6 +44,8 @@ class ModManager final : public QObject
     // Update check over the installed mods (identified on Modrinth by file hash).
     Q_PROPERTY(bool checkingUpdates READ checkingUpdates NOTIFY installedChanged)
     Q_PROPERTY(int updateCount READ updateCount NOTIFY installedChanged)
+    // Custom packs (subscribed by link): newest published version per game id.
+    Q_PROPERTY(QVariantMap customLatest READ customLatest NOTIFY customLatestChanged)
 
 public:
     explicit ModManager(const QString &dataDirectory, QObject *parent = nullptr);
@@ -67,6 +69,13 @@ public:
     bool versionChoicesLoading() const { return m_versionChoicesLoading; }
     bool checkingUpdates() const { return m_checkingUpdates; }
     int updateCount() const;
+    QVariantMap customLatest() const { return m_customLatest; }
+
+    // Custom pack from a manifest URL (https or file). targetGameId set: update that game.
+    // Same two-step flow as Modrinth packs: packPrepared() → caller creates/updates the game
+    // → installPackFiles(gameId).
+    Q_INVOKABLE void prepareCustom(const QString &url, const QString &targetGameId = {});
+    Q_INVOKABLE void checkCustom(const QString &gameId, const QString &url);
 
     // Empty gameVersion/loader lists every version (used for modpacks).
     Q_INVOKABLE void fetchProjectVersions(const QString &projectId, const QString &gameVersion = {},
@@ -104,6 +113,7 @@ signals:
     // pack: projectId, versionId, versionNumber (for the game's record).
     void packFinished(const QString &gameId, bool ok, const QString &message, const QVariantMap &pack);
     void versionChoicesChanged();
+    void customLatestChanged();
 
 private:
     struct Install {
@@ -158,5 +168,6 @@ private:
     bool m_versionChoicesLoading = false;
     quint64 m_versionSerial = 0;
     bool m_checkingUpdates = false;
+    QVariantMap m_customLatest;
     Downloader *m_packDownloader;
 };

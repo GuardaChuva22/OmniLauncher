@@ -191,6 +191,29 @@ ApplicationWindow {
             })
         }
     }
+    // Custom packs: look for new versions shortly after start and say so once per pack.
+    property var customNotified: ({})
+    function checkCustomPacks() {
+        for (const game of launcher.games) {
+            const saved = launcher.gameSettings[game.id] || {}
+            if (saved.customPackUrl) mods.checkCustom(game.id, saved.customPackUrl)
+        }
+    }
+    Timer { running: true; interval: 2500; onTriggered: window.checkCustomPacks() }
+    Connections {
+        target: mods
+        function onCustomLatestChanged() {
+            for (const gameId in mods.customLatest) {
+                const game = window.gameById(gameId)
+                const saved = launcher.gameSettings[gameId] || {}
+                const latest = mods.customLatest[gameId]
+                if (game && latest.version !== saved.customPackVersion && !window.customNotified[gameId]) {
+                    window.customNotified[gameId] = true
+                    window.notify("Atualização disponível: " + game.title + " " + latest.version)
+                }
+            }
+        }
+    }
     Component.onCompleted: {
         if (!gameById(selectedGameId) && launcher.games.length) selectedGameId = launcher.games[0].id
     }
@@ -354,6 +377,7 @@ ApplicationWindow {
                     onNotify: function(message) { window.notify(message) }
                     onInstallRequested: function(pack) { mods.preparePack(pack.id, pack.imageUrl) }
                     onVersionsRequested: function(pack, gameId) { window.pickPackVersion(pack, gameId) }
+                    onOpenGameRequested: function(gameId) { window.page = 0; window.openDrawer(window.gameById(gameId)) }
                 }
                 SettingsPage {
                     anchors.fill: parent
@@ -749,6 +773,7 @@ ApplicationWindow {
             window.packChangeGameId = ""
             let cover = info.coverPath ? launcher.importCover(info.coverPath) : ""
             if (!cover) cover = "dusk"
+            if (!info.coverPath && info.kind === "custom") cover = "meadow"
             const id = launcher.addGame(info.title.slice(0, 72) || "Modpack", info.version, info.loader, cover, info.loaderVersion)
             if (id) mods.installPackFiles(id)
             else { mods.cancelPack(); window.notify(launcher.lastError) }
@@ -756,7 +781,8 @@ ApplicationWindow {
         function onPackFinished(gameId, ok, message, pack) {
             const changed = window.packChangeGameId !== "" && window.packChangeGameId === gameId
             window.packChangeGameId = ""
-            if (ok && pack.projectId) launcher.setPackSource(gameId, pack.projectId, pack.versionId, pack.versionNumber)
+            if (ok && pack.kind === "custom") launcher.setCustomPack(gameId, pack.url, pack.versionNumber)
+            else if (ok && pack.projectId) launcher.setPackSource(gameId, pack.projectId, pack.versionId, pack.versionNumber)
             if (!ok && gameId && !changed) launcher.removeGame(gameId)
             window.notify(ok && !changed ? "Modpack instalado. Ele já está em Jogos." : message)
             if (ok && !changed) {

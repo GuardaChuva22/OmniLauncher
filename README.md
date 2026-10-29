@@ -54,6 +54,24 @@ Dados de Jogos e Perfis são locais, fora da pasta de fonte. Para testes separad
 
 As quatro capas são artes originais geradas com ImageGen built-in. Arquivos, prompts e proveniência em `assets/ARTWORK.md`. Imagens próprias podem ser importadas no editor de jogo e copiadas para a pasta de dados, preservando o original.
 
+## Modpacks customizados (aba Modpacks → Customizado)
+
+Modpacks seus ou de amigos, assinados por link. O link aponta para um manifesto JSON; publicar uma versão nova no mesmo link faz o launcher oferecer a atualização (só arquivos novos ou alterados são baixados; mundos e arquivos pessoais ficam).
+
+```json
+{
+  "pack": { "name": "Vanilla Ultra Enhanced", "version": "1.1.0" },
+  "minecraft": "26.2",
+  "fabric": { "loader": "0.19.3" },
+  "files": [
+    { "path": "mods/exemplo.jar", "url": "https://…", "size": 123456, "sha256": "…" }
+  ],
+  "overrides": { "url": "https://…/configs.zip", "sha256": "…" }
+}
+```
+
+`fabric` pode ser `forge` ou `neoforge` (com `"loader": "<versão>"`). `files[].sha1` também é aceito. `overrides` é opcional: um zip com `config/`, `defaultconfigs/` etc., aplicado sobre o jogo a cada instalação ou atualização — inclua aqui as configs que o pack precisa para funcionar.
+
 ## Nomenclatura — decisão confirmada
 
 | Termo na interface | Significado | Exemplos |

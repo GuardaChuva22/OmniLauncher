@@ -56,6 +56,8 @@ public:
     // Marks a game as installed from a Modrinth modpack (project/version it came from).
     Q_INVOKABLE void setPackSource(const QString &id, const QString &projectId, const QString &versionId,
                                    const QString &versionNumber);
+    // Marks a game as a subscribed custom pack (manifest link and installed version).
+    Q_INVOKABLE void setCustomPack(const QString &id, const QString &url, const QString &version);
     Q_INVOKABLE void clearError();
 
 signals:

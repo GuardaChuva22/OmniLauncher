@@ -91,7 +91,12 @@ QVariant cleanGameSetting(const QString &key, const QVariant &value)
         const auto text = value.toString().trimmed();
         return text.size() <= 2000 ? QVariant(text) : QVariant();
     }
-    if (key == "packVersionNumber") {
+    if (key == "customPackUrl") {
+        const auto text = value.toString().trimmed();
+        const bool scheme = text.startsWith("https://") || text.startsWith("http://") || text.startsWith("file:");
+        return scheme && text.size() <= 2048 ? QVariant(text) : QVariant();
+    }
+    if (key == "packVersionNumber" || key == "customPackVersion") {
         const auto text = value.toString().trimmed();
         return !text.isEmpty() && text.size() <= 64 ? QVariant(text) : QVariant();
     }
@@ -643,6 +648,26 @@ void AppModel::setPackSource(const QString &id, const QString &projectId, const 
         if (cleaned.isValid())
             settings.insert(key, cleaned);
     }
+    m_gameSettings.insert(id, settings);
+    if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
+        m_gameSettings = previous;
+        return;
+    }
+    emit gameSettingsChanged();
+}
+
+void AppModel::setCustomPack(const QString &id, const QString &url, const QString &version)
+{
+    if (indexOfId(m_games, id) < 0)
+        return;
+    const auto previous = m_gameSettings;
+    auto settings = m_gameSettings.value(id).toMap();
+    const auto cleanUrl = cleanGameSetting("customPackUrl", url);
+    const auto cleanVersion = cleanGameSetting("customPackVersion", version);
+    if (!cleanUrl.isValid() || !cleanVersion.isValid())
+        return;
+    settings.insert("customPackUrl", cleanUrl);
+    settings.insert("customPackVersion", cleanVersion);
     m_gameSettings.insert(id, settings);
     if (!persist(m_games, m_profiles, m_activeProfileId, m_reducedMotion)) {
         m_gameSettings = previous;

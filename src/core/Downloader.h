@@ -23,6 +23,7 @@ public:
         QString path;
         QString sha1;
         qint64 size = -1;
+        QString sha256;
     };
 
     explicit Downloader(QNetworkAccessManager *network, QObject *parent = nullptr);

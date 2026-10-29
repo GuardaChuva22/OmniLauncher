@@ -311,6 +311,24 @@ FocusScope {
                         }
                         InfoRow { label: "Versão do Minecraft"; iconName: "cube"; value: root.game ? root.game.version : "" }
                         InfoRow {
+                            id: customPackRow
+                            readonly property var latest: mods.customLatest[root.gameId]
+                            readonly property bool hasUpdate: !!latest && latest.version !== root.saved.customPackVersion
+                            visible: !!root.saved.customPackUrl
+                            label: "Modpack customizado"; iconName: "packs"
+                            value: root.saved.customPackVersion || ""
+                            ActionButton {
+                                text: customPackRow.hasUpdate ? "Atualizar para " + customPackRow.latest.version : "Verificar"
+                                primary: customPackRow.hasUpdate
+                                quiet: !customPackRow.hasUpdate
+                                height: 30; reduced: root.reduced
+                                font.pixelSize: 12
+                                enabled: mods.packState === ""
+                                onClicked: customPackRow.hasUpdate ? mods.prepareCustom(root.saved.customPackUrl, root.gameId)
+                                                                          : mods.checkCustom(root.gameId, root.saved.customPackUrl)
+                            }
+                        }
+                        InfoRow {
                             visible: !!root.saved.packProjectId
                             label: "Modpack"; iconName: "packs"
                             value: root.saved.packVersionNumber || ""
