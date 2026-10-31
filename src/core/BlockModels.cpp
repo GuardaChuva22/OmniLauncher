@@ -1,5 +1,7 @@
 #include "BlockModels.h"
 
+#include "EntityBlockShapes.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -9,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 
 namespace World3D {
 
@@ -52,6 +55,20 @@ Vec turn(Vec p, int x, int y, bool position)
     for (int i = 0; i < (y & 3); ++i)
         p = {-(p.z - c) + c, p.y, (p.x - c) + c};
     return p;
+}
+
+// How a 16 × 16 texture is drawn: some pixels see-through → cut out; many half clear →
+// blended.
+quint8 layerOf(const QImage &image)
+{
+    int clear = 0, partial = 0;
+    for (int y = 0; y < 16; ++y)
+        for (int x = 0; x < 16; ++x) {
+            const auto a = image.constScanLine(y)[x * 4 + 3];
+            clear += a < 128;
+            partial += a > 0 && a < 250;
+        }
+    return partial > 24 ? Translucent : clear > 0 ? Cutout : Solid;
 }
 
 Face turnFace(Face face, int x, int y)
@@ -257,14 +274,7 @@ BlockModels::Sprite BlockModels::sprite(const QString &texture)
         image = image.copy(0, 0, side, side).convertToFormat(QImage::Format_RGBA8888);
         if (side != 16)
             image = image.scaled(16, 16, Qt::IgnoreAspectRatio, side > 16 ? Qt::SmoothTransformation : Qt::FastTransformation);
-        int clear = 0, partial = 0;
-        for (int y = 0; y < 16; ++y)
-            for (int x = 0; x < 16; ++x) {
-                const auto a = image.constScanLine(y)[x * 4 + 3];
-                clear += a < 128;
-                partial += a > 0 && a < 250;
-            }
-        sprite.layer = partial > 24 ? Translucent : clear > 0 ? Cutout : Solid;
+        sprite.layer = layerOf(image);
         sprite.cell = addCell(image);
     }
     m_sprites.insert(texture, sprite);
@@ -438,8 +448,10 @@ Block BlockModels::bake(const QString &name, const QVariantMap &properties)
             bakeElement(element.toObject(), baked, x, y, block, &cube);
             full = full || cube;
         }
-        // Drawn by the game as an entity (chests, beds, shulker boxes): a box of its
-        // particle texture, so they are still there.
+        // Drawn by the game as an entity (chests, shulker boxes): its model and texture,
+        // or else a box of its particle texture, so it is still there.
+        if (baked.elements.isEmpty() && bakeEntityBlock(name, properties, block))
+            continue;
         if (baked.elements.isEmpty() && !baked.textures.value("particle").isEmpty()
             && (shortName.contains("chest") || shortName.contains("shulker_box") || shortName.endsWith("_bed"))) {
             const bool bed = shortName.endsWith("_bed");
@@ -458,6 +470,122 @@ Block BlockModels::bake(const QString &name, const QVariantMap &properties)
     // Opaque: one of its elements is a whole cube of solid faces, each culled by its side.
     block.opaque = full;
     return block;
+}
+
+bool BlockModels::bakeEntityBlock(const QString &name, const QVariantMap &properties, Block &block)
+{
+    const auto space = name.section(':', 0, 0), shortName = name.section(':', 1);
+    const auto type = properties.value("type").toString();
+    const float(*shape)[20] = nullptr;
+    size_t quads = 0;
+    QString texture;
+    bool shulker = false;
+    const auto pick = [&](const auto &table) { shape = table, quads = std::size(table); };
+    if (shortName.endsWith("shulker_box")) {
+        // "shulker_box", "red_shulker_box"
+        shulker = true;
+        pick(Shapes::ShulkerBox);
+        const auto colour = shortName.chopped(int(qstrlen("shulker_box")));
+        texture = space + ":entity/shulker/shulker" + (colour.isEmpty() ? QString() : "_" + colour.chopped(1));
+    } else if (shortName.endsWith("chest")) {
+        // chest, trapped_chest, ender_chest, the copper ones (waxed alike) and any mod's
+        // with a texture of its own name in entity/chest.
+        static const QHash<QString, QString> vanilla{
+            {"chest", "normal"}, {"trapped_chest", "trapped"}, {"ender_chest", "ender"}, {"copper_chest", "copper"},
+            {"exposed_copper_chest", "copper_exposed"}, {"weathered_copper_chest", "copper_weathered"},
+            {"oxidized_copper_chest", "copper_oxidized"}};
+        auto base = shortName;
+        if (base.startsWith("waxed_"))
+            base = base.mid(6);
+        texture = space + ":entity/chest/" + (space == "minecraft" ? vanilla.value(base, base) : base);
+        if (type == "left" || type == "right") {
+            pick(type == "left" ? Shapes::ChestLeft : Shapes::ChestRight);
+            texture += '_' + type;
+        } else {
+            pick(Shapes::ChestSingle);
+        }
+    }
+    if (!shape)
+        return false;
+    auto image = QImage::fromData(read(assetPath(texture, "textures", ".png")));
+    // A mod's chest with its texture elsewhere (or made at runtime): a vanilla one.
+    if (image.isNull() && !shulker && space != "minecraft") {
+        texture = "minecraft:entity/chest/normal" + (shape == Shapes::ChestSingle ? QString() : '_' + type);
+        image = QImage::fromData(read(assetPath(texture, "textures", ".png")));
+    }
+    if (image.isNull())
+        return false;
+    image = image.convertToFormat(QImage::Format_RGBA8888);
+
+    // Turned as the game turns it: chests about y from facing south; shulker boxes from
+    // facing up, as Direction.getRotation() (x, then y, then z, applied z first).
+    const auto facing = properties.value("facing").toString();
+    float rx = 0, rz = 0, ry = 0;
+    if (shulker) {
+        const float half = Pi / 2;
+        if (facing == "down") rx = Pi;
+        else if (facing == "north") rx = half, rz = Pi;
+        else if (facing == "south") rx = half;
+        else if (facing == "west") rx = half, rz = half;
+        else if (facing == "east") rx = half, rz = -half;
+    } else {
+        const int degrees = facing == "west" ? 90 : facing == "north" ? 180 : facing == "east" ? 270 : 0;
+        ry = -float(degrees) * Pi / 180;
+    }
+    const auto place = [&](float x, float y, float z) {
+        Vec p{x - 0.5f, y - 0.5f, z - 0.5f};
+        if (rz != 0)
+            p = {p.x * std::cos(rz) - p.y * std::sin(rz), p.x * std::sin(rz) + p.y * std::cos(rz), p.z};
+        if (ry != 0)
+            p = {p.x * std::cos(ry) + p.z * std::sin(ry), p.y, -p.x * std::sin(ry) + p.z * std::cos(ry)};
+        if (rx != 0)
+            p = {p.x, p.y * std::cos(rx) - p.z * std::sin(rx), p.y * std::sin(rx) + p.z * std::cos(rx)};
+        return Vec{p.x + 0.5f, p.y + 0.5f, p.z + 0.5f};
+    };
+
+    for (size_t q = 0; q < quads; ++q) {
+        const float *corner = shape[q];
+        // The piece of the texture this face shows, in a cell of its own.
+        float u0 = 1e9f, v0 = 1e9f, u1 = -1e9f, v1 = -1e9f;
+        for (int i = 0; i < 4; ++i) {
+            u0 = qMin(u0, corner[i * 5 + 3] * image.width()), u1 = qMax(u1, corner[i * 5 + 3] * image.width());
+            v0 = qMin(v0, corner[i * 5 + 4] * image.height()), v1 = qMax(v1, corner[i * 5 + 4] * image.height());
+        }
+        const QRect piece(QPoint(int(std::floor(u0 + 0.01f)), int(std::floor(v0 + 0.01f))),
+                          QPoint(int(std::ceil(u1 - 0.01f)) - 1, int(std::ceil(v1 - 0.01f)) - 1));
+        if (piece.isEmpty())
+            continue;
+        const auto key = QStringLiteral("%1@%2,%3,%4,%5").arg(texture).arg(piece.x()).arg(piece.y()).arg(piece.width()).arg(piece.height());
+        auto sprite = m_sprites.value(key, Sprite{-1, Solid});
+        if (sprite.cell < 0) {
+            const auto cropped = image.copy(piece).scaled(16, 16, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+            sprite = Sprite{addCell(cropped), layerOf(cropped)};
+            m_sprites.insert(key, sprite);
+        }
+        int cellX, cellY;
+        cellOrigin(sprite.cell, &cellX, &cellY);
+
+        Quad quad;
+        Vec at[4];
+        for (int i = 0; i < 4; ++i) {
+            at[i] = place(corner[i * 5], corner[i * 5 + 1], corner[i * 5 + 2]);
+            quad.pos[i][0] = at[i].x, quad.pos[i][1] = at[i].y, quad.pos[i][2] = at[i].z;
+            const float u = (corner[i * 5 + 3] * image.width() - piece.x()) / piece.width() * 16;
+            const float v = (corner[i * 5 + 4] * image.height() - piece.y()) / piece.height() * 16;
+            quad.uv[i][0] = (cellX + 8 + qBound(0.f, u, 16.f)) / AtlasSize;
+            quad.uv[i][1] = (cellY + 8 + qBound(0.f, v, 16.f)) / AtlasSize;
+        }
+        // Shaded by the side it faces.
+        const Vec e1{at[2].x - at[0].x, at[2].y - at[0].y, at[2].z - at[0].z};
+        const Vec e2{at[3].x - at[1].x, at[3].y - at[1].y, at[3].z - at[1].z};
+        const Vec n{e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z, e1.x * e2.y - e1.y * e2.x};
+        const float ax = std::abs(n.x), ay = std::abs(n.y), az = std::abs(n.z);
+        quad.light = ay >= ax && ay >= az ? (n.y > 0 ? Up : Down) : az >= ax ? (n.z > 0 ? South : North) : (n.x > 0 ? East : West);
+        quad.cull = NoFace;
+        quad.layer = sprite.layer;
+        block.quads.push_back(quad);
+    }
+    return !block.quads.empty();
 }
 
 quint16 BlockModels::id(const QString &name, const QVariantMap &properties)

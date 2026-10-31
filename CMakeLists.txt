@@ -51,6 +51,7 @@ qt_add_executable(OmniLauncher WIN32
     src/core/BlockModels.cpp
     src/core/ChunkMesher.h
     src/core/ChunkMesher.cpp
+    src/core/EntityBlockShapes.h
     src/core/EntityModels.h
     src/core/EntityModels.cpp
     src/core/WorldView3D.h

@@ -88,17 +88,21 @@ int main(int argc, char **argv)
     const auto hello = Frame(1).number(quint16(OmniLink::Protocol)).text(token).text("obfuscated").text("21.0.4").bytes();
     const auto status = Frame(2).text("ready").bytes();
     auto state = Frame(3).text("Survival").text("minecraft:overworld").number(quint8(1))
-                     .real64(12.5).real64(70).real64(-300.25).real32(90.f).number(quint32(2));
+                     .real64(12.5).real64(70).real64(-300.25).real32(90.f).real32(80.f).text("player:Alex").number(quint32(3));
     state.real32(14.f).real32(64.f).real32(-290.f).real32(45.f).number(quint8(1)).text("minecraft:zombie");
     state.real32(20.f).real32(65.f).real32(-310.f).real32(-90.f).number(quint8(0)).text("minecraft:cow");
+    state.real32(16.f).real32(70.f).real32(-305.f).real32(10.f).number(quint8(0)).text("player:Steve");
     const auto all = hello + status + state.bytes();
     game.write(all.left(all.size() - 7));
     game.flush();
     check(waitFor([&] { return link.connected() && link.status() == "ready"; }), "hello and status");
     game.write(all.right(7));
-    check(waitFor([&] { return link.entities().size() == 2; }), "state read");
+    check(waitFor([&] { return link.entities().size() == 3; }), "state read");
     check(link.world() == "Survival" && link.dimension() == "minecraft:overworld", "world and dimension");
     check(qFuzzyCompare(link.player().value("z").toDouble(), -300.25), "player position");
+    check(link.player().value("id") == "player:Alex" && qFuzzyCompare(link.player().value("bodyYaw").toDouble(), 80.0),
+          "player model and body yaw");
+    check(link.entities().value(2).toMap().value("id") == "player:Steve", "another player");
     const auto zombie = link.entities().value(0).toMap();
     check(zombie.value("id") == "minecraft:zombie" && zombie.value("hostile").toBool()
               && qFuzzyCompare(zombie.value("y").toDouble(), 64.0) && qFuzzyCompare(zombie.value("yaw").toDouble(), 45.0),
@@ -121,7 +125,7 @@ int main(int argc, char **argv)
 
     // On a server: the address joined, matched against the port of a hosted server.
     game.write(Frame(3).text("@localhost:25567").text("minecraft:overworld").number(quint8(0))
-                   .real64(0).real64(0).real64(0).real32(0).number(quint32(0)).bytes());
+                   .real64(0).real64(0).real64(0).real32(0).real32(0).text("").number(quint32(0)).bytes());
     check(waitFor([&] { return link.world() == "@localhost:25567"; }), "server address read");
     check(link.onLocalServer(25567) && !link.onLocalServer(25565), "on a local server");
     check(OmniLink::isLocalServer("127.0.0.1", 25565) && OmniLink::isLocalServer("[::1]:25570", 25570)

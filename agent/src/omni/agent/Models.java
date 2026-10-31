@@ -2,9 +2,14 @@ package omni.agent;
 
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -16,6 +21,8 @@ import java.util.Set;
 // it is drawn with, read from the game's resources, so a resource pack's or a mod's mob
 // comes out as the game shows it. Sent once a connection per kind, as the kind is first
 // seen; a kind the game draws some other way (no living renderer) is left to the map.
+// Players are a kind each ("player:<name>"), in their own skin: the game keeps downloaded
+// skins out of its resources, in assets/skins, where they are read from.
 final class Models {
     static final String MINECRAFT = "net.minecraft.client.Minecraft";
     static final String DISPATCHER = "net.minecraft.client.renderer.entity.EntityRenderDispatcher";
@@ -30,6 +37,7 @@ final class Models {
     static final String RESOURCES = "net.minecraft.server.packs.resources.ResourceProvider";
     static final String IDENTIFIER = "net.minecraft.resources.Identifier";               // 1.21.11+
     static final String LOCATION = "net.minecraft.resources.ResourceLocation";
+    static final String OLD_PLAYER_MODEL = "net.minecraft.client.model.PlayerModel";      // before 1.21.2
 
     private static final int MAX_QUADS = 4096;
     private static final int MAX_TEXTURE = 1 << 20;
@@ -41,13 +49,22 @@ final class Models {
     private Field cubes, children, polygons, vertices, vertexX, vertexY, vertexZ, vertexPos, vertexU, vertexV;
     private Field posX, posY, posZ;
     private Class<?> livingRenderer, part;
+    private Method parse;
+    // A player model's parts the game draws on their own, if at all (cape, deadmau5's ears).
+    private Field cloak, ears;
 
     private int connection = -1;
     private final Set<String> done = new HashSet<>();
+    // Players sent in the default skin while theirs was still downloading: when that
+    // started, tried again every few seconds for a while.
+    private final Map<String, Long> waiting = new HashMap<>();
+    private long lastTry;
+    private boolean standIn; // the last texture() fell back to the default skin
+    private static final long RETRY_NS = 5_000_000_000L, WAIT_NS = 120_000_000_000L;
 
     static String[] classes() {
         return new String[] {MINECRAFT, DISPATCHER, RENDERER, LIVING_RENDERER, LIVING_STATE, ENTITY, PART, CUBE, POLYGON, VERTEX,
-                             RESOURCES, IDENTIFIER, LOCATION};
+                             RESOURCES, IDENTIFIER, LOCATION, OLD_PLAYER_MODEL};
     }
 
     void resolve(Names names) throws ReflectiveOperationException {
@@ -64,6 +81,9 @@ final class Models {
             location = names.type(LOCATION);
         }
         open = names.method(RESOURCES, "open", location);
+        parse = names.method(location.getName().equals(names.className(IDENTIFIER)) ? IDENTIFIER : LOCATION, "tryParse", String.class);
+        cloak = names.fieldOrNull(OLD_PLAYER_MODEL, "cloak");
+        ears = names.fieldOrNull(OLD_PLAYER_MODEL, "ear");
         try {
             createState = names.method(RENDERER, "createRenderState", entity, float.class);
             stateTexture = names.method(LIVING_RENDERER, "getTextureLocation", names.type(LIVING_STATE));
@@ -103,25 +123,52 @@ final class Models {
     }
 
     // On the game thread: the model of `entity`'s kind if it is new to this connection,
-    // else null. At most one a call, as reading one takes a while.
-    Link.Frame next(Object game, Object entity, String id, int connection) throws Exception {
+    // else null. At most one a call, as reading one takes a while. A player's model is
+    // drawn whole: which of its layers show is the player's choice, and the skin is
+    // clear where none is drawn.
+    Link.Frame next(Object game, Object entity, String id, int connection, boolean player) throws Exception {
         if (connection != this.connection) {
             this.connection = connection;
             done.clear();
+            waiting.clear();
         }
-        if (!done.add(id))
-            return null;
+        final long now = System.nanoTime();
+        boolean again = false;
+        if (!done.add(id)) {
+            final Long since = waiting.get(id);
+            if (since == null || now - lastTry < RETRY_NS)
+                return null;
+            if (now - since > WAIT_NS) {
+                waiting.remove(id);
+                return null;
+            }
+            again = true;
+            lastTry = now;
+        }
         final Object renderer = getRenderer.invoke(getDispatcher.invoke(game), entity);
         if (!livingRenderer.isInstance(renderer))
             return null;
         final Object root = model.get(renderer);
+        standIn = false;
         final byte[] texture = texture(game, renderer, entity);
         if (root == null || texture == null)
             return null;
+        if (standIn) {
+            waiting.putIfAbsent(id, now);
+            if (again)
+                return null; // still downloading: the default skin is already there
+        } else {
+            waiting.remove(id);
+        }
 
+        final List<Object> tops = roots(root);
+        if (player)
+            for (Field own : new Field[] {cloak, ears})
+                if (own != null && own.getDeclaringClass().isInstance(root))
+                    tops.remove(own.get(root));
         final List<float[]> quads = new ArrayList<>();
-        for (Object top : roots(root))
-            walk(top, new float[] {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}, quads);
+        for (Object top : tops)
+            walk(top, new float[] {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}, quads, player);
         if (quads.isEmpty())
             return null;
 
@@ -145,9 +192,49 @@ final class Models {
                 : entityTexture.invoke(renderer, entity);
         if (location == null)
             return null;
+        final byte[] found = resource(game, location);
+        if (found != null)
+            return found;
+        // A downloaded skin ("minecraft:skins/<hash>"): assets/skins/<first two>/<hash>.
+        final String name = String.valueOf(location);
+        final int slash = name.lastIndexOf('/');
+        final Path assets = assetsDirectory();
+        if (name.contains(":skins/") && slash > 0 && assets != null) {
+            final String hash = name.substring(slash + 1);
+            final Path file = assets.resolve("skins").resolve(hash.length() > 2 ? hash.substring(0, 2) : "xx").resolve(hash);
+            if (Files.isRegularFile(file) && Files.size(file) <= MAX_TEXTURE)
+                return Files.readAllBytes(file);
+        }
+        // Not there yet (or a skin from elsewhere): the default one.
+        if (!name.contains(":skins/"))
+            return null;
+        standIn = true;
+        return resource(game, parse.invoke(null, "minecraft:textures/entity/player/wide/steve.png"));
+    }
+
+    private byte[] resource(Object game, Object location) throws Exception {
+        if (location == null)
+            return null;
         try (InputStream in = (InputStream) open.invoke(getResourceManager.invoke(game), location)) {
             final byte[] bytes = in.readNBytes(MAX_TEXTURE + 1);
             return bytes.length > MAX_TEXTURE ? null : bytes;
+        } catch (InvocationTargetException missing) {
+            return null; // FileNotFoundException: not among the resources
+        }
+    }
+
+    // The game's --assetsDir, from its command line.
+    private static Path assetsDirectory() {
+        final String command = System.getProperty("sun.java.command", "");
+        final int at = command.indexOf("--assetsDir ");
+        if (at < 0)
+            return null;
+        final int start = at + "--assetsDir ".length();
+        final int end = command.indexOf(" --", start);
+        try {
+            return Paths.get(command.substring(start, end < 0 ? command.length() : end).trim());
+        } catch (RuntimeException invalid) {
+            return null;
         }
     }
 
@@ -184,13 +271,17 @@ final class Models {
     // A part at rest, its move, turn (z, then y, then x, as the game turns it) and scale
     // laid over `parent` (3 × 4, row by row), then its cubes and its children.
     private void walk(Object at, float[] parent, List<float[]> quads) throws Exception {
-        if (!visible.getBoolean(at) || quads.size() >= MAX_QUADS)
+        walk(at, parent, quads, false);
+    }
+
+    private void walk(Object at, float[] parent, List<float[]> quads, boolean whole) throws Exception {
+        if ((!whole && !visible.getBoolean(at)) || quads.size() >= MAX_QUADS)
             return;
         if (resetPose != null)
             resetPose.invoke(at);
         final float[] local = local(at);
         final float[] m = multiply(parent, local);
-        if (skipDraw == null || !skipDraw.getBoolean(at))
+        if (skipDraw == null || whole || !skipDraw.getBoolean(at))
             for (Object cube : (Collection<?>) cubes.get(at))
                 for (Object polygon : (Object[]) polygons.get(cube)) {
                     final Object[] corners = (Object[]) vertices.get(polygon);
@@ -224,7 +315,7 @@ final class Models {
                     quads.add(quad);
                 }
         for (Object child : ((Map<?, ?>) children.get(at)).values())
-            walk(child, m, quads);
+            walk(child, m, quads, whole);
     }
 
     private float[] local(Object at) throws Exception {

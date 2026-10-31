@@ -89,6 +89,7 @@ private:
     int addCell(const QImage &texture);
     void bakeElement(const QJsonObject &element, const Model &model, int rotateX, int rotateY, Block &block,
                      bool *fullCube);
+    bool bakeEntityBlock(const QString &name, const QVariantMap &properties, Block &block);
     void makeFluids();
 
     std::unique_ptr<WorldData::Jar> m_client;

@@ -12,7 +12,7 @@ import java.net.Socket;
 // (big endian, strings as Java's writeUTF). The first frame is Hello with the token
 // the launcher gave on the command line; the launcher drops anything else.
 final class Link {
-    static final int PROTOCOL = 2;
+    static final int PROTOCOL = 3;
     static final int HELLO = 1, STATUS = 2, STATE = 3, BLOCKS = 4, MODEL = 5;
 
     private final int port;

@@ -816,40 +816,55 @@ void WorldView3D::rebuildMarkers()
                 m_markers.push_back({corner[0], corner[1], corner[2], u, u, packed});
         }
     };
+    // A kind's model if the game sent it: as the game draws it, turned by 180 degrees less
+    // the body's yaw, the model's pixels flipped (x and y) and hung 1.501 blocks above the
+    // feet.
+    const auto drawModel = [this](const QString &id, QVector3D at, float yaw) {
+        const auto model = EntityModels::shared().find(id);
+        if (!model)
+            return false;
+        const float turn = qDegreesToRadians(180.f - yaw);
+        const float c = std::cos(turn), s = std::sin(turn);
+        const auto place = [&](const QVector3D &p) {
+            const float x = -p.x() / 16, y = 1.501f - p.y() / 16, z = p.z() / 16;
+            return QVector3D(at.x() - m_originX + x * c + z * s, at.y() + y, at.z() - m_originZ - x * s + z * c);
+        };
+        const auto &corners = model->corners;
+        for (size_t q = 0; q + 3 < corners.size(); q += 4) {
+            QVector3D world[4];
+            for (int i = 0; i < 4; ++i)
+                world[i] = place(corners[q + i].position);
+            // Shaded by where the face looks, as blocks are.
+            const auto normal = QVector3D::crossProduct(world[2] - world[0], world[3] - world[1]).normalized();
+            const float shade = normal.y() > 0.5f ? 1.f
+                                : normal.y() < -0.5f ? 0.5f
+                                : std::abs(normal.z()) > std::abs(normal.x()) ? 0.8f : 0.6f;
+            const auto grey = quint32(shade * 255);
+            const quint32 packed = grey | (grey << 8) | (grey << 16) | 0xFF000000u;
+            for (int i = 0; i < 4; ++i)
+                m_mobs.push_back({world[i].x(), world[i].y(), world[i].z(), corners[q + i].u, corners[q + i].v, packed});
+        }
+        return true;
+    };
+    const QColor playerColor(255, 214, 92);
     for (const auto &value : std::as_const(m_entities)) {
         const auto entity = value.toMap();
+        const auto id = entity.value("id").toString();
         const QVector3D at(entity.value("x").toFloat(), entity.value("y").toFloat(), entity.value("z").toFloat());
-        if (const auto model = EntityModels::shared().find(entity.value("id").toString())) {
-            // As the game draws it: turned by 180 degrees less its body's yaw, the model's
-            // pixels flipped (x and y) and hung 1.501 blocks above the feet.
-            const float turn = qDegreesToRadians(180.f - entity.value("yaw").toFloat());
-            const float c = std::cos(turn), s = std::sin(turn);
-            const auto place = [&](const QVector3D &p) {
-                const float x = -p.x() / 16, y = 1.501f - p.y() / 16, z = p.z() / 16;
-                return QVector3D(at.x() - m_originX + x * c + z * s, at.y() + y, at.z() - m_originZ - x * s + z * c);
-            };
-            const auto &corners = model->corners;
-            for (size_t q = 0; q + 3 < corners.size(); q += 4) {
-                QVector3D world[4];
-                for (int i = 0; i < 4; ++i)
-                    world[i] = place(corners[q + i].position);
-                // Shaded by where the face looks, as blocks are.
-                const auto normal = QVector3D::crossProduct(world[2] - world[0], world[3] - world[1]).normalized();
-                const float shade = normal.y() > 0.5f ? 1.f
-                                    : normal.y() < -0.5f ? 0.5f
-                                    : std::abs(normal.z()) > std::abs(normal.x()) ? 0.8f : 0.6f;
-                const auto grey = quint32(shade * 255);
-                const quint32 packed = grey | (grey << 8) | (grey << 16) | 0xFF000000u;
-                for (int i = 0; i < 4; ++i)
-                    m_mobs.push_back({world[i].x(), world[i].y(), world[i].z(), corners[q + i].u, corners[q + i].v, packed});
-            }
+        if (drawModel(id, at, entity.value("yaw").toFloat()))
             continue;
-        }
-        box(at, 0.35f, 0.9f, entity.value("hostile").toBool() ? QColor(232, 88, 78) : QColor(127, 211, 107));
+        if (id.startsWith("player:"))
+            box(at, 0.3f, 1.8f, playerColor);
+        else
+            box(at, 0.35f, 0.9f, entity.value("hostile").toBool() ? QColor(232, 88, 78) : QColor(127, 211, 107));
     }
-    if (m_player.contains("x"))
-        box(QVector3D(m_player.value("x").toFloat(), m_player.value("y").toFloat(), m_player.value("z").toFloat()), 0.4f, 1.8f,
-            QColor(255, 214, 92));
+    // The player in their skin, once it has come; a box till then (and on a saved map).
+    if (m_player.contains("x")) {
+        const QVector3D at(m_player.value("x").toFloat(), m_player.value("y").toFloat(), m_player.value("z").toFloat());
+        const auto yaw = m_player.value(m_player.contains("bodyYaw") ? "bodyYaw" : "yaw").toFloat();
+        if (!drawModel(m_player.value("id").toString(), at, yaw))
+            box(at, 0.4f, 1.8f, playerColor);
+    }
     m_markersDirty = true;
     update();
 }

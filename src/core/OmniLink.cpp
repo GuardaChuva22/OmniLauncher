@@ -178,7 +178,8 @@ bool OmniLink::handle(QTcpSocket *socket, quint8 type, const QByteArray &payload
     const auto dimension = in.text();
     const bool hasPlayer = in.boolean();
     const auto x = in.real64(), y = in.real64(), z = in.real64();
-    const auto yaw = in.real32();
+    const auto yaw = in.real32(), bodyYaw = in.real32();
+    const auto id = in.text();
     const auto count = in.number<quint32>();
     if (!in.ok() || count > MaxFrame / 18)
         return false;
@@ -197,7 +198,8 @@ bool OmniLink::handle(QTcpSocket *socket, quint8 type, const QByteArray &payload
     }
     m_world = world;
     m_dimension = dimension;
-    m_player = hasPlayer ? QVariantMap{{"x", x}, {"y", y}, {"z", z}, {"yaw", yaw}, {"dimension", dimension}} : QVariantMap();
+    m_player = hasPlayer ? QVariantMap{{"x", x}, {"y", y}, {"z", z}, {"yaw", yaw}, {"bodyYaw", bodyYaw}, {"id", id}, {"dimension", dimension}}
+                         : QVariantMap();
     m_entities = std::move(entities);
     emit updated();
     return true;

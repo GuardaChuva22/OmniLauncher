@@ -15,9 +15,10 @@
 //   1 Hello  {u16 protocol, token, names ("mojang"/"obfuscated"), java version}
 //   2 Status {text}: "waiting for the game", "ready", "unsupported: …"
 //   3 State  {world (its folder in singleplayer, "@" and the address on a server),
-//             dimension, bool player, f64 x y z,
-//             f32 yaw, u32 count, count × {f32 x y z, f32 body yaw, bool hostile,
-//             type id}}
+//             dimension, bool player, f64 x y z, f32 yaw, f32 body yaw, model id
+//             ("player:<name>"),
+//             u32 count, count × {f32 x y z, f32 body yaw, bool hostile, type id
+//             (other players: "player:<name>")}}
 //   4 Blocks {dimension, i32 chunk x z, i32 lowest section, u16 count, count × {u16
 //             palette size, the palette as block states, 4096 indices (u8, or u16 past
 //             256) when it holds more than one}}: a chunk as the game has it now, sent
@@ -33,13 +34,13 @@ class OmniLink final : public QObject
     Q_PROPERTY(QString status READ status NOTIFY connectedChanged)
     Q_PROPERTY(QString world READ world NOTIFY updated)
     Q_PROPERTY(QString dimension READ dimension NOTIFY updated)
-    // {x, y, z, yaw, dimension}, empty without a player
+    // {x, y, z, yaw, bodyYaw, id, dimension}, empty without a player
     Q_PROPERTY(QVariantMap player READ player NOTIFY updated)
     // [{x, y, z, yaw, id, hostile}], the living entities near the player
     Q_PROPERTY(QVariantList entities READ entities NOTIFY updated)
 
 public:
-    static constexpr int Protocol = 2;
+    static constexpr int Protocol = 3;
 
     explicit OmniLink(QObject *parent = nullptr);
 

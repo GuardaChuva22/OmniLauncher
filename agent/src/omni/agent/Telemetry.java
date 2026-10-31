@@ -48,7 +48,7 @@ final class Telemetry {
     private volatile ClassLoader gameLoader;
 
     private Method getInstance, entitiesForRendering, dimension, getSingleplayerServer, getLevelId, getCurrentServer;
-    private Method getX, getY, getZ, getYRot, getType, getDescriptionId;
+    private Method getX, getY, getZ, getYRot, getType, getDescriptionId, getScoreboardName;
     private Field playerField, levelField, storageSource, bodyYaw, serverAddress;
     private Class<?> living, enemy, playerClass;
     private final Map<Object, String> typeIds = new IdentityHashMap<>();
@@ -154,6 +154,7 @@ final class Telemetry {
         getY = names.method(ENTITY, "getY");
         getZ = names.method(ENTITY, "getZ");
         getYRot = names.method(ENTITY, "getYRot");
+        getScoreboardName = names.method(ENTITY, "getScoreboardName");
         bodyYaw = names.field(LIVING, "yBodyRot");
         getType = names.method(ENTITY, "getType");
         getDescriptionId = names.method(ENTITY_TYPE, "getDescriptionId");
@@ -224,12 +225,18 @@ final class Telemetry {
             s.y = (Double) getY.invoke(player);
             s.z = pz = (Double) getZ.invoke(player);
             s.yaw = (Float) getYRot.invoke(player);
+            s.bodyYaw = bodyYaw.getFloat(player);
+            s.id = "player:" + getScoreboardName.invoke(player);
+            if (modelsOn)
+                s.model = model(game, player, s.id, true);
         }
         for (Object entity : (Iterable<?>) entitiesForRendering.invoke(level)) {
             if (s.count == MAX_ENTITIES)
                 break;
-            if (!living.isInstance(entity) || playerClass.isInstance(entity))
+            // The living, and the other players ("player:<name>"), each in their own skin.
+            if (!living.isInstance(entity) || entity == player)
                 continue;
+            final boolean isPlayer = playerClass.isInstance(entity);
             final double x = (Double) getX.invoke(entity), z = (Double) getZ.invoke(entity);
             if (s.hasPlayer && (x - px) * (x - px) + (z - pz) * (z - pz) > RADIUS * RADIUS)
                 continue;
@@ -238,21 +245,21 @@ final class Telemetry {
             s.ey[i] = ((Double) getY.invoke(entity)).floatValue();
             s.ez[i] = (float) z;
             s.eyaw[i] = bodyYaw.getFloat(entity);
-            s.hostile[i] = enemy.isInstance(entity);
-            final Object type = getType.invoke(entity);
-            String id = typeIds.get(type);
-            if (id == null) {
-                id = typeId(String.valueOf(getDescriptionId.invoke(type)));
-                typeIds.put(type, id);
-            }
-            s.type[i] = id;
-            if (modelsOn && s.model == null) {
-                try {
-                    s.model = models.next(game, entity, id, link.connections());
-                } catch (Throwable error) {
-                    // That kind stays a box.
+            s.hostile[i] = !isPlayer && enemy.isInstance(entity);
+            String id;
+            if (isPlayer) {
+                id = "player:" + getScoreboardName.invoke(entity);
+            } else {
+                final Object type = getType.invoke(entity);
+                id = typeIds.get(type);
+                if (id == null) {
+                    id = typeId(String.valueOf(getDescriptionId.invoke(type)));
+                    typeIds.put(type, id);
                 }
             }
+            s.type[i] = id;
+            if (modelsOn && s.model == null)
+                s.model = model(game, entity, id, isPlayer);
         }
         if (blocksOn && s.hasPlayer) {
             try {
@@ -266,6 +273,15 @@ final class Telemetry {
         return s;
     }
 
+    // A kind's model, if new to the launcher; a kind that can't be read stays a box.
+    private Link.Frame model(Object game, Object entity, String id, boolean player) {
+        try {
+            return models.next(game, entity, id, link.connections(), player);
+        } catch (Throwable error) {
+            return null;
+        }
+    }
+
     private void send(Snapshot s) throws java.io.IOException {
         final Link.Frame frame = new Link.Frame(Link.STATE);
         frame.data.writeUTF(s.world);
@@ -275,6 +291,8 @@ final class Telemetry {
         frame.data.writeDouble(s.y);
         frame.data.writeDouble(s.z);
         frame.data.writeFloat(s.yaw);
+        frame.data.writeFloat(s.bodyYaw);
+        frame.data.writeUTF(s.id);
         frame.data.writeInt(s.count);
         for (int i = 0; i < s.count; ++i) {
             frame.data.writeFloat(s.ex[i]);
@@ -310,7 +328,8 @@ final class Telemetry {
         String world = "", dimension = "";
         boolean hasPlayer;
         double x, y, z;
-        float yaw;
+        float yaw, bodyYaw;
+        String id = ""; // "player:<name>", the player's model
         int count;
         float[] ex = new float[64], ey = new float[64], ez = new float[64], eyaw = new float[64];
         boolean[] hostile = new boolean[64];

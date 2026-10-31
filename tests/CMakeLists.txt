@@ -68,6 +68,7 @@ add_executable(nbt-smoke
     "${OMNI_ROOT}/src/core/BlockModels.h"
     "${OMNI_ROOT}/src/core/ChunkMesher.cpp"
     "${OMNI_ROOT}/src/core/ChunkMesher.h"
+    "${OMNI_ROOT}/src/core/EntityBlockShapes.h"
     "${OMNI_ROOT}/src/core/EntityModels.cpp"
     "${OMNI_ROOT}/src/core/EntityModels.h"
 )
