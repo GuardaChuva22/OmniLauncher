@@ -13,6 +13,9 @@ Item {
         scale: root.width / 24
         transformOrigin: Item.TopLeft
         preferredRendererType: Shape.CurveRenderer
+        // Synchronous curve shapes built ahead of a scrolling list (culled,
+        // async-incubated delegates) never draw in Qt 6.8; async processing does.
+        asynchronous: true
         ShapePath {
             strokeColor: root.color
             // Keep the rendered stroke near `stroke` px at any icon size.

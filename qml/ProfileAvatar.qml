@@ -26,19 +26,18 @@ Rectangle {
             source: Theme.offlineFace
             smooth: false
         }
-        Image {
-            anchors.fill: parent
-            visible: root.skin !== ""
-            source: root.skin
-            sourceClipRect: Qt.rect(8, 8, 8, 8)
-            smooth: false
-        }
-        Image {
-            anchors.fill: parent
-            visible: root.skin !== ""
-            source: root.skin
-            sourceClipRect: Qt.rect(40, 8, 8, 8)
-            smooth: false
+        // Face and hat layers. A clipped Image never redraws when its source changes
+        // after creation, so they are rebuilt for every skin (e.g. one that arrives
+        // after sign-in).
+        Repeater {
+            model: root.skin !== "" ? [Qt.rect(8, 8, 8, 8), Qt.rect(40, 8, 8, 8)] : []
+            Image {
+                required property rect modelData
+                anchors.fill: parent
+                source: root.skin
+                sourceClipRect: modelData
+                smooth: false
+            }
         }
     }
     Rectangle { id: circle; anchors.fill: parent; radius: width / 2; visible: false; layer.enabled: true }
