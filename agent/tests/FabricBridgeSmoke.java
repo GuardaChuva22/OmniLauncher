@@ -19,6 +19,22 @@ public final class FabricBridgeSmoke {
         public static boolean panelKey(int key) { calls++; return key == 32; }
         public static boolean panelClick(Object s, double x, double y, int b) { calls++; return b == 0; }
         public static void close() { calls++; }
+        public static float zoomFov(float fov) { calls++; return fov / 4; }
+        public static void zoomWorld(boolean world) { calls++; }
+        public static double zoomFovLegacy(double fov) { calls++; return fov / 4; }
+        public static double zoomSensitivity() { calls++; return 0.25; }
+        public static boolean zoomScroll(double amount) { calls++; return amount > 0; }
+        public static boolean zoomHides(boolean hidden) { calls++; return true; }
+        public static boolean panelRelease(Object screen, double x, double y, int button) { calls++; return true; }
+        public static boolean panelDrag(Object screen, double x, double y, int button) { calls++; return true; }
+        public static boolean panelScroll(Object screen, double x, double y, double amount) { calls++; return amount != 0; }
+        public static void hud(Object graphics) { calls++; }
+        public static void chatBegin(Object chat, Object graphics) { calls++; }
+        public static void chatEnd(Object graphics) { calls++; }
+        public static void chatAdded(Object chat) { calls++; }
+        public static void scrollBefore(Object area) { calls++; }
+        public static void scrollAfter(Object area) { calls++; }
+        public static void scrollFrame(Object area) { calls++; }
     }
 
     public static void main(String[] args) throws Exception {
@@ -44,7 +60,7 @@ public final class FabricBridgeSmoke {
         addSource.setAccessible(true); addSource.invoke(delegate, Path.of(args[0]));
         Class<?> probe = Class.forName("omni.fixture.BridgeGameProbe", true, knot);
         probe.getMethod("run").invoke(null);
-        if (Callbacks.calls != 10) throw new AssertionError("Missing callbacks: " + Callbacks.calls);
-        System.out.println("OK: Fabric rejects the implementation jar; all 10 UI callbacks work through bootstrap");
+        if (Callbacks.calls != 26) throw new AssertionError("Missing callbacks: " + Callbacks.calls);
+        System.out.println("OK: Fabric rejects the implementation jar; all 26 UI callbacks work through bootstrap");
     }
 }

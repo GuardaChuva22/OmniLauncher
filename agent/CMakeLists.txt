@@ -16,4 +16,7 @@ add_custom_command(TARGET omni-agent POST_BUILD
     COMMAND "${Java_JAR_EXECUTABLE}" uf "${CMAKE_BINARY_DIR}/omni-agent.jar"
         -C "${omni_asm_dir}" omni/agent/internal/asm
         -C "${CMAKE_CURRENT_BINARY_DIR}" omni-bootstrap.jar
-        -C "${CMAKE_CURRENT_SOURCE_DIR}" LICENSE-ASM.txt)
+        -C "${CMAKE_CURRENT_SOURCE_DIR}" LICENSE-ASM.txt
+        -C "${CMAKE_CURRENT_SOURCE_DIR}/../assets" fonts/Manrope-Medium.ttf
+        -C "${CMAKE_CURRENT_SOURCE_DIR}/../assets" fonts/Manrope-SemiBold.ttf
+        -C "${CMAKE_CURRENT_SOURCE_DIR}/../assets" fonts/OFL.txt)

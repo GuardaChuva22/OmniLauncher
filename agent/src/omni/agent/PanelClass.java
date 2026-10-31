@@ -41,6 +41,11 @@ final class PanelClass extends ClassLoader {
         m.visitMethodInsn(INVOKESTATIC, UiHooks.CLIENT, "draw", "(Ljava/lang/Object;Ljava/lang/Object;II)V", false);
         m.visitInsn(RETURN); finish(m);
 
+        // No dark menu texture: the panel's own tint over the blurred world is the backdrop.
+        m = w.visitMethod(ACC_PUBLIC, n.methodName(UiHooks.SCREEN, modern ? "extractMenuBackground" : "renderMenuBackground", gui),
+                "(L" + n.internal(gui) + ";)V", null, null);
+        m.visitCode(); m.visitInsn(RETURN); finish(m);
+
         String eventOwner = "net.minecraft.client.gui.components.events.GuiEventListener";
         String keyEvent = "net.minecraft.client.input.KeyEvent";
         String mouseEvent = "net.minecraft.client.input.MouseButtonEvent";
@@ -66,9 +71,37 @@ final class PanelClass extends ClassLoader {
         m.visitMethodInsn(INVOKESTATIC, UiHooks.CLIENT, "panelClick", "(Ljava/lang/Object;DDI)Z", false);
         m.visitInsn(IRETURN); finish(m);
 
+        // Release and drag carry the same position and button; drag's deltas are not needed.
+        String[] releaseParams = modern ? new String[]{mouseEvent} : new String[]{"double", "double", "int"};
+        String[] dragParams = modern ? new String[]{mouseEvent, "double", "double"} : new String[]{"double", "double", "int", "double", "double"};
+        mouse(n, w, modern, n.methodName(eventOwner, "mouseReleased", releaseParams),
+                modern ? "(L" + n.internal(mouseEvent) + ";)Z" : "(DDI)Z", "panelRelease");
+        mouse(n, w, modern, n.methodName(eventOwner, "mouseDragged", dragParams),
+                modern ? "(L" + n.internal(mouseEvent) + ";DD)Z" : "(DDIDD)Z", "panelDrag");
+
+        m = w.visitMethod(ACC_PUBLIC, n.methodName(eventOwner, "mouseScrolled", "double", "double", "double", "double"), "(DDDD)Z", null, null);
+        m.visitCode(); m.visitVarInsn(ALOAD, 0); m.visitVarInsn(DLOAD, 1); m.visitVarInsn(DLOAD, 3); m.visitVarInsn(DLOAD, 7);
+        m.visitMethodInsn(INVOKESTATIC, UiHooks.CLIENT, "panelScroll", "(Ljava/lang/Object;DDD)Z", false);
+        m.visitInsn(IRETURN); finish(m);
+
         m = w.visitMethod(ACC_PUBLIC, n.methodName(UiHooks.SCREEN, "onClose"), "()V", null, null);
         m.visitCode(); m.visitMethodInsn(INVOKESTATIC, UiHooks.CLIENT, "close", "()V", false); m.visitInsn(RETURN); finish(m);
         w.visitEnd(); return w.toByteArray();
+    }
+    // A mouse override passing (screen, x, y, button) to the client, from a MouseButtonEvent
+    // on 26.x or from the leading (double, double, int) on 1.21.1.
+    private static void mouse(UiNames n, ClassWriter w, boolean modern, String name, String desc, String callback) {
+        MethodVisitor m = w.visitMethod(ACC_PUBLIC, name, desc, null, null);
+        m.visitCode(); m.visitVarInsn(ALOAD, 0);
+        if (modern) {
+            String event = n.internal("net.minecraft.client.input.MouseButtonEvent");
+            for (String accessor : new String[]{"x", "y", "button"}) {
+                m.visitVarInsn(ALOAD, 1);
+                m.visitMethodInsn(INVOKEVIRTUAL, event, accessor, accessor.equals("button") ? "()I" : "()D", false);
+            }
+        } else { m.visitVarInsn(DLOAD, 1); m.visitVarInsn(DLOAD, 3); m.visitVarInsn(ILOAD, 5); }
+        m.visitMethodInsn(INVOKESTATIC, UiHooks.CLIENT, callback, "(Ljava/lang/Object;DDI)Z", false);
+        m.visitInsn(IRETURN); finish(m);
     }
     private static void finish(MethodVisitor method) { method.visitMaxs(0, 0); method.visitEnd(); }
 }

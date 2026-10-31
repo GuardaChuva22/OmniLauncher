@@ -14,5 +14,14 @@ public final class BridgeGameProbe {
         if (!Hooks.panelKey(32) || !Hooks.panelClick(null, 1, 2, 0))
             throw new AssertionError("Panel callbacks");
         Hooks.close();
+        Hooks.hud(null);
+        Hooks.chatBegin(null, null); Hooks.chatEnd(null); Hooks.chatAdded(null);
+        Hooks.scrollBefore(null); Hooks.scrollAfter(null); Hooks.scrollFrame(null);
+        if (!Hooks.panelRelease(null, 1, 2, 0) || !Hooks.panelDrag(null, 1, 2, 0) || !Hooks.panelScroll(null, 1, 2, 1))
+            throw new AssertionError("Window callbacks");
+        Hooks.zoomWorld(true);
+        if (Hooks.zoomFov(80f) != 20f || Hooks.zoomFovLegacy(80) != 20 || Hooks.zoomSensitivity() != 0.25
+                || !Hooks.zoomScroll(1) || !Hooks.zoomHides(false))
+            throw new AssertionError("Zoom callbacks");
     }
 }

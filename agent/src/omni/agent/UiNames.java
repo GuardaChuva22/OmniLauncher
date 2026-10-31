@@ -31,6 +31,7 @@ final class UiNames {
             if (line.isEmpty() || line.startsWith("#")) continue;
             if (line.charAt(0) != ' ') { owner = line.substring(0, line.indexOf(" -> ")); continue; }
             if (!(owner.startsWith("net.minecraft.client.") || owner.equals("net.minecraft.network.chat.Component")
+                    || owner.equals("net.minecraft.resources.ResourceLocation") || owner.equals("net.minecraft.world.entity.Entity")
                     || owner.startsWith("com.mojang.blaze3d."))) continue;
             Matcher match = method.matcher(line.trim());
             if (match.matches()) {
