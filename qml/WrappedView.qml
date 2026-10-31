@@ -32,12 +32,17 @@ Item {
         shown = true
         forceActiveFocus()
         sfx.play("open")
-        Qt.callLater(function() {
-            info = wrapped.build(launcher.games, launcher.gameSettings, gameId || "")
-            slides = buildSlides(info)
-            slide = 0
-            restartSlide()
-        })
+        wrapped.request(launcher.games, launcher.gameSettings, gameId || "")
+    }
+    Connections {
+        target: wrapped
+        function onBuilt(result) {
+            if (!root.shown) return
+            root.info = result
+            root.slides = root.buildSlides(result)
+            root.slide = 0
+            root.restartSlide()
+        }
     }
     function close() { shown = false; progress.stop() }
     function go(index) {
@@ -218,19 +223,47 @@ Item {
     component Glyph: Rectangle {
         id: icon
         property string source: ""
+        property var spin: null // {source, frames, columns}: a block's model, turning
         property string label: ""
         property real size: 44
+        readonly property bool turning: !!spin
         width: size; height: size
         radius: size * 0.22
-        color: "#14FFFFFF"
-        border.width: 1; border.color: "#1AFFFFFF"
+        color: turning ? "transparent" : "#14FFFFFF"
+        border.width: turning ? 0 : 1; border.color: "#1AFFFFFF"
         Image {
             anchors.fill: parent; anchors.margins: icon.size * 0.14
-            visible: icon.source !== ""
-            source: icon.source
-            smooth: false; mipmap: false
-            fillMode: Image.PreserveAspectCrop
-            verticalAlignment: Image.AlignTop
+            visible: icon.source !== "" && !icon.turning
+            source: icon.turning ? "" : icon.source
+            // 128 px icons with the texels already sharp: scaled down smoothly.
+            smooth: true; mipmap: true
+            fillMode: Image.PreserveAspectFit
+        }
+        // The model a little larger than a framed icon and unframed, one frame of the sheet
+        // showing at a time; a still frame when motion is reduced.
+        Item {
+            id: turntable
+            visible: icon.turning
+            anchors.centerIn: parent
+            width: icon.size * 1.15; height: width
+            clip: true
+            property real phase: 0
+            readonly property int frames: icon.turning ? icon.spin.frames : 1
+            readonly property int columns: icon.turning ? icon.spin.columns : 1
+            readonly property int frame: Math.floor(phase) % frames
+            Image {
+                source: icon.turning ? icon.spin.source : ""
+                width: turntable.width * turntable.columns
+                height: turntable.height * Math.ceil(turntable.frames / turntable.columns)
+                x: -(turntable.frame % turntable.columns) * turntable.width
+                y: -Math.floor(turntable.frame / turntable.columns) * turntable.height
+                smooth: true; mipmap: true
+            }
+            NumberAnimation on phase {
+                from: 0; to: turntable.frames
+                duration: 6000; loops: Animation.Infinite
+                running: icon.turning && icon.visible && !root.reduced
+            }
         }
         Text {
             visible: icon.source === ""
@@ -257,7 +290,7 @@ Item {
                     width: parent.width; height: parent.height
                     spacing: 14
                     Text { text: (index + 1); color: Theme.faint; font.family: Theme.fontDisplay; font.pixelSize: 18; font.weight: Font.Bold; Layout.preferredWidth: 18 }
-                    Glyph { source: modelData.icon || ""; label: modelData.name; size: 44 }
+                    Glyph { source: modelData.icon || ""; spin: modelData.spin || null; label: modelData.name; size: 44 }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 6
@@ -339,21 +372,21 @@ Item {
         ColumnLayout {
             spacing: 14
             Rise { Kicker { text: qsTr("Seu mundo favorito") } }
-            Rise { delay: 160; Big { width: stage.column; text: root.info.topWorld.name; wrapMode: Text.WordWrap; font.pixelSize: 76 } }
+            Rise { delay: 160; Big { width: stage.column; text: (root.info.topWorld || {}).name; wrapMode: Text.WordWrap; font.pixelSize: 76 } }
             Rise {
                 delay: 480
                 Line {
                     width: stage.column
-                    text: qsTr("Você passou ") + root.timeText(root.info.topWorld.seconds) + " " + root.timeUnit(root.info.topWorld.seconds) + qsTr(" lá") + (root.info.scope === "all" ? qsTr(", em ") + root.info.topWorld.game : "") + "."
+                    text: qsTr("Você passou ") + root.timeText((root.info.topWorld || {}).seconds) + " " + root.timeUnit((root.info.topWorld || {}).seconds) + qsTr(" lá") + (root.info.scope === "all" ? qsTr(", em ") + (root.info.topWorld || {}).game : "") + "."
                 }
             }
             Rise {
                 delay: 760
-                visible: root.info.scope === "all" && root.info.topGame.title !== ""
+                visible: root.info.scope === "all" && (root.info.topGame || {}).title !== ""
                 Line {
                     width: stage.column
                     color: Theme.muted; font.pixelSize: 16
-                    text: qsTr("E o jogo que mais te prendeu foi ") + root.info.topGame.title + "."
+                    text: qsTr("E o jogo que mais te prendeu foi ") + (root.info.topGame || {}).title + "."
                 }
             }
         }
@@ -497,7 +530,7 @@ Item {
                 RowLayout {
                     width: stage.column
                     spacing: 14
-                    Glyph { source: root.info.topCrafted.length ? (root.info.topCrafted[0].icon || "") : ""; label: root.info.topCrafted.length ? root.info.topCrafted[0].name : ""; size: 44 }
+                    Glyph { source: root.info.topCrafted.length ? (root.info.topCrafted[0].icon || "") : ""; spin: root.info.topCrafted.length ? (root.info.topCrafted[0].spin || null) : null; label: root.info.topCrafted.length ? root.info.topCrafted[0].name : ""; size: 44 }
                     Line {
                         Layout.fillWidth: true
                         font.pixelSize: 16
@@ -561,7 +594,7 @@ Item {
                                 smooth: true; mipmap: true
                             }
                             Item { width: 1; height: 30 }
-                            Text { text: "RETROSPECTIVA"; color: Theme.accentText; font.family: Theme.font; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 2.4 }
+                            Text { text: qsTr("RETROSPECTIVA"); color: Theme.accentText; font.family: Theme.font; font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 2.4 }
                             Item { width: 1; height: 8 }
                             Text { width: parent.width; text: root.info.title || ""; color: Theme.text; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; font.family: Theme.fontDisplay; font.pixelSize: 34; font.weight: Font.Bold; font.letterSpacing: -0.8 }
                             Item { width: 1; height: 18 }
@@ -604,6 +637,7 @@ Item {
                             Glyph {
                                 visible: (root.info.topMined || []).length > 0
                                 source: (root.info.topMined || []).length ? (root.info.topMined[0].icon || "") : ""
+                                spin: (root.info.topMined || []).length ? (root.info.topMined[0].spin || null) : null
                                 label: (root.info.topMined || []).length ? root.info.topMined[0].name : ""
                                 size: 36
                             }

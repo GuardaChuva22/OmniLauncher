@@ -45,6 +45,7 @@ Item {
         spacing: 4
         Repeater {
             model: [{ label: qsTr("Jogos"), icon: "grid", page: 0 }, { label: qsTr("Modpacks"), icon: "packs", page: 1 },
+                    { label: qsTr("Mundos"), icon: "map", page: 6 },
                     { label: qsTr("Capturas"), icon: "image", page: 3 }, { label: qsTr("Servidores"), icon: "server", page: 5 }]
             delegate: NavItem {
                 required property var modelData

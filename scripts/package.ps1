@@ -24,6 +24,9 @@ Copy-Item -LiteralPath $executable -Destination $stage
 # Steamworks runtime, when the build has the Steam tunnel (build.ps1 copies it beside the exe).
 $steamApi = Join-Path (Split-Path $executable) 'steam_api64.dll'
 if (Test-Path -LiteralPath $steamApi) { Copy-Item -LiteralPath $steamApi -Destination $stage }
+# The Omni agent for the live world map, when the build had a JDK.
+$agent = Join-Path (Split-Path $executable) 'omni-agent.jar'
+if (Test-Path -LiteralPath $agent) { Copy-Item -LiteralPath $agent -Destination $stage }
 
 Write-Host 'Collecting Qt libraries, plugins and QML modules...'
 $previous = $ErrorActionPreference

@@ -194,7 +194,7 @@ Item {
         property var values: []
         property string fallback: values.length > 0 ? values[0] : ""
         width: 200
-        Binding on currentIndex { when: !choice.popup.visible; value: Math.max(0, choice.values.indexOf(String(root.prop(choice.key, choice.fallback)))) }
+        selectedIndex: Math.max(0, choice.values.indexOf(String(root.prop(choice.key, choice.fallback))))
         onActivated: function(index) { root.setProp(key, values[index]) }
     }
     component PropNumber: RowLayout {

@@ -5,6 +5,8 @@
 #include "ServerManager.h"
 #include "UiSound.h"
 #include "Wrapped.h"
+#include "Worlds.h"
+#include "WorldView3D.h"
 #include "PackCloud.h"
 #include "SteamTunnel.h"
 #include "GameRunner.h"
@@ -122,6 +124,8 @@ int main(int argc, char *argv[])
     AppModel model(parser.isSet(QStringLiteral("data-dir")) ? parser.value(QStringLiteral("data-dir"))
                                                             : defaultDataDirectory());
     GameRunner runner(model.dataDirectory());
+    OmniLink link;
+    runner.setLink(&link);
     ModManager mods(model.dataDirectory());
     AuthManager auth(model.dataDirectory());
     UpdateManager updates;
@@ -129,6 +133,7 @@ int main(int argc, char *argv[])
     ServerManager servers(model.dataDirectory());
     UiSound sfx;
     Wrapped wrapped(model.dataDirectory());
+    Worlds worlds(model.dataDirectory());
     PackCloud cloud(model.dataDirectory());
     SteamTunnel steam;
     QObject::connect(&updates, &UpdateManager::quitRequested, &app, &QCoreApplication::quit, Qt::QueuedConnection);
@@ -137,6 +142,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("i18n"), &language);
     engine.rootContext()->setContextProperty(QStringLiteral("launcher"), &model);
     engine.rootContext()->setContextProperty(QStringLiteral("runner"), &runner);
+    engine.rootContext()->setContextProperty(QStringLiteral("omniLink"), &link);
     engine.rootContext()->setContextProperty(QStringLiteral("mods"), &mods);
     engine.rootContext()->setContextProperty(QStringLiteral("auth"), &auth);
     engine.rootContext()->setContextProperty(QStringLiteral("updates"), &updates);
@@ -144,6 +150,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("servers"), &servers);
     engine.rootContext()->setContextProperty(QStringLiteral("sfx"), &sfx);
     engine.rootContext()->setContextProperty(QStringLiteral("wrapped"), &wrapped);
+    engine.rootContext()->setContextProperty(QStringLiteral("worlds"), &worlds);
+    WorldView3D::setDataDirectory(model.dataDirectory());
+    WorldView3D::setLink(&link);
     engine.rootContext()->setContextProperty(QStringLiteral("cloud"), &cloud);
     engine.rootContext()->setContextProperty(QStringLiteral("steam"), &steam);
 

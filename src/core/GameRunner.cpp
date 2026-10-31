@@ -943,6 +943,11 @@ void GameRunner::stepCollectFiles()
     const auto client = m_version.value("downloads").toObject().value("client").toObject();
     jobs.append({QUrl(client.value("url").toString()), path(QStringLiteral("versions/%1/%1.jar").arg(m_versionId)),
                  client.value("sha1").toString(), client.value("size").toInteger(-1)});
+    // Mojang's names for an obfuscated version (before 26.1), which the Omni agent reads.
+    const auto mappings = m_version.value("downloads").toObject().value("client_mappings").toObject();
+    if (usesAgent() && !mappings.isEmpty() && !mappingsPath().isEmpty())
+        jobs.append({QUrl(mappings.value("url").toString()), mappingsPath(), mappings.value("sha1").toString(),
+                     mappings.value("size").toInteger(-1)});
 
     // Libraries: classpath artifacts, plus legacy native archives to extract.
     for (const auto &value : m_version.value("libraries").toArray()) {
@@ -1146,6 +1151,12 @@ void GameRunner::stepPrepareAndStart()
     const int memory = qMax(512, m_settings.value("memoryMb").toInt());
     QStringList arguments{QStringLiteral("-Xmx%1M").arg(memory), QStringLiteral("-Xms%1M").arg(qMin(memory, 1024))};
     arguments << QProcess::splitCommand(m_settings.value("jvmArgs").toString());
+    if (usesAgent()) {
+        const auto mappings = mappingsPath();
+        const auto agent = m_link->prepare(QFileInfo::exists(mappings) ? mappings : QString());
+        if (!agent.isEmpty())
+            arguments << "-javaagent:" + QDir::toNativeSeparators(OmniLink::agentJar()) + '=' + agent;
+    }
 
     if (modern.contains("jvm")) {
         arguments << expandArguments(modern.value("jvm").toArray(), features, values);
@@ -1174,6 +1185,21 @@ void GameRunner::stepPrepareAndStart()
 
     if (!startProcess(java, arguments))
         return;
+}
+
+// The Omni agent feeds the live map. Version 0 reads the game on Mojang's names (vanilla,
+// with the mappings before 26.1; loaders on 26.1+ or NeoForge); old Forge runs on its
+// own names and is left alone. "liveMap": false in the settings turns it off.
+bool GameRunner::usesAgent() const
+{
+    return m_link && m_loader != "Forge" && m_settings.value("liveMap", true).toBool()
+           && !OmniLink::agentJar().isEmpty();
+}
+
+QString GameRunner::mappingsPath() const
+{
+    // A loader runs on its own names; only vanilla takes Mojang's mappings.
+    return m_loader == "Vanilla" ? path(QStringLiteral("versions/%1/%1-client-mappings.txt").arg(m_versionId)) : QString();
 }
 
 bool GameRunner::startProcess(const QString &java, const QStringList &arguments)

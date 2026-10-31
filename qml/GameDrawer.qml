@@ -567,7 +567,7 @@ FocusScope {
                             ActionButton {
                                 visible: !mods.checkingUpdates && mods.updateCount > 0
                                 implicitHeight: 30
-                                text: "Atualizar " + mods.updateCount
+                                text: qsTr("Atualizar %1").arg(mods.updateCount)
                                 iconName: "download"; iconSize: 14
                                 primary: true; reduced: root.reduced
                                 font.pixelSize: 12
@@ -583,11 +583,87 @@ FocusScope {
                             }
                         }
 
+                        // Rows for `shown`, made a few per frame and only once the tab is open:
+                        // a long mod list built at once stalls the drawer. Rows stay and follow
+                        // `shown` by index, so a reload or a filter only adds or drops the difference.
+                        readonly property bool active: root.open && tabs.currentIndex === 1
+                        function syncRows() {
+                            if (modRows.count > shown.length) modRows.remove(shown.length, modRows.count - shown.length)
+                            if (active && modRows.count < shown.length) rowFill.start()
+                        }
+                        onShownChanged: syncRows()
+                        onActiveChanged: syncRows()
+                        ListModel { id: modRows }
+                        Timer {
+                            id: rowFill
+                            interval: 16; repeat: true; triggeredOnStart: true
+                            onTriggered: {
+                                const end = Math.min(modsTab.shown.length, modRows.count + 6)
+                                for (let i = modRows.count; i < end; ++i) modRows.append({ row: i })
+                                if (modRows.count >= modsTab.shown.length) stop()
+                            }
+                        }
+                        // One menu for every row, aimed at the row that opened it.
+                        Menu {
+                            id: modMenu
+                            property var target: ({})
+                            property string targetGameId: ""
+                            property string targetKind: "mod"
+                            function openFor(entry) {
+                                // Copy the selected values: rows are reused while async
+                                // update checks refresh the installed list underneath them.
+                                target = { file: entry.file || "", title: entry.title || "", projectId: entry.projectId || "",
+                                           versionId: entry.versionId || "", versionNumber: entry.versionNumber || "",
+                                           iconUrl: entry.iconUrl || "", enabled: entry.enabled }
+                                targetGameId = root.gameId
+                                targetKind = root.contentKind
+                                popup()
+                            }
+                            topPadding: 6; bottomPadding: 6
+                            background: Rectangle {
+                                implicitWidth: 200
+                                color: Theme.popup; radius: 12
+                                border.width: 1; border.color: Theme.lineStrong
+                            }
+                            delegate: MenuItem {
+                                id: menuItem
+                                implicitHeight: 36
+                                leftPadding: 14; rightPadding: 14
+                                contentItem: Text {
+                                    text: menuItem.text
+                                    color: !menuItem.enabled ? Theme.faint : menuItem.text === qsTr("Remover") ? Theme.danger : Theme.text
+                                    font.family: Theme.font; font.pixelSize: 13
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    x: 6; width: parent.width - 12; height: parent.height
+                                    radius: 8
+                                    color: menuItem.highlighted ? Theme.fillActive : "transparent"
+                                }
+                            }
+                            Action {
+                                text: qsTr("Mudar versão…")
+                                enabled: (modMenu.target.projectId || "") !== ""
+                                onTriggered: root.modVersionRequested(modMenu.target)
+                            }
+                            Action {
+                                text: qsTr("Remover")
+                                enabled: (modMenu.target.file || "") !== ""
+                                onTriggered: {
+                                    const entry = modMenu.target
+                                    if (mods.remove(modMenu.targetGameId, entry.file, modMenu.targetKind))
+                                        root.notify(qsTr("%1 removido.").arg(entry.title || entry.file))
+                                    else root.notify(mods.lastError)
+                                }
+                            }
+                        }
+
                         Repeater {
-                            model: modsTab.shown
+                            model: modRows
                             delegate: Item {
                                 id: modRow
-                                required property var modelData
+                                required property int row
+                                readonly property var modelData: modsTab.shown[row] || ({ title: "", file: "", projectId: "", enabled: true })
                                 readonly property bool hasUpdate: (modelData.updateVersionId || "") !== ""
                                 readonly property bool busy: modelData.projectId !== "" && mods.installing.indexOf(modelData.projectId) !== -1
                                 Layout.fillWidth: true
@@ -608,7 +684,11 @@ FocusScope {
                                         Layout.preferredWidth: 38; Layout.preferredHeight: 38
                                         radius: 9; color: Theme.fill; clip: true
                                         opacity: modRow.modelData.enabled ? 1 : 0.4
-                                        UiIcon { anchors.centerIn: parent; visible: modIcon.status !== Image.Ready; width: 16; height: 16; name: "puzzle"; color: Theme.faint }
+                                        Loader {
+                                            anchors.centerIn: parent
+                                            active: modIcon.status !== Image.Ready
+                                            sourceComponent: UiIcon { width: 16; height: 16; name: "puzzle"; color: Theme.faint }
+                                        }
                                         Image {
                                             id: modIcon
                                             anchors.fill: parent
@@ -665,62 +745,36 @@ FocusScope {
                                         color: Theme.muted
                                         font.family: Theme.font; font.pixelSize: 11
                                     }
-                                    ActionButton {
-                                        visible: modRow.hasUpdate && !modRow.busy
-                                        width: 30; height: 30; round: true
-                                        iconName: "download"; iconSize: 14
-                                        primary: true; reduced: root.reduced
-                                        Accessible.name: "Atualizar " + modRow.modelData.title
-                                        ToolTip.visible: hovered; ToolTip.text: qsTr("Atualizar para ") + modRow.modelData.updateVersionNumber; ToolTip.delay: 400
-                                        onClicked: mods.installVersionOf(modRow.modelData.projectId, modRow.modelData.updateVersionId,
-                                                                         root.gameId, root.game.version, root.contentLoader, root.contentKind)
+                                    Loader {
+                                        active: modRow.hasUpdate && !modRow.busy
+                                        visible: active
+                                        sourceComponent: ActionButton {
+                                            width: 30; height: 30; round: true
+                                            iconName: "download"; iconSize: 14
+                                            primary: true; reduced: root.reduced
+                                            Accessible.name: "Atualizar " + modRow.modelData.title
+                                            ToolTip.visible: hovered; ToolTip.text: qsTr("Atualizar para ") + modRow.modelData.updateVersionNumber; ToolTip.delay: 400
+                                            onClicked: mods.installVersionOf(modRow.modelData.projectId, modRow.modelData.updateVersionId,
+                                                                             root.gameId, root.game.version, root.contentLoader, root.contentKind)
+                                        }
                                     }
                                     ToggleSwitch {
                                         checked: modRow.modelData.enabled
                                         reduced: root.reduced
                                         Accessible.name: "Ativar " + modRow.modelData.title
-                                        onToggled: mods.setEnabled(root.gameId, modRow.modelData.file, checked)
+                                        onToggled: {
+                                            if (!mods.setEnabled(root.gameId, modRow.modelData.file, checked, root.contentKind)) {
+                                                checked = Qt.binding(function() { return modRow.modelData.enabled })
+                                                root.notify(mods.lastError)
+                                            }
+                                        }
                                     }
                                     ActionButton {
                                         width: 30; height: 30; round: true
                                         quiet: true; iconName: "dots"; iconSize: 14
                                         reduced: root.reduced
                                         Accessible.name: "Mais opções de " + modRow.modelData.title
-                                        onClicked: modMenu.popup()
-                                    }
-                                }
-                                Menu {
-                                    id: modMenu
-                                    topPadding: 6; bottomPadding: 6
-                                    background: Rectangle {
-                                        implicitWidth: 200
-                                        color: Theme.popup; radius: 12
-                                        border.width: 1; border.color: Theme.lineStrong
-                                    }
-                                    delegate: MenuItem {
-                                        id: menuItem
-                                        implicitHeight: 36
-                                        leftPadding: 14; rightPadding: 14
-                                        contentItem: Text {
-                                            text: menuItem.text
-                                            color: !menuItem.enabled ? Theme.faint : menuItem.text === "Remover" ? Theme.danger : Theme.text
-                                            font.family: Theme.font; font.pixelSize: 13
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-                                        background: Rectangle {
-                                            x: 6; width: parent.width - 12; height: parent.height
-                                            radius: 8
-                                            color: menuItem.highlighted ? Theme.fillActive : "transparent"
-                                        }
-                                    }
-                                    Action {
-                                        text: qsTr("Mudar versão…")
-                                        enabled: modRow.modelData.projectId !== ""
-                                        onTriggered: root.modVersionRequested(modRow.modelData)
-                                    }
-                                    Action {
-                                        text: qsTr("Remover")
-                                        onTriggered: mods.remove(root.gameId, modRow.modelData.file)
+                                        onClicked: modMenu.openFor(modRow.modelData)
                                     }
                                 }
                                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
@@ -870,7 +924,7 @@ FocusScope {
                                             elide: Text.ElideRight
                                         }
                                         Text {
-                                            text: "Jogado " + worldsTab.formatDate(worldRow.modelData.lastPlayed) + "  ·  " + worldsTab.formatSize(worldRow.modelData.sizeBytes)
+                                            text: qsTr("Jogado %1").arg(worldsTab.formatDate(worldRow.modelData.lastPlayed)) + "  ·  " + worldsTab.formatSize(worldRow.modelData.sizeBytes)
                                             color: Theme.faint
                                             font.family: Theme.font; font.pixelSize: 11
                                         }
@@ -1003,7 +1057,7 @@ FocusScope {
                             }
                             ActionButton {
                                 visible: memory.value !== parent.recommendedGb
-                                text: "Usar " + parent.recommendedGb + " GB"; quiet: true
+                                text: qsTr("Usar %1 GB").arg(parent.recommendedGb); quiet: true
                                 implicitHeight: 28; font.pixelSize: 12; reduced: root.reduced
                                 onClicked: root.save("memoryMb", parent.recommendedGb * 1024)
                             }
@@ -1028,10 +1082,7 @@ FocusScope {
                             id: resolutionChoice
                             Layout.fillWidth: true
                             model: root.resolutions.map(function(option) { return option.label })
-                            Binding on currentIndex {
-                                when: !resolutionChoice.popup.visible
-                                value: Math.max(0, root.resolutions.findIndex(function(option) { return option.value === (root.effective.resolution || "") }))
-                            }
+                            selectedIndex: Math.max(0, root.resolutions.findIndex(function(option) { return option.value === (root.effective.resolution || "") }))
                             onActivated: function(index) { root.save("resolution", root.resolutions[index].value) }
                         }
 

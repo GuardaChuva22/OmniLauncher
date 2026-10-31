@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QSet>
 #include <QStringList>
+#include <QThreadPool>
 #include <QVariantList>
 
 #include <functional>
@@ -23,6 +24,13 @@ class ModManager final : public QObject
     Q_PROPERTY(int totalHits READ totalHits NOTIFY resultsChanged)
     Q_PROPERTY(bool searching READ searching NOTIFY resultsChanged)
     Q_PROPERTY(QString searchError READ searchError NOTIFY resultsChanged)
+    Q_PROPERTY(int searchOffset READ searchOffset NOTIFY resultsChanged)
+    Q_PROPERTY(QVariantList categories READ categories NOTIFY categoriesChanged)
+    Q_PROPERTY(bool categoriesLoading READ categoriesLoading NOTIFY categoriesChanged)
+    Q_PROPERTY(QString categoriesError READ categoriesError NOTIFY categoriesChanged)
+    Q_PROPERTY(QVariantMap projectDetails READ projectDetails NOTIFY projectDetailsChanged)
+    Q_PROPERTY(bool projectLoading READ projectLoading NOTIFY projectDetailsChanged)
+    Q_PROPERTY(QString projectError READ projectError NOTIFY projectDetailsChanged)
     Q_PROPERTY(QString gameId READ gameId NOTIFY installedChanged)
     // Which content the installed list shows: "mod" | "shader" | "resourcepack".
     Q_PROPERTY(QString kind READ kind NOTIFY installedChanged)
@@ -48,14 +56,23 @@ class ModManager final : public QObject
     Q_PROPERTY(int updateCount READ updateCount NOTIFY installedChanged)
     // Custom packs (subscribed by link): newest published version per game id.
     Q_PROPERTY(QVariantMap customLatest READ customLatest NOTIFY customLatestChanged)
+    Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 
 public:
-    explicit ModManager(const QString &dataDirectory, QObject *parent = nullptr);
+    explicit ModManager(const QString &dataDirectory, QObject *parent = nullptr,
+                        QNetworkAccessManager *network = nullptr);
 
     QVariantList results() const { return m_results; }
     int totalHits() const { return m_totalHits; }
     bool searching() const { return m_searching; }
     QString searchError() const { return m_searchError; }
+    int searchOffset() const { return m_searchOffset; }
+    QVariantList categories() const { return m_categories; }
+    bool categoriesLoading() const { return m_categoriesLoading; }
+    QString categoriesError() const { return m_categoriesError; }
+    QVariantMap projectDetails() const { return m_projectDetails; }
+    bool projectLoading() const { return m_projectPending > 0; }
+    QString projectError() const { return m_projectError; }
     QString gameId() const { return m_gameId; }
     QString kind() const { return m_kind; }
     // True when a jar starting with one of the prefixes sits in the game's mods folder.
@@ -75,6 +92,7 @@ public:
     bool checkingUpdates() const { return m_checkingUpdates; }
     int updateCount() const;
     QVariantMap customLatest() const { return m_customLatest; }
+    QString lastError() const { return m_lastError; }
 
     // Custom pack from a manifest URL (https or file). targetGameId set: update that game.
     // Same two-step flow as Modrinth packs: packPrepared() → caller creates/updates the game
@@ -103,17 +121,27 @@ public:
 
     // `loader`: the game's loader for mods; for shaders/resource packs, the Modrinth loaders
     // of that content ("iris,optifine" / "minecraft"), comma-separated. offset > 0 appends a page.
+    // Empty gameVersion/loader removes that search filter. searchOffset tracks server hits,
+    // independently of duplicate projects removed from results.
     Q_INVOKABLE void search(const QString &query, const QString &gameVersion, const QString &loader, int offset = 0,
-                            const QString &kind = QStringLiteral("mod"));
+                            const QString &kind = QStringLiteral("mod"), const QString &category = {},
+                            const QString &sort = QStringLiteral("auto"));
+    Q_INVOKABLE void fetchCategories(const QString &kind = QStringLiteral("mod"));
+    // Compatibility always refers to the installation target, independent of search filters.
+    Q_INVOKABLE void fetchProjectDetails(const QString &projectId, const QString &gameVersion,
+                                        const QString &loader, const QString &kind = QStringLiteral("mod"));
+    Q_INVOKABLE void clearProjectDetails();
     // kind empty keeps the current one.
     Q_INVOKABLE void loadInstalled(const QString &gameId, const QString &kind = {});
     Q_INVOKABLE void install(const QString &projectId, const QString &gameId, const QString &gameVersion,
                              const QString &loader, const QString &kind = QStringLiteral("mod"));
-    Q_INVOKABLE bool setEnabled(const QString &gameId, const QString &file, bool enabled);
-    Q_INVOKABLE bool remove(const QString &gameId, const QString &file);
+    Q_INVOKABLE bool setEnabled(const QString &gameId, const QString &file, bool enabled, const QString &kind = {});
+    Q_INVOKABLE bool remove(const QString &gameId, const QString &file, const QString &kind = {});
 
 signals:
     void resultsChanged();
+    void categoriesChanged();
+    void projectDetailsChanged();
     void installedChanged();
     void installingChanged();
     void installFinished(const QString &projectId, bool ok, const QString &message);
@@ -126,6 +154,7 @@ signals:
     void versionChoicesChanged();
     void customLatestChanged();
     void packIconReady(const QString &gameId, const QString &fileUrl);
+    void lastErrorChanged();
 
 private:
     struct Install {
@@ -153,12 +182,24 @@ private:
     bool writeMetadata(const QString &gameId, const QJsonObject &metadata, const QString &kind = {}) const;
 
     QString m_root;
+    QString m_lastError;
+    void setError(const QString &message);
     QNetworkAccessManager *m_network;
     QVariantList m_results;
     int m_totalHits = 0;
     bool m_searching = false;
     QString m_searchError;
     quint64 m_searchSerial = 0;
+    int m_searchOffset = 0;
+    QString m_searchKey;
+    QVariantList m_categories;
+    bool m_categoriesLoading = false;
+    QString m_categoriesError;
+    quint64 m_categorySerial = 0;
+    QVariantMap m_projectDetails;
+    QString m_projectError;
+    int m_projectPending = 0;
+    quint64 m_projectSerial = 0;
     QString m_gameId;
     QVariantList m_installed;
     QString m_kind = QStringLiteral("mod");
@@ -186,4 +227,11 @@ private:
     bool m_checkingUpdates = false;
     QVariantMap m_customLatest;
     Downloader *m_packDownloader;
+    // SHA-1 of content files by "path|size|modified", so a second check reads no jar.
+    QHash<QString, QString> m_hashes;
+    void identifyFiles(const QString &gameId, const QString &gameVersion, const QString &loader,
+                       const QHash<QString, QString> &fileByHash);
+    // Hashing runs here, off the interface thread. Last member: destroyed first, it waits
+    // for a running job before the rest of the manager goes.
+    QThreadPool m_hashing;
 };

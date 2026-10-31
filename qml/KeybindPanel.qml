@@ -12,6 +12,30 @@ ColumnLayout {
 
     // The binding waiting for a key, or "".
     property string listening: ""
+    property Item listeningCap: null
+    // The wheel was turned while listening: Minecraft has no binding for it.
+    property bool wheelTried: false
+    onListeningChanged: { wheelTried = false; if (!listening) listeningCap = null }
+
+    // While listening, any mouse button anywhere in the window is the new key, Mouse 4
+    // and 5 included, not just a click on the small keycap itself.
+    MouseArea {
+        parent: Overlay.overlay
+        anchors.fill: parent
+        visible: root.listening !== ""
+        z: 1000
+        acceptedButtons: Qt.AllButtons
+        onPressed: function(mouse) {
+            const cap = root.listeningCap
+            if (!cap) return
+            const clear = cap.clearButton
+            const p = mapToItem(clear, mouse.x, mouse.y)
+            if (mouse.button === Qt.LeftButton && clear.contains(p)) { root.bind(cap.entry, "key.keyboard.unknown"); return }
+            const name = root.mouseName(mouse.button)
+            if (name) root.bind(cap.entry, name)
+        }
+        onWheel: function(wheel) { root.wheelTried = true }
+    }
 
     readonly property var categories: [
         { title: qsTr("Movimento"), keys: [
@@ -146,7 +170,7 @@ ColumnLayout {
                 id: crouchMode
                 width: 200
                 model: [qsTr("Segurar a tecla"), qsTr("Apertar para alternar")]
-                Binding on currentIndex { when: !crouchMode.popup.visible; value: runner.gameDefaults["toggleCrouch"] === "true" ? 1 : 0 }
+                selectedIndex: runner.gameDefaults["toggleCrouch"] === "true" ? 1 : 0
                 onActivated: function(index) { runner.setGameDefault("toggleCrouch", index === 1 ? "true" : "") }
             }
         }
@@ -157,7 +181,7 @@ ColumnLayout {
                 id: sprintMode
                 width: 200
                 model: [qsTr("Segurar a tecla"), qsTr("Apertar para alternar")]
-                Binding on currentIndex { when: !sprintMode.popup.visible; value: runner.gameDefaults["toggleSprint"] === "true" ? 1 : 0 }
+                selectedIndex: runner.gameDefaults["toggleSprint"] === "true" ? 1 : 0
                 onActivated: function(index) { runner.setGameDefault("toggleSprint", index === 1 ? "true" : "") }
             }
         }
@@ -252,8 +276,9 @@ ColumnLayout {
         readonly property bool active: root.listening === entry.id
         implicitWidth: Math.max(150, capLabel.implicitWidth + (active ? 70 : 36))
         implicitHeight: 36
+        readonly property Item clearButton: clearKey
         focus: active
-        onActiveChanged: if (active) forceActiveFocus()
+        onActiveChanged: if (active) { root.listeningCap = cap; forceActiveFocus() }
 
         SoftGlow {
             anchors.fill: parent
@@ -278,7 +303,9 @@ ColumnLayout {
         Text {
             id: capLabel
             anchors.centerIn: parent
-            text: cap.active ? qsTr("Aperte uma tecla…") : root.label(cap.value)
+            text: !cap.active ? root.label(cap.value)
+                : root.wheelTried ? qsTr("Rodinha não vira tecla no Minecraft")
+                : qsTr("Aperte uma tecla ou botão…")
             color: cap.active ? Theme.accentText : cap.clashing ? Theme.danger : cap.value === "key.keyboard.unknown" ? Theme.faint : Theme.text
             font.family: Theme.font; font.pixelSize: 13; font.weight: Font.DemiBold
             SequentialAnimation on opacity {
@@ -294,11 +321,9 @@ ColumnLayout {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             acceptedButtons: Qt.AllButtons
+            // Starts listening; the presses after that land on the window-wide catcher above.
             onPressed: function(mouse) {
-                if (cap.active) {
-                    const name = root.mouseName(mouse.button)
-                    if (name) root.bind(cap.entry, name)
-                } else if (mouse.button === Qt.LeftButton) {
+                if (!cap.active && mouse.button === Qt.LeftButton) {
                     root.listening = cap.entry.id
                     sfx.play("click")
                 }
@@ -306,6 +331,7 @@ ColumnLayout {
         }
         // Clear (unbind), only while listening. Takes no focus, so listening survives the press.
         ActionButton {
+            id: clearKey
             visible: cap.active
             anchors.right: parent.right; anchors.rightMargin: 3
             anchors.verticalCenter: parent.verticalCenter

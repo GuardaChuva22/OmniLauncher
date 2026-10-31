@@ -30,6 +30,13 @@ jobs:
           modules: 'qtshadertools qtimageformats'
           cache: true
 
+      # javac for the Omni agent (agent/), built for Java 17 games and newer.
+      - name: Install a JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install Inno Setup
         shell: powershell
         run: |

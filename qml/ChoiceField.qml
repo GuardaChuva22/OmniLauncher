@@ -8,6 +8,23 @@ ComboBox {
     font.pixelSize: 14
     leftPadding: 14; rightPadding: 36
     hoverEnabled: true
+    // The saved choice, bound by the user of the field. The field shows it from the start,
+    // again after a pick (the save may have turned it down) and after its options change,
+    // a language switch included, which puts a ComboBox back on its first option.
+    // -1: the field keeps its own index.
+    property int selectedIndex: -1
+    function showSelected() {
+        if (selectedIndex >= 0 && selectedIndex < count && currentIndex !== selectedIndex)
+            currentIndex = selectedIndex
+    }
+    onSelectedIndexChanged: showSelected()
+    onCountChanged: showSelected()
+    onModelChanged: Qt.callLater(showSelected)
+    Component.onCompleted: showSelected()
+    Connections {
+        target: control
+        function onActivated() { Qt.callLater(control.showSelected) }
+    }
     contentItem: Text {
         text: control.displayText
         font: control.font

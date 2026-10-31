@@ -680,6 +680,12 @@ ApplicationWindow {
                         onNotify: function(message) { window.notify(message) }
                         onDebugOfflineRequested: debugOfflineWarning.open()
                     }
+                    WorldsPage {
+                        anchors.fill: parent
+                        visible: window.page === 6
+                        reduced: window.reduced
+                        onNotify: function(message) { window.notify(message) }
+                    }
                     ScreenshotsPage {
                         anchors.fill: parent
                         visible: window.page === 3
@@ -1411,10 +1417,7 @@ ApplicationWindow {
                         model: runner.loaderVersions.map(function(version) {
                             return version === runner.recommendedLoader ? version + qsTr("  ·  recomendada") : version
                         })
-                        Binding on currentIndex {
-                            when: !loaderVersionChoice.popup.visible
-                            value: Math.max(0, runner.loaderVersions.indexOf(gameEditor.loaderVersionToSave))
-                        }
+                        selectedIndex: Math.max(0, runner.loaderVersions.indexOf(gameEditor.loaderVersionToSave))
                         onActivated: function(index) { gameEditor.chosenLoaderVersion = runner.loaderVersions[index] }
                     }
                 }

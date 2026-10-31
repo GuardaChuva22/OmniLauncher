@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Network Qml Quick QuickControls2 Widgets)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Network Qml Quick QuickControls2 Widgets ZlibPrivate ShaderTools)
 qt_standard_project_setup(REQUIRES 6.5)
 if(Qt6_VERSION VERSION_GREATER_EQUAL 6.8)
     qt_policy(SET QTP0004 NEW)
@@ -39,6 +39,24 @@ qt_add_executable(OmniLauncher WIN32
     src/core/PackCloud.cpp
     src/core/SteamTunnel.h
     src/core/SteamTunnel.cpp
+    src/core/Nbt.h
+    src/core/Nbt.cpp
+    src/core/Worlds.h
+    src/core/Worlds.cpp
+    src/core/WorldMap.h
+    src/core/WorldMap.cpp
+    src/core/WorldData.h
+    src/core/WorldData.cpp
+    src/core/BlockModels.h
+    src/core/BlockModels.cpp
+    src/core/ChunkMesher.h
+    src/core/ChunkMesher.cpp
+    src/core/EntityModels.h
+    src/core/EntityModels.cpp
+    src/core/WorldView3D.h
+    src/core/WorldView3D.cpp
+    src/core/OmniLink.h
+    src/core/OmniLink.cpp
     src/app/app.rc
 )
 
@@ -103,6 +121,17 @@ else()
     message(STATUS "Steam tunnel: off (no Steamworks SDK)")
 endif()
 
+# The Omni agent (agent/): a Java agent the launcher hands to the game for the live map,
+# built beside the exe. Needs a JDK 17+; without one the launcher builds without it and
+# the map reads the world files only.
+find_package(Java 17 COMPONENTS Development QUIET)
+if(Java_FOUND)
+    add_subdirectory(agent)
+    add_dependencies(OmniLauncher omni-agent)
+    message(STATUS "Omni agent: built with ${Java_JAVAC_EXECUTABLE}")
+else()
+    message(STATUS "Omni agent: off (no JDK 17+)")
+endif()
 # The prototype's QML/assets are authored alongside the native shell. CONFIGURE_DEPENDS
 # keeps newly added components visible while the first Home composition is evolving.
 file(GLOB_RECURSE OMNI_QML_FILES CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -128,6 +157,12 @@ qt_add_qml_module(OmniLauncher
 
 target_link_libraries(OmniLauncher PRIVATE
     Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Widgets
+    Qt6::ZlibPrivate Qt6::GuiPrivate
+)
+# The 3D world map's shaders, compiled for every graphics API Qt Quick may run on.
+qt_add_shaders(OmniLauncher "omni_shaders"
+    PREFIX "/"
+    FILES shaders/world.vert shaders/world.frag
 )
 if(MSVC)
     target_compile_options(OmniLauncher PRIVATE /W4 /utf-8 /permissive-)

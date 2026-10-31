@@ -51,10 +51,21 @@ QString extensionFor(const QString &kind)
 {
     return kind == "mod" ? QStringLiteral(".jar") : QStringLiteral(".zip");
 }
+
+QJsonObject primaryFile(const QJsonObject &version)
+{
+    const auto files = version.value("files").toArray();
+    for (const auto &value : files) {
+        if (value.toObject().value("primary").toBool())
+            return value.toObject();
+    }
+    return files.isEmpty() ? QJsonObject{} : files.first().toObject();
+}
 } // namespace
 
-ModManager::ModManager(const QString &dataDirectory, QObject *parent)
-    : QObject(parent), m_root(QDir(dataDirectory).absolutePath()), m_network(new QNetworkAccessManager(this))
+ModManager::ModManager(const QString &dataDirectory, QObject *parent, QNetworkAccessManager *network)
+    : QObject(parent), m_root(QDir(dataDirectory).absolutePath())
+    , m_network(network ? network : new QNetworkAccessManager(this))
     , m_packDownloader(new Downloader(m_network, this))
 {
     connect(m_packDownloader, &Downloader::progress, this, [this] {
@@ -437,31 +448,46 @@ QStringList ModManager::installedProjects() const
 // ── Catalog ────────────────────────────────────────────────────────────────
 
 void ModManager::search(const QString &query, const QString &gameVersion, const QString &loader, int offset,
-                        const QString &kind)
+                        const QString &kind, const QString &category, const QString &sort)
 {
-    const auto serial = ++m_searchSerial;
     QUrlQuery params;
     params.addQueryItem("query", query.trimmed());
     params.addQueryItem("limit", "20");
-    params.addQueryItem("offset", QString::number(qMax(0, offset)));
-    params.addQueryItem("index", query.trimmed().isEmpty() ? "downloads" : "relevance");
+    const QStringList sorts{"relevance", "downloads", "follows", "newest", "updated"};
+    params.addQueryItem("index", sorts.contains(sort) ? sort : query.trimmed().isEmpty() ? "downloads" : "relevance");
     QJsonArray loaders;
     for (const auto &value : loaderArray(loader))
         loaders.append("categories:" + value.toString());
-    QJsonArray facets{QJsonArray{"project_type:" + kind}, QJsonArray{"versions:" + gameVersion}};
-    if (kind != "resourcepack")
+    QJsonArray facets;
+    facets.append(QJsonArray{"project_type:" + kind});
+    if (!gameVersion.trimmed().isEmpty())
+        facets.append(QJsonArray{"versions:" + gameVersion.trimmed()});
+    if (kind != "resourcepack" && !loaders.isEmpty())
         facets.append(loaders);
+    if (!category.isEmpty())
+        facets.append(QJsonArray{"categories:" + category});
     params.addQueryItem("facets", QString::fromUtf8(QJsonDocument(facets).toJson(QJsonDocument::Compact)));
+    const auto key = params.toString(QUrl::FullyEncoded);
+    offset = qMax(0, offset);
+    // A delayed pagination event must never append results for a previous query/filter set.
+    if (offset > 0 && (key != m_searchKey || m_searching || offset != m_searchOffset))
+        return;
+    const auto serial = ++m_searchSerial;
+    m_searchKey = key;
+    params.addQueryItem("offset", QString::number(offset));
     QUrl url(kApi + "search");
     url.setQuery(params);
 
     m_searching = true;
     m_searchError.clear();
-    if (offset == 0)
+    if (offset == 0) {
         m_results.clear();
+        m_totalHits = 0;
+        m_searchOffset = 0;
+    }
     emit resultsChanged();
 
-    auto *reply = get(url.toString());
+    auto *reply = get(url.toString(QUrl::FullyEncoded));
     connect(reply, &QNetworkReply::finished, this, [this, reply, serial, offset] {
         reply->deleteLater();
         if (serial != m_searchSerial)
@@ -472,22 +498,157 @@ void ModManager::search(const QString &query, const QString &gameVersion, const 
             emit resultsChanged();
             return;
         }
-        const auto root = QJsonDocument::fromJson(reply->readAll()).object();
+        const auto document = QJsonDocument::fromJson(reply->readAll());
+        const auto root = document.object();
+        if (!document.isObject() || !root.value("hits").isArray()) {
+            m_searchError = tr("O Modrinth retornou uma resposta inválida. Tente novamente.");
+            emit resultsChanged();
+            return;
+        }
         if (offset == 0)
             m_results.clear();
-        for (const auto &value : root.value("hits").toArray()) {
+        const auto hits = root.value("hits").toArray();
+        QSet<QString> seen;
+        for (const auto &value : m_results)
+            seen.insert(value.toMap().value("id").toString());
+        for (const auto &value : hits) {
             const auto hit = value.toObject();
+            const auto id = hit.value("project_id").toString();
+            if (id.isEmpty() || seen.contains(id))
+                continue;
+            seen.insert(id);
             m_results.append(QVariantMap{
-                {"id", hit.value("project_id").toString()},
+                {"id", id},
+                {"slug", hit.value("slug").toString()},
                 {"title", hit.value("title").toString()},
                 {"author", hit.value("author").toString()},
                 {"description", hit.value("description").toString()},
                 {"iconUrl", hit.value("icon_url").toString()},
                 {"downloads", hit.value("downloads").toDouble()},
+                {"categories", hit.value("categories").toArray().toVariantList()},
+                {"gameVersions", hit.value("versions").toArray().toVariantList()},
+                {"gallery", hit.value("gallery").toArray().toVariantList()},
             });
         }
-        m_totalHits = root.value("total_hits").toInt();
+        m_searchOffset = offset + int(hits.size());
+        m_totalHits = hits.isEmpty() ? m_searchOffset : root.value("total_hits").toInt();
         emit resultsChanged();
+    });
+}
+
+void ModManager::fetchCategories(const QString &kind)
+{
+    const auto serial = ++m_categorySerial;
+    m_categories.clear();
+    m_categoriesError.clear();
+    m_categoriesLoading = true;
+    emit categoriesChanged();
+    auto *reply = get(kApi + "tag/category");
+    connect(reply, &QNetworkReply::finished, this, [this, reply, serial, kind] {
+        reply->deleteLater();
+        if (serial != m_categorySerial)
+            return;
+        m_categoriesLoading = false;
+        const auto document = QJsonDocument::fromJson(reply->readAll());
+        if (reply->error() != QNetworkReply::NoError || !document.isArray()) {
+            m_categoriesError = tr("Não foi possível carregar as categorias.");
+        } else {
+            QSet<QString> seen;
+            for (const auto &value : document.array()) {
+                const auto category = value.toObject();
+                const auto name = category.value("name").toString();
+                if (category.value("project_type").toString() != kind || name.isEmpty() || seen.contains(name))
+                    continue;
+                seen.insert(name);
+                m_categories.append(QVariantMap{{"id", name}, {"name", name}});
+            }
+            std::sort(m_categories.begin(), m_categories.end(), [](const QVariant &a, const QVariant &b) {
+                return a.toMap().value("name").toString() < b.toMap().value("name").toString();
+            });
+        }
+        emit categoriesChanged();
+    });
+}
+
+void ModManager::clearProjectDetails()
+{
+    ++m_projectSerial;
+    m_projectDetails.clear();
+    m_projectError.clear();
+    m_projectPending = 0;
+    emit projectDetailsChanged();
+}
+
+void ModManager::fetchProjectDetails(const QString &projectId, const QString &gameVersion,
+                                     const QString &loader, const QString &kind)
+{
+    clearProjectDetails();
+    if (projectId.isEmpty())
+        return;
+    const auto serial = m_projectSerial;
+    m_projectDetails = {{"id", projectId}, {"compatible", false}, {"compatibilityKnown", false}};
+    m_projectPending = 2;
+    emit projectDetailsChanged();
+    const auto path = kApi + "project/" + QString::fromUtf8(QUrl::toPercentEncoding(projectId));
+    auto *reply = get(path);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, serial] {
+        reply->deleteLater();
+        if (serial != m_projectSerial)
+            return;
+        --m_projectPending;
+        const auto document = QJsonDocument::fromJson(reply->readAll());
+        const auto project = document.object();
+        if (reply->error() != QNetworkReply::NoError || project.value("id").toString().isEmpty()) {
+            m_projectError = tr("Não foi possível carregar os detalhes. Tente novamente.");
+        } else {
+            for (const auto &key : {"id", "slug", "title", "description", "body", "downloads", "followers"})
+                m_projectDetails.insert(key, project.value(key).toVariant());
+            for (const auto &key : {"categories", "loaders"})
+                m_projectDetails.insert(key, project.value(key).toArray().toVariantList());
+            m_projectDetails.insert("gameVersions", project.value("game_versions").toArray().toVariantList());
+            m_projectDetails.insert("iconUrl", project.value("icon_url").toString());
+            m_projectDetails.insert("license", project.value("license").toObject().value("id").toString());
+            m_projectDetails.insert("sourceUrl", project.value("source_url").toString());
+            m_projectDetails.insert("wikiUrl", project.value("wiki_url").toString());
+            m_projectDetails.insert("issuesUrl", project.value("issues_url").toString());
+            const auto donations = project.value("donation_urls").toArray();
+            m_projectDetails.insert("donationUrl", donations.isEmpty() ? QString{} : donations.first().toObject().value("url").toString());
+        }
+        emit projectDetailsChanged();
+    });
+
+    QUrlQuery query;
+    if (!loader.trimmed().isEmpty())
+        query.addQueryItem("loaders", jsonList(loader.toLower()));
+    if (!gameVersion.trimmed().isEmpty())
+        query.addQueryItem("game_versions", jsonList(gameVersion));
+    QUrl versionsUrl(path + "/version");
+    versionsUrl.setQuery(query);
+    auto *versionsReply = get(versionsUrl.toString(QUrl::FullyEncoded));
+    connect(versionsReply, &QNetworkReply::finished, this, [this, versionsReply, serial, gameVersion, loader, kind] {
+        versionsReply->deleteLater();
+        if (serial != m_projectSerial)
+            return;
+        --m_projectPending;
+        const auto document = QJsonDocument::fromJson(versionsReply->readAll());
+        if (versionsReply->error() != QNetworkReply::NoError || !document.isArray()) {
+            m_projectError = tr("Não foi possível verificar a compatibilidade. Tente novamente.");
+        } else {
+            // Empty target information must never unlock an unfiltered installation.
+            const bool known = !gameVersion.trimmed().isEmpty() && !loader.trimmed().isEmpty();
+            m_projectDetails.insert("compatibilityKnown", known);
+            const auto versions = document.array();
+            // Mirror resolveProject/installVersion: newest returned version, then primary
+            // file (or first file). A different release/file must not promise an install.
+            if (!versions.isEmpty()) {
+                const auto version = versions.first().toObject();
+                const auto fileName = QFileInfo(primaryFile(version).value("filename").toString()).fileName();
+                m_projectDetails.insert("compatible", known && fileName.endsWith(extensionFor(kind), Qt::CaseInsensitive));
+                m_projectDetails.insert("versionNumber", version.value("version_number").toString());
+                m_projectDetails.insert("versionName", version.value("name").toString());
+            }
+        }
+        emit projectDetailsChanged();
     });
 }
 
@@ -575,16 +736,7 @@ void ModManager::installVersion(Install *job, const QJsonObject &version, const 
             resolveProject(job, projectId, {});
     }
 
-    const auto files = version.value("files").toArray();
-    QJsonObject file;
-    for (const auto &value : files) {
-        if (value.toObject().value("primary").toBool()) {
-            file = value.toObject();
-            break;
-        }
-    }
-    if (file.isEmpty() && !files.isEmpty())
-        file = files.first().toObject();
+    const auto file = primaryFile(version);
     const auto fileName = QFileInfo(file.value("filename").toString()).fileName();
     if (fileName.isEmpty() || !fileName.endsWith(extensionFor(job->kind), Qt::CaseInsensitive)) {
         job->error = tr("O Modrinth não forneceu um arquivo %1 para esse conteúdo.").arg(extensionFor(job->kind));
@@ -726,31 +878,69 @@ void ModManager::loadInstalled(const QString &gameId, const QString &kind)
     emit installedChanged();
 }
 
-bool ModManager::setEnabled(const QString &gameId, const QString &file, bool enabled)
+void ModManager::setError(const QString &message)
 {
-    const QDir mods(modsDirectory(gameId));
-    const bool isEnabled = file.endsWith(extensionFor(m_kind), Qt::CaseInsensitive);
-    if (QFileInfo(file).fileName() != file || isEnabled == enabled)
-        return isEnabled == enabled;
-    const auto target = enabled ? file.chopped(int(QStringLiteral(".disabled").size())) : file + ".disabled";
-    const bool ok = QFile::rename(mods.filePath(file), mods.filePath(target));
-    loadInstalled(gameId);
-    return ok;
+    if (m_lastError == message)
+        return;
+    m_lastError = message;
+    emit lastErrorChanged();
 }
 
-bool ModManager::remove(const QString &gameId, const QString &file)
+bool ModManager::setEnabled(const QString &gameId, const QString &file, bool enabled, const QString &kind)
 {
-    if (QFileInfo(file).fileName() != file)
+    setError({});
+    const auto contentKind = kind.isEmpty() ? m_kind : kind;
+    if (gameId.isEmpty() || file.isEmpty() || QFileInfo(file).fileName() != file
+        || (contentKind != "mod" && contentKind != "shader" && contentKind != "resourcepack")
+        || (!file.endsWith(extensionFor(contentKind), Qt::CaseInsensitive)
+            && !file.endsWith(extensionFor(contentKind) + ".disabled", Qt::CaseInsensitive))) {
+        setError(tr("Selecione um arquivo válido para alterar."));
         return false;
-    const QDir mods(modsDirectory(gameId));
-    const bool ok = QFile::remove(mods.filePath(file));
-    if (ok) {
-        auto metadata = readMetadata(gameId);
-        metadata.remove(file.endsWith(".disabled") ? file.chopped(int(QStringLiteral(".disabled").size())) : file);
-        writeMetadata(gameId, metadata);
     }
-    loadInstalled(gameId);
-    return ok;
+    const QDir mods(modsDirectory(gameId, contentKind));
+    QFile source(mods.filePath(file));
+    if (!source.exists()) {
+        setError(tr("O arquivo %1 não está mais nesta pasta. Atualize a lista e tente novamente.").arg(file));
+        return false;
+    }
+    const bool isEnabled = file.endsWith(extensionFor(contentKind), Qt::CaseInsensitive);
+    if (isEnabled == enabled)
+        return true;
+    const auto target = enabled ? file.chopped(int(QStringLiteral(".disabled").size())) : file + ".disabled";
+    if (!source.rename(mods.filePath(target))) {
+        setError(tr("Não foi possível alterar %1: %2. Se o jogo estiver aberto, feche-o e tente novamente.")
+                     .arg(file, source.errorString()));
+        return false;
+    }
+    if (m_gameId == gameId && m_kind == contentKind)
+        loadInstalled(gameId, contentKind);
+    return true;
+}
+
+bool ModManager::remove(const QString &gameId, const QString &file, const QString &kind)
+{
+    setError({});
+    const auto contentKind = kind.isEmpty() ? m_kind : kind;
+    if (gameId.isEmpty() || file.isEmpty() || QFileInfo(file).fileName() != file
+        || (contentKind != "mod" && contentKind != "shader" && contentKind != "resourcepack")
+        || (!file.endsWith(extensionFor(contentKind), Qt::CaseInsensitive)
+            && !file.endsWith(extensionFor(contentKind) + ".disabled", Qt::CaseInsensitive))) {
+        setError(tr("Selecione um arquivo válido para remover."));
+        return false;
+    }
+    const QDir mods(modsDirectory(gameId, contentKind));
+    QFile source(mods.filePath(file));
+    if (!source.remove()) {
+        setError(tr("Não foi possível remover %1: %2. Se o jogo estiver aberto, feche-o e tente novamente.")
+                     .arg(file, source.errorString()));
+        return false;
+    }
+    auto metadata = readMetadata(gameId, contentKind);
+    metadata.remove(file.endsWith(".disabled") ? file.chopped(int(QStringLiteral(".disabled").size())) : file);
+    writeMetadata(gameId, metadata, contentKind);
+    if (m_gameId == gameId && m_kind == contentKind)
+        loadInstalled(gameId, contentKind);
+    return true;
 }
 
 // ── Versions, updates ──────────────────────────────────────────────────────
@@ -856,25 +1046,60 @@ void ModManager::checkUpdates(const QString &gameId, const QString &gameVersion,
 {
     if (gameId.isEmpty() || m_checkingUpdates)
         return;
-    // Hash every jar: Modrinth identifies files by SHA-1, wherever they came from.
+    // Hash every jar: Modrinth identifies files by SHA-1, wherever they came from. A file
+    // hashed before (same size and time) is known; the rest are read on a worker thread,
+    // a few hundred MB of mods being seconds of a frozen window otherwise.
     const QDir mods(modsDirectory(gameId));
-    QHash<QString, QString> fileByHash;
-    QJsonArray hashes;
+    QHash<QString, QString> fileByHash, fileByStamp;
+    QList<QPair<QString, QString>> unhashed; // (stamp, path)
     const auto extension = extensionFor(m_kind);
-    for (const auto &file : mods.entryList({"*" + extension, "*" + extension + ".disabled"}, QDir::Files)) {
-        QFile jar(mods.filePath(file));
-        if (!jar.open(QIODevice::ReadOnly))
-            continue;
-        QCryptographicHash hash(QCryptographicHash::Sha1);
-        hash.addData(&jar);
-        const auto sha1 = QString::fromLatin1(hash.result().toHex());
-        fileByHash.insert(sha1, file.endsWith(".disabled") ? file.chopped(int(QStringLiteral(".disabled").size())) : file);
-        hashes.append(sha1);
+    for (const auto &info : mods.entryInfoList({"*" + extension, "*" + extension + ".disabled"}, QDir::Files)) {
+        const auto file = info.fileName();
+        const auto key = file.endsWith(".disabled") ? file.chopped(int(QStringLiteral(".disabled").size())) : file;
+        const auto stamp = QStringLiteral("%1|%2|%3").arg(info.absoluteFilePath()).arg(info.size())
+                               .arg(info.lastModified().toMSecsSinceEpoch());
+        if (m_hashes.contains(stamp)) {
+            fileByHash.insert(m_hashes.value(stamp), key);
+        } else {
+            unhashed.append({stamp, info.absoluteFilePath()});
+            fileByStamp.insert(stamp, key);
+        }
     }
-    if (hashes.isEmpty())
+    if (fileByHash.isEmpty() && unhashed.isEmpty())
         return;
     m_checkingUpdates = true;
     emit installedChanged();
+    if (unhashed.isEmpty()) {
+        identifyFiles(gameId, gameVersion, loader, fileByHash);
+        return;
+    }
+    m_hashing.start([this, unhashed, fileByStamp, fileByHash, gameId, gameVersion, loader] {
+        QHash<QString, QString> computed;
+        for (const auto &[stamp, path] : unhashed) {
+            QFile jar(path);
+            if (!jar.open(QIODevice::ReadOnly))
+                continue;
+            QCryptographicHash hash(QCryptographicHash::Sha1);
+            hash.addData(&jar);
+            computed.insert(stamp, QString::fromLatin1(hash.result().toHex()));
+        }
+        QMetaObject::invokeMethod(this, [this, computed, fileByStamp, fileByHash, gameId, gameVersion, loader] {
+            auto known = fileByHash;
+            for (auto it = computed.begin(); it != computed.end(); ++it) {
+                m_hashes.insert(it.key(), it.value());
+                known.insert(it.value(), fileByStamp.value(it.key()));
+            }
+            identifyFiles(gameId, gameVersion, loader, known);
+        }, Qt::QueuedConnection);
+    });
+}
+
+void ModManager::identifyFiles(const QString &gameId, const QString &gameVersion, const QString &loader,
+                               const QHash<QString, QString> &fileByHash)
+{
+    QJsonArray hashes;
+    for (auto it = fileByHash.begin(); it != fileByHash.end(); ++it)
+        hashes.append(it.key());
     const auto finish = [this, gameId] {
         m_checkingUpdates = false;
         if (gameId == m_gameId)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Downloader.h"
+#include "OmniLink.h"
 
 #include <QElapsedTimer>
 #include <QHash>
@@ -111,6 +112,8 @@ public:
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void dismiss();
     Q_INVOKABLE void stopGame();
+    // The live map's link: games started from now on get the Omni agent.
+    void setLink(OmniLink *link) { m_link = link; }
     Q_INVOKABLE void refreshVersions();
     // `loader`: "Fabric", "Forge" or "NeoForge".
     Q_INVOKABLE void fetchLoaderVersions(const QString &gameVersion, const QString &loader = QStringLiteral("Fabric"));
@@ -166,6 +169,8 @@ private:
     void stepCollectFiles();
     void stepPrepareAndStart();
     bool startProcess(const QString &java, const QStringList &arguments);
+    bool usesAgent() const;
+    QString mappingsPath() const;
     void onProcessExited(int exitCode);
     QString logTail() const;
 
@@ -215,6 +220,7 @@ private:
     QTimer *m_sessionTimer = nullptr;
     QString m_playerName;
     QVariantMap m_settings;
+    QPointer<OmniLink> m_link;
     QVariantMap m_account;
     QJsonObject m_version;
     QString m_javaComponent;

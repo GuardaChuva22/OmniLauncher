@@ -115,7 +115,7 @@ Item {
                         readonly property var codes: ["auto", "pt", "en"]
                         width: 220
                         model: [qsTr("Automático (Windows)"), "Português (Brasil)", "English"]
-                        Binding on currentIndex { when: !languageChoice.popup.visible; value: Math.max(0, languageChoice.codes.indexOf(i18n.language)) }
+                        selectedIndex: Math.max(0, languageChoice.codes.indexOf(i18n.language))
                         onActivated: function(index) { i18n.setLanguage(languageChoice.codes[index]) }
                     }
                 }
@@ -233,10 +233,7 @@ Item {
                         id: afterLaunch
                         width: 200
                         model: root.afterLaunchOptions.map(function(option) { return option.label })
-                        Binding on currentIndex {
-                            when: !afterLaunch.popup.visible
-                            value: Math.max(0, root.afterLaunchOptions.findIndex(function(option) { return option.value === launcher.preferences.afterLaunch }))
-                        }
+                        selectedIndex: Math.max(0, root.afterLaunchOptions.findIndex(function(option) { return option.value === launcher.preferences.afterLaunch }))
                         onActivated: function(index) { root.setPreference("afterLaunch", root.afterLaunchOptions[index].value) }
                     }
                 }
@@ -330,7 +327,7 @@ Item {
                         id: guiScale
                         width: 200
                         model: [qsTr("Automática"), qsTr("1×"), qsTr("2×"), qsTr("3×"), qsTr("4×")]
-                        Binding on currentIndex { when: !guiScale.popup.visible; value: Math.min(4, Number(root.option("guiScale", "0"))) }
+                        selectedIndex: Math.min(4, Number(root.option("guiScale", "0")))
                         onActivated: function(index) { root.setOption("guiScale", index) }
                     }
                 }
@@ -341,7 +338,7 @@ Item {
                         readonly property var codes: ["", "pt_br", "en_us", "es_es"]
                         width: 200
                         model: [qsTr("Padrão do jogo"), qsTr("Português (Brasil)"), qsTr("English (US)"), qsTr("Español")]
-                        Binding on currentIndex { when: !language.popup.visible; value: Math.max(0, language.codes.indexOf(root.option("lang", ""))) }
+                        selectedIndex: Math.max(0, language.codes.indexOf(root.option("lang", "")))
                         onActivated: function(index) { runner.setGameDefault("lang", language.codes[index]) }
                     }
                 }

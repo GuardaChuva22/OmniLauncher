@@ -19,3 +19,9 @@ ctest --test-dir build-tests --output-on-failure
 ```
 
 O CTest prepara o caminho das DLLs Qt no Windows. Arquivos gerados ficam em `build-tests/`, fora do Git.
+
+`catalog-smoke` também usa Qt Network, com respostas simuladas sem acessar a internet. Verifica os filtros do catálogo, paginação com projetos repetidos, respostas atrasadas, categorias por tipo de conteúdo e a compatibilidade dos detalhes com o jogo de destino. Para executar somente essa verificação: `ctest --test-dir build-tests -R catalog-smoke --output-on-failure`.
+
+`nbt-smoke` monta um `level.dat` em memória e confere o leitor de NBT (sem compressão, gzip e zlib), a recusa de dados cortados, a lista de mundos da aba Mundos (com o mundo de um servidor hospedado, achado pelo `server.properties`) e a malha 3D de um chunk sintético (a superfície da água na altura certa, e o corte de Y escondendo o que fica acima) e os blocos e a luz ao vivo de um quadro `Blocks` por cima dos salvos, que somem quando o ao vivo é desligado. Para executar somente essa verificação: `ctest --test-dir build-tests -R nbt-smoke --output-on-failure`.
+
+`link-smoke` confere a ponta do launcher na conexão com o Omni agent: uma conexão sem o token do lançamento é derrubada, e um quadro `State` escrito como o agent escreve (`DataOutputStream` do Java), mesmo chegando em pedaços, vira jogador e entidades. Um quadro `Blocks` fica guardado pelo chunk e é esquecido quando o jogo desconecta, e um quadro `Model` é anunciado com o id do mob. Um `State` de servidor (`@localhost:25567`) só casa com um servidor deste computador naquela porta. Para executar somente essa verificação: `ctest --test-dir build-tests -R link-smoke --output-on-failure`. Para conferir fora do jogo que todos os nomes que o agent lê existem num client: `java -cp "build\omni-agent.jar;<jar do client>;<bibliotecas>" omni.agent.Check [arquivo de mappings]`.
