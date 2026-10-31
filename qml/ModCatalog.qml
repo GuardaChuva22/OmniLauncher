@@ -7,6 +7,8 @@ GlassDialog {
     id: root
     property var game: null
     property string kind: "mod"
+    // A dedicated server ("server:<id>"): client-only mods stay out of the results.
+    readonly property bool forServer: game !== null && String(game.id).indexOf("server:") === 0
     property string loader: ""
     property string category: ""
     property var selected: null
@@ -19,7 +21,8 @@ GlassDialog {
     readonly property bool wide: width >= 1080
     readonly property var sortValues: ["auto", "downloads", "updated", "newest", "follows"]
 
-    title: kind === "shader" ? qsTr("Adicionar shaders") : kind === "resourcepack" ? qsTr("Adicionar resource packs") : qsTr("Adicionar mods")
+    title: kind === "shader" ? qsTr("Adicionar shaders") : kind === "resourcepack" ? qsTr("Adicionar resource packs")
+         : kind === "datapack" ? qsTr("Adicionar datapacks") : qsTr("Adicionar mods")
     width: Math.min(1360, parent ? parent.width - 40 : 1360)
     height: Math.min(860, parent ? parent.height - 48 : 860)
     padding: 24
@@ -53,7 +56,8 @@ GlassDialog {
         if (!game) return
         searchDelay.stop()
         mods.search(query.text, sameVersion.checked ? game.version : "",
-                    sameLoader.checked ? loader : "", offset, kind, category, sortValues[sort.currentIndex])
+                    sameLoader.checked ? loader : "", offset, kind, category, sortValues[sort.currentIndex],
+                    forServer ? "server" : "")
         if (offset === 0) results.positionViewAtBeginning()
     }
     function selectProject(hit) {
@@ -161,7 +165,8 @@ GlassDialog {
             Caption {
                 Layout.fillWidth: true
                 text: root.game ? root.game.title + "  ·  Minecraft " + root.game.version + "  ·  "
-                    + (root.kind === "mod" ? root.loader : root.kind === "shader" ? "Iris / OptiFine" : qsTr("Resource packs")) : ""
+                    + (root.kind === "mod" ? root.loader : root.kind === "shader" ? "Iris / OptiFine"
+                       : root.kind === "datapack" ? qsTr("Datapacks") : qsTr("Resource packs")) : ""
                 elide: Text.ElideRight
                 wrapMode: Text.NoWrap
             }
@@ -195,7 +200,7 @@ GlassDialog {
                 }
                 RowLayout {
                     Layout.fillWidth: true
-                    visible: root.kind !== "resourcepack"
+                    visible: root.kind !== "resourcepack" && root.kind !== "datapack"
                     Caption { Layout.fillWidth: true; text: root.kind === "shader" ? "Iris / OptiFine" : root.loader }
                     ToggleSwitch { id: sameLoader; checked: true; reduced: root.reduced; Accessible.name: qsTr("Filtrar pelo loader do jogo"); onToggled: root.scheduleSearch() }
                 }
@@ -242,7 +247,8 @@ GlassDialog {
                     Layout.fillWidth: true
                     iconName: "search"; clearable: true
                     Accessible.name: placeholderText
-                    placeholderText: root.kind === "shader" ? qsTr("Buscar shaders") : root.kind === "resourcepack" ? qsTr("Buscar resource packs") : qsTr("Buscar mods")
+                    placeholderText: root.kind === "shader" ? qsTr("Buscar shaders") : root.kind === "resourcepack" ? qsTr("Buscar resource packs")
+                        : root.kind === "datapack" ? qsTr("Buscar datapacks") : qsTr("Buscar mods")
                     onTextChanged: root.scheduleSearch()
                     onAccepted: root.runSearch(0)
                 }
@@ -510,8 +516,8 @@ GlassDialog {
                             Layout.fillWidth: true
                             color: root.canInstall ? Theme.success : Theme.muted
                             text: mods.projectLoading ? qsTr("Verificando compatibilidade…")
-                                : root.canInstall ? qsTr("Compatível com este jogo")
-                                : root.project.compatibilityKnown === true ? qsTr("Sem versão compatível com este jogo")
+                                : root.canInstall ? (root.forServer ? qsTr("Compatível com este servidor") : qsTr("Compatível com este jogo"))
+                                : root.project.compatibilityKnown === true ? (root.forServer ? qsTr("Sem versão compatível com este servidor") : qsTr("Sem versão compatível com este jogo"))
                                 : qsTr("Não foi possível verificar a compatibilidade")
                         }
                     }
@@ -524,7 +530,7 @@ GlassDialog {
                     }
                     ActionButton {
                         Layout.fillWidth: true
-                        text: root.installed ? qsTr("Instalado") : root.installing ? qsTr("Instalando…") : qsTr("Instalar no jogo")
+                        text: root.installed ? qsTr("Instalado") : root.installing ? qsTr("Instalando…") : root.forServer ? qsTr("Instalar no servidor") : qsTr("Instalar no jogo")
                         iconName: root.installed ? "check" : root.installing ? "" : "download"
                         primary: !root.installed
                         enabled: root.canInstall && !root.installed && !root.installing

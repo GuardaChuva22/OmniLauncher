@@ -19,7 +19,7 @@ class QProcess;
 class ServerManager final : public QObject
 {
     Q_OBJECT
-    // id, name, gameId, version, loader, loaderVersion, memoryMb, port, installed, createdAt
+    // id, name, gameId, version, loader, loaderVersion, memoryMb, port, installed, createdAt, lastStartedAt
     Q_PROPERTY(QVariantList servers READ servers NOTIFY serversChanged)
     // Per server id: state ("stopped" | "installing" | "starting" | "running" | "stopping" | "failed"),
     // detail, players (list of names), startedAt (epoch ms, 0 when not running)
@@ -70,6 +70,9 @@ public:
     // name, path, sizeBytes, createdAt (ISO), newest first.
     Q_INVOKABLE QVariantList backups(const QString &id) const;
     Q_INVOKABLE bool openFolder(const QString &id, const QString &sub = {});
+    // For the list and the delete dialog: sizeBytes (whole folder), world (level-name),
+    // worldExists, mods, datapacks (enabled files), backups.
+    Q_INVOKABLE QVariantMap summary(const QString &id) const;
     Q_INVOKABLE void refreshPublicAddress();
     Q_INVOKABLE bool anyRunning() const;
     Q_INVOKABLE void copyText(const QString &text) const;

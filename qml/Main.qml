@@ -700,6 +700,7 @@ ApplicationWindow {
                         blurSource: appRoot
                         onNotify: function(message) { window.notify(message) }
                         onJoinRequested: function(hostId) { window.joinFriend(hostId) }
+                        onContentRequested: function(target, kind, loader) { modCatalog.openFor(target, kind, loader) }
                     }
                     DownloadsPage {
                         anchors.fill: parent

@@ -73,7 +73,12 @@ FocusScope {
 
     visible: scrim.opacity > 0.001 || panel.x < width
     onGameIdChanged: { tabs.currentIndex = 0; flick.contentY = 0; contentKind = "mod"; if (gameId) mods.loadInstalled(gameId, "mod") }
-    onOpenChanged: if (open) playButton.forceActiveFocus()
+    onOpenChanged: {
+        if (!open) return
+        playButton.forceActiveFocus()
+        // The servers page shares the mod list: take it back for this game.
+        if (gameId && (mods.gameId !== gameId || mods.kind !== contentKind)) mods.loadInstalled(gameId, contentKind)
+    }
 
 
     Item {

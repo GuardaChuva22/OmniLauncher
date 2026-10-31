@@ -44,7 +44,30 @@ QJsonArray loaderArray(const QString &value)
 
 QString folderFor(const QString &kind)
 {
-    return kind == "shader" ? QStringLiteral("shaderpacks") : kind == "resourcepack" ? QStringLiteral("resourcepacks") : QStringLiteral("mods");
+    return kind == "shader" ? QStringLiteral("shaderpacks") : kind == "resourcepack" ? QStringLiteral("resourcepacks")
+         : kind == "datapack" ? QStringLiteral("datapacks") : QStringLiteral("mods");
+}
+
+bool knownKind(const QString &kind)
+{
+    return kind == "mod" || kind == "shader" || kind == "resourcepack" || kind == "datapack";
+}
+
+// level-name from a dedicated server's server.properties ("world" by default).
+QString serverWorld(const QString &serverDirectory)
+{
+    QFile file(QDir(serverDirectory).filePath("server.properties"));
+    if (file.open(QIODevice::ReadOnly)) {
+        for (const auto &raw : QString::fromUtf8(file.readAll()).split('\n')) {
+            const auto line = raw.trimmed();
+            if (line.startsWith("level-name=")) {
+                const auto name = line.mid(int(QStringLiteral("level-name=").size())).trimmed();
+                if (!name.isEmpty() && !name.contains("..") && !QDir::isAbsolutePath(name))
+                    return name;
+            }
+        }
+    }
+    return QStringLiteral("world");
 }
 
 QString extensionFor(const QString &kind)
@@ -406,7 +429,15 @@ QNetworkReply *ModManager::get(const QString &url)
 
 QString ModManager::modsDirectory(const QString &gameId, const QString &kind) const
 {
-    return QDir(m_root).filePath("instances/" + gameId + "/" + folderFor(kind.isEmpty() ? m_kind : kind));
+    const auto contentKind = kind.isEmpty() ? m_kind : kind;
+    // "server:<id>": a dedicated server's folder; its datapacks belong to the world.
+    if (gameId.startsWith(QStringLiteral("server:"))) {
+        const auto server = QDir(m_root).filePath("servers/" + gameId.mid(7));
+        if (contentKind == "datapack")
+            return QDir(server).filePath(serverWorld(server) + "/datapacks");
+        return QDir(server).filePath(folderFor(contentKind));
+    }
+    return QDir(m_root).filePath("instances/" + gameId + "/" + folderFor(contentKind));
 }
 
 bool ModManager::hasModFile(const QString &gameId, const QStringList &prefixes) const
@@ -448,7 +479,7 @@ QStringList ModManager::installedProjects() const
 // ── Catalog ────────────────────────────────────────────────────────────────
 
 void ModManager::search(const QString &query, const QString &gameVersion, const QString &loader, int offset,
-                        const QString &kind, const QString &category, const QString &sort)
+                        const QString &kind, const QString &category, const QString &sort, const QString &environment)
 {
     QUrlQuery params;
     params.addQueryItem("query", query.trimmed());
@@ -466,6 +497,9 @@ void ModManager::search(const QString &query, const QString &gameVersion, const 
         facets.append(loaders);
     if (!category.isEmpty())
         facets.append(QJsonArray{"categories:" + category});
+    // A dedicated server crashes on client-only mods: leave them out of its catalog.
+    if (environment == "server" && kind == "mod")
+        facets.append(QJsonArray{"server_side!=unsupported"});
     params.addQueryItem("facets", QString::fromUtf8(QJsonDocument(facets).toJson(QJsonDocument::Compact)));
     const auto key = params.toString(QUrl::FullyEncoded);
     offset = qMax(0, offset);
@@ -557,7 +591,9 @@ void ModManager::fetchCategories(const QString &kind)
             for (const auto &value : document.array()) {
                 const auto category = value.toObject();
                 const auto name = category.value("name").toString();
-                if (category.value("project_type").toString() != kind || name.isEmpty() || seen.contains(name))
+                // Datapacks share the mod categories on Modrinth.
+                const auto type = kind == "datapack" ? QStringLiteral("mod") : kind;
+                if (category.value("project_type").toString() != type || name.isEmpty() || seen.contains(name))
                     continue;
                 seen.insert(name);
                 m_categories.append(QVariantMap{{"id", name}, {"name", name}});
@@ -891,7 +927,7 @@ bool ModManager::setEnabled(const QString &gameId, const QString &file, bool ena
     setError({});
     const auto contentKind = kind.isEmpty() ? m_kind : kind;
     if (gameId.isEmpty() || file.isEmpty() || QFileInfo(file).fileName() != file
-        || (contentKind != "mod" && contentKind != "shader" && contentKind != "resourcepack")
+        || !knownKind(contentKind)
         || (!file.endsWith(extensionFor(contentKind), Qt::CaseInsensitive)
             && !file.endsWith(extensionFor(contentKind) + ".disabled", Qt::CaseInsensitive))) {
         setError(tr("Selecione um arquivo válido para alterar."));
@@ -922,7 +958,7 @@ bool ModManager::remove(const QString &gameId, const QString &file, const QStrin
     setError({});
     const auto contentKind = kind.isEmpty() ? m_kind : kind;
     if (gameId.isEmpty() || file.isEmpty() || QFileInfo(file).fileName() != file
-        || (contentKind != "mod" && contentKind != "shader" && contentKind != "resourcepack")
+        || !knownKind(contentKind)
         || (!file.endsWith(extensionFor(contentKind), Qt::CaseInsensitive)
             && !file.endsWith(extensionFor(contentKind) + ".disabled", Qt::CaseInsensitive))) {
         setError(tr("Selecione um arquivo válido para remover."));

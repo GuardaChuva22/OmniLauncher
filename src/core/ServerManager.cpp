@@ -722,6 +722,7 @@ void ServerManager::start(const QString &id)
         if (error == QProcess::FailedToStart)
             failInstall(id, tr("Não foi possível abrir o Java do servidor."));
     });
+    updateServer(id, {{"lastStartedAt", QDateTime::currentDateTime().toString(Qt::ISODate)}});
     appendConsole(id, tr("[OmniLauncher] Iniciando com %1 MB de memória…").arg(memory));
     setStatus(id, QStringLiteral("starting"), QStringLiteral("Carregando"));
     process->start(java(server), arguments);
@@ -1045,4 +1046,22 @@ bool ServerManager::openFolder(const QString &id, const QString &sub)
     const auto directory = QDir(serverDir(id)).filePath(sub);
     QDir().mkpath(directory);
     return QDesktopServices::openUrl(QUrl::fromLocalFile(directory));
+}
+
+QVariantMap ServerManager::summary(const QString &id) const
+{
+    if (serverById(id).isEmpty())
+        return {};
+    const QDir dir(serverDir(id));
+    qint64 size = 0;
+    QDirIterator it(dir.path(), QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        size += it.fileInfo().size();
+    }
+    const auto world = properties(id).value("level-name", "world").toString();
+    return {{"sizeBytes", size}, {"world", world}, {"worldExists", dir.exists(world)},
+            {"mods", QDir(dir.filePath("mods")).entryList({"*.jar"}, QDir::Files).size()},
+            {"datapacks", QDir(dir.filePath(world + "/datapacks")).entryList({"*.zip"}, QDir::Files).size()},
+            {"backups", QDir(dir.filePath("backups")).entryList({"*.zip"}, QDir::Files).size()}};
 }

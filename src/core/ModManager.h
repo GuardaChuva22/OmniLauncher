@@ -32,7 +32,8 @@ class ModManager final : public QObject
     Q_PROPERTY(bool projectLoading READ projectLoading NOTIFY projectDetailsChanged)
     Q_PROPERTY(QString projectError READ projectError NOTIFY projectDetailsChanged)
     Q_PROPERTY(QString gameId READ gameId NOTIFY installedChanged)
-    // Which content the installed list shows: "mod" | "shader" | "resourcepack".
+    // Which content the installed list shows: "mod" | "shader" | "resourcepack" | "datapack".
+    // gameId "server:<id>" targets a dedicated server (datapacks: its world's datapacks folder).
     Q_PROPERTY(QString kind READ kind NOTIFY installedChanged)
     Q_PROPERTY(QVariantList installed READ installed NOTIFY installedChanged)
     Q_PROPERTY(QStringList installedProjects READ installedProjects NOTIFY installedChanged)
@@ -120,12 +121,13 @@ public:
     Q_INVOKABLE void cancelPack();
 
     // `loader`: the game's loader for mods; for shaders/resource packs, the Modrinth loaders
-    // of that content ("iris,optifine" / "minecraft"), comma-separated. offset > 0 appends a page.
+    // of that content ("iris,optifine" / "minecraft" / "datapack"), comma-separated. offset > 0 appends a page.
+    // environment "server" drops client-only mods.
     // Empty gameVersion/loader removes that search filter. searchOffset tracks server hits,
     // independently of duplicate projects removed from results.
     Q_INVOKABLE void search(const QString &query, const QString &gameVersion, const QString &loader, int offset = 0,
                             const QString &kind = QStringLiteral("mod"), const QString &category = {},
-                            const QString &sort = QStringLiteral("auto"));
+                            const QString &sort = QStringLiteral("auto"), const QString &environment = {});
     Q_INVOKABLE void fetchCategories(const QString &kind = QStringLiteral("mod"));
     // Compatibility always refers to the installation target, independent of search filters.
     Q_INVOKABLE void fetchProjectDetails(const QString &projectId, const QString &gameVersion,
