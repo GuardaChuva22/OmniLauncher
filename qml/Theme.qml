@@ -100,6 +100,7 @@ QtObject {
     // UiIcon outlines (24 × 24 SVG paths), one table for every icon.
     readonly property var iconPaths: ({
         "home": "M3 10L12 3L21 10V20H15V14H9V20H3Z",
+        "shirt": "M8 3L3 6L5 10L7 9V21H17V9L19 10L21 6L16 3C15 5 9 5 8 3Z",
         "minus": "M5 12H19",
         "rotateLeft": "M4 12a8 8 0 1 0 2.34-5.66 M4 4V9H9",
         "rotateRight": "M20 12a8 8 0 1 1-2.34-5.66 M20 4V9H15",

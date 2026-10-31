@@ -618,6 +618,10 @@ ApplicationWindow {
                 Behavior on width { NumberAnimation { duration: window.reduced ? 0 : Theme.normal; easing.type: Easing.OutCubic } }
                 onPageRequested: function(index) { window.page = index }
                 onProfileClicked: profileMenu.visible ? profileMenu.close() : profileMenu.open()
+                playerLayer: playerLayer
+                stageRect: Qt.rect(pageContent.x + skinsPage.stageRect.x, skinsPage.stageRect.y, skinsPage.stageRect.width, skinsPage.stageRect.height)
+                onStage: window.page === 7 && skinsPage.microsoft && !window.launching
+                outfit: skinsPage.outfit
             }
 
             Item {
@@ -686,6 +690,15 @@ ApplicationWindow {
                         reduced: window.reduced
                         onNotify: function(message) { window.notify(message) }
                     }
+                    SkinsPage {
+                        id: skinsPage
+                        anchors.fill: parent
+                        visible: window.page === 7
+                        reduced: window.reduced
+                        onNotify: function(message) { window.notify(message) }
+                        onProfileRequested: profileMenu.open()
+                        onTried: function(kind) { sidebar.react(kind) }
+                    }
                     ScreenshotsPage {
                         anchors.fill: parent
                         visible: window.page === 3
@@ -710,6 +723,15 @@ ApplicationWindow {
                         onClearHistory: window.clearDownloadHistory()
                     }
                 }
+            }
+
+            // The profile's player, drawn over the sidebar and the pages: it leans on its
+            // card, and jumps out to the skins page's stage.
+            Item {
+                id: playerLayer
+                anchors.fill: parent
+                opacity: window.launching ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: window.reduced ? 0 : Theme.normal } }
             }
         }
 
@@ -946,8 +968,12 @@ ApplicationWindow {
     Popup {
         id: profileMenu
         objectName: "profileMenu"
-        x: 12
-        y: window.height - height - 76
+        // Wide: beside the sidebar, by the player's card (which it would cover from
+        // above); compact: above the profile button.
+        readonly property real restX: window.compactSidebar ? 12 : sidebar.width + 10
+        readonly property real restY: window.height - height - (window.compactSidebar ? 76 : 16)
+        x: restX
+        y: restY
         width: 320
         padding: 14
         topPadding: 18
@@ -959,7 +985,8 @@ ApplicationWindow {
         }
         enter: Transition {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: window.reduced ? 0 : 160; easing.type: Easing.OutCubic }
-            NumberAnimation { property: "y"; from: window.height - profileMenu.height - 66; to: window.height - profileMenu.height - 76; duration: window.reduced ? 0 : 260; easing.type: Easing.OutQuint }
+            NumberAnimation { property: "x"; from: profileMenu.restX - (window.compactSidebar ? 0 : 12); to: profileMenu.restX; duration: window.reduced ? 0 : 260; easing.type: Easing.OutQuint }
+            NumberAnimation { property: "y"; from: profileMenu.restY + (window.compactSidebar ? 10 : 0); to: profileMenu.restY; duration: window.reduced ? 0 : 260; easing.type: Easing.OutQuint }
         }
         exit: Transition { NumberAnimation { property: "opacity"; to: 0; duration: window.reduced ? 0 : 110 } }
         background: GlassPanel {
@@ -1617,10 +1644,13 @@ ApplicationWindow {
         MouseArea { anchors.fill: parent }
     }
 
+    // The player climbs onto its card once the veil is mostly up.
+    Timer { id: playerCue; interval: 520; onTriggered: sidebar.revealed = true }
+
     Intro {
         id: intro
         reduced: window.reduced
-        onReveal: { appSettle.start(); if (!window.reduced) pageIntro.restart() }
-        onFinished: home.forceActiveFocus()
+        onReveal: { appSettle.start(); if (!window.reduced) pageIntro.restart(); playerCue.start() }
+        onFinished: { home.forceActiveFocus(); sidebar.revealed = true }
     }
 }

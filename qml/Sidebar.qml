@@ -8,11 +8,20 @@ Item {
     property bool compact: false
     property bool reduced: false
     property bool profileMenuOpen: false
-    property alias profileButton: profileButton
+    // What takes focus back after the profile menu.
+    readonly property Item profileButton: compact ? profileButton : ledge.card
+    // Set once the launcher is on screen: the player climbs onto the profile card.
+    property bool revealed: false
     signal pageRequested(int index)
     property var activeDownloads: []
     property real downloadsProgress: -1
     signal profileClicked()
+    // The skins page's stage, where the player jumps to (see ProfileLedge).
+    property Item playerLayer: null
+    property rect stageRect: Qt.rect(0, 0, 0, 0)
+    property bool onStage: false
+    property var outfit: null
+    function react(kind) { ledge.react(kind) }
 
     readonly property bool hasProfile: launcher.activeProfileId !== ""
     readonly property int inset: compact ? 14 : 16
@@ -45,7 +54,7 @@ Item {
         spacing: 4
         Repeater {
             model: [{ label: qsTr("Jogos"), icon: "grid", page: 0 }, { label: qsTr("Modpacks"), icon: "packs", page: 1 },
-                    { label: qsTr("Mundos"), icon: "map", page: 6 },
+                    { label: qsTr("Mundos"), icon: "map", page: 6 }, { label: qsTr("Skins"), icon: "shirt", page: 7 },
                     { label: qsTr("Capturas"), icon: "image", page: 3 }, { label: qsTr("Servidores"), icon: "server", page: 5 }]
             delegate: NavItem {
                 required property var modelData
@@ -61,11 +70,35 @@ Item {
         }
     }
 
+    // Wide: the player on its card, with Downloads and Settings on it.
+    ProfileLedge {
+        id: ledge
+        x: root.inset
+        width: root.width - root.inset * 2
+        height: implicitHeight
+        anchors.bottom: parent.bottom; anchors.bottomMargin: 16
+        visible: !root.compact
+        reduced: root.reduced
+        menuOpen: root.profileMenuOpen
+        page: root.page
+        activeDownloads: root.activeDownloads
+        downloadsProgress: root.downloadsProgress
+        stageLayer: root.playerLayer
+        stageRect: root.stageRect
+        onStage: root.onStage
+        outfit: root.outfit
+        onProfileClicked: root.profileClicked()
+        onPageRequested: function(index) { root.pageRequested(index) }
+    }
+    onRevealedChanged: if (revealed) ledge.start()
+
+    // Compact: the items stacked, the profile as its face.
     ColumnLayout {
         x: root.inset
         width: root.width - root.inset * 2
         anchors.bottom: parent.bottom; anchors.bottomMargin: 16
         spacing: 10
+        visible: root.compact
 
         NavItem {
             id: downloadsItem
@@ -81,60 +114,7 @@ Item {
             ToolTip.visible: false
             onClicked: root.pageRequested(4)
 
-            // Hover: a compact list of what is downloading right now.
-            Popup {
-                x: downloadsItem.width + 14
-                y: downloadsItem.height - height
-                width: 300
-                padding: 14
-                visible: downloadsItem.hovered && root.activeDownloads.length > 0
-                closePolicy: Popup.NoAutoClose
-                background: Rectangle { color: Theme.popup; radius: 14; border.width: 1; border.color: Theme.lineStrong }
-                contentItem: ColumnLayout {
-                    spacing: 10
-                    Text {
-                        text: qsTr("Baixando agora")
-                        color: Theme.muted
-                        font.family: Theme.font; font.pixelSize: 12; font.weight: Font.DemiBold
-                    }
-                    Repeater {
-                        model: root.activeDownloads.slice(0, 4)
-                        delegate: ColumnLayout {
-                            id: summary
-                            required property var modelData
-                            Layout.fillWidth: true
-                            spacing: 5
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: summary.modelData.title
-                                    color: Theme.text
-                                    font.family: Theme.font; font.pixelSize: 13; font.weight: Font.Medium
-                                    elide: Text.ElideRight
-                                }
-                                Text {
-                                    visible: summary.modelData.progress >= 0
-                                    text: Math.round(summary.modelData.progress * 100) + "%"
-                                    color: Theme.accentText
-                                    font.family: Theme.font; font.pixelSize: 12; font.weight: Font.DemiBold
-                                }
-                            }
-                            Rectangle {
-                                Layout.fillWidth: true
-                                height: 3; radius: 1.5
-                                color: "#1FFFFFFF"
-                                Rectangle {
-                                    width: parent.width * Math.max(0.08, summary.modelData.progress)
-                                    height: parent.height; radius: 1.5
-                                    color: Theme.accent
-                                    opacity: summary.modelData.progress >= 0 ? 1 : 0.5
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            DownloadsPeek { downloads: root.activeDownloads }
         }
         NavItem {
             Layout.fillWidth: true

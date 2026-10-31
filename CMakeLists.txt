@@ -56,6 +56,10 @@ qt_add_executable(OmniLauncher WIN32
     src/core/EntityModels.cpp
     src/core/WorldView3D.h
     src/core/WorldView3D.cpp
+    src/core/SkinView3D.h
+    src/core/SkinView3D.cpp
+    src/core/SkinManager.h
+    src/core/SkinManager.cpp
     src/core/OmniLink.h
     src/core/OmniLink.cpp
     src/app/app.rc

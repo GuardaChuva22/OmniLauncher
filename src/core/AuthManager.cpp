@@ -340,43 +340,53 @@ void AuthManager::minecraftLogin(const QString &msAccessToken, Done done)
 
 void AuthManager::requestSession(const QString &uuid)
 {
+    if (const auto cached = m_sessions.value(uuid); cached.accessToken.isEmpty() || cached.expires <= QDateTime::currentDateTimeUtc().addSecs(600))
+        setStage(tr("Verificando sua conta Microsoft"));
+    withSession(uuid, [this, uuid](const QString &error, const QVariantMap &account) {
+        setStage({});
+        if (error.isEmpty())
+            emit sessionReady(uuid, account);
+        else
+            emit sessionFailed(uuid, error);
+    });
+}
+
+void AuthManager::withSession(const QString &uuid, SessionDone done)
+{
     const auto cached = m_sessions.value(uuid);
     if (!cached.accessToken.isEmpty() && cached.expires > QDateTime::currentDateTimeUtc().addSecs(600)) {
-        emit sessionReady(uuid, {{"uuid", uuid}, {"name", cached.name}, {"accessToken", cached.accessToken},
-                                 {"xuid", cached.xuid}, {"clientId", m_clientId}});
+        done({}, {{"uuid", uuid}, {"name", cached.name}, {"accessToken", cached.accessToken},
+                  {"xuid", cached.xuid}, {"clientId", m_clientId}});
         return;
     }
     const auto refresh = loadRefreshToken(uuid);
     if (!configured() || refresh.isEmpty()) {
-        emit sessionFailed(uuid, tr("Entre na conta Microsoft novamente para jogar com esse Perfil."));
+        done(tr("Entre na conta Microsoft novamente para jogar com esse Perfil."), {});
         return;
     }
-    setStage(tr("Verificando sua conta Microsoft"));
     exchangeToken({{"client_id", m_clientId}, {"scope", kScope}, {"grant_type", "refresh_token"}, {"refresh_token", refresh}},
-                  [this, uuid](const QString &error, const QVariantMap &tokens) {
+                  [this, uuid, done](const QString &error, const QVariantMap &tokens) {
         if (!error.isEmpty()) {
-            setStage({});
-            emit sessionFailed(uuid, error);
+            done(error, {});
             return;
         }
         if (!tokens.value("refresh_token").toString().isEmpty())
             storeRefreshToken(uuid, tokens.value("refresh_token").toString());
-        minecraftLogin(tokens.value("access_token").toString(), [this, uuid](const QString &error, const QVariantMap &mc) {
-            setStage({});
-            if (error.isEmpty() && mc.value("uuid").toString() != uuid) {
-                emit sessionFailed(uuid, tr("A conta Microsoft salva pertence a outro perfil do Minecraft."));
+        minecraftLogin(tokens.value("access_token").toString(), [this, uuid, done](const QString &error, const QVariantMap &mc) {
+            if (!error.isEmpty()) {
+                done(error, {});
                 return;
             }
-            if (!error.isEmpty()) {
-                emit sessionFailed(uuid, error);
+            if (mc.value("uuid").toString() != uuid) {
+                done(tr("A conta Microsoft salva pertence a outro perfil do Minecraft."), {});
                 return;
             }
             Session session{mc.value("accessToken").toString(), mc.value("xuid").toString(), mc.value("name").toString(),
                             QDateTime::currentDateTimeUtc().addSecs(mc.value("expiresIn").toLongLong())};
             m_sessions.insert(uuid, session);
             downloadSkin(uuid, mc.value("skinUrl").toString());
-            emit sessionReady(uuid, {{"uuid", uuid}, {"name", session.name}, {"accessToken", session.accessToken},
-                                     {"xuid", session.xuid}, {"clientId", m_clientId}});
+            done({}, {{"uuid", uuid}, {"name", session.name}, {"accessToken", session.accessToken},
+                      {"xuid", session.xuid}, {"clientId", m_clientId}});
         });
     });
 }

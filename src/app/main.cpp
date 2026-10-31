@@ -7,6 +7,8 @@
 #include "Wrapped.h"
 #include "Worlds.h"
 #include "WorldView3D.h"
+#include "SkinView3D.h"
+#include "SkinManager.h"
 #include "PackCloud.h"
 #include "SteamTunnel.h"
 #include "GameRunner.h"
@@ -128,6 +130,7 @@ int main(int argc, char *argv[])
     runner.setLink(&link);
     ModManager mods(model.dataDirectory());
     AuthManager auth(model.dataDirectory());
+    SkinManager skins(model.dataDirectory(), &auth);
     UpdateManager updates;
     DiscordPresence discord;
     ServerManager servers(model.dataDirectory());
@@ -145,6 +148,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("omniLink"), &link);
     engine.rootContext()->setContextProperty(QStringLiteral("mods"), &mods);
     engine.rootContext()->setContextProperty(QStringLiteral("auth"), &auth);
+    engine.rootContext()->setContextProperty(QStringLiteral("skins"), &skins);
+    engine.addImageProvider(QStringLiteral("skinfront"), new SkinFrontProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("updates"), &updates);
     engine.rootContext()->setContextProperty(QStringLiteral("discord"), &discord);
     engine.rootContext()->setContextProperty(QStringLiteral("servers"), &servers);
@@ -152,6 +157,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("wrapped"), &wrapped);
     engine.rootContext()->setContextProperty(QStringLiteral("worlds"), &worlds);
     WorldView3D::setDataDirectory(model.dataDirectory());
+    SkinView3D::setDataDirectory(model.dataDirectory());
     WorldView3D::setLink(&link);
     engine.rootContext()->setContextProperty(QStringLiteral("cloud"), &cloud);
     engine.rootContext()->setContextProperty(QStringLiteral("steam"), &steam);

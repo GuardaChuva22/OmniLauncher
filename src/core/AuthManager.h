@@ -47,6 +47,13 @@ public:
     // Local skin file (file URL) for the avatar, or "" when not cached yet.
     Q_INVOKABLE QString skinSource(const QString &uuid) const;
 
+    using SessionDone = std::function<void(const QString &error, const QVariantMap &account)>;
+    // A fresh Minecraft session for a saved Microsoft profile, refreshing its tokens when
+    // needed, without the signals (for the skin and cape calls).
+    void withSession(const QString &uuid, SessionDone done);
+    // Fetch the profile's skin again (after it changed) into the local cache.
+    void updateSkin(const QString &uuid, const QString &url) { downloadSkin(uuid, url); }
+
 signals:
     void busyChanged();
     void signedIn(const QVariantMap &profile); // uuid, name
